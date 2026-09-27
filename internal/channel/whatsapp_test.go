@@ -1,7 +1,11 @@
 package channel
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -167,5 +171,33 @@ func TestGraphError(t *testing.T) {
 	err := w.SendText(context.Background(), "1", "hi", "")
 	if err == nil || !strings.Contains(err.Error(), "token expired") {
 		t.Fatalf("expected graph error, got %v", err)
+	}
+}
+
+func TestSignatureVerification(t *testing.T) {
+	secret := "app-secret"
+	body := []byte(`{"entry":[]}`)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	good := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+
+	fc := &fakeCore{}
+	w := newTestWhatsApp(fc)
+	w.cfg.AppSecret = secret
+
+	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", bytes.NewReader(body))
+	req.Header.Set("X-Hub-Signature-256", good)
+	rec := httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("good signature: got %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", bytes.NewReader(body))
+	req.Header.Set("X-Hub-Signature-256", "sha256=deadbeef")
+	rec = httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("bad signature: got %d, want 401", rec.Code)
 	}
 }
