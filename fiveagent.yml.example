@@ -7,6 +7,9 @@ model:
 channels:
   telegram:
     enabled: false
+    # Create a bot with @BotFather on Telegram, paste the token here:
+    # bot_token: "123456:ABC-DEF..."
+    # No public URL needed: the agent polls Telegram, so it works on any PC.
   whatsapp:
     enabled: false
     # Official WhatsApp Cloud API (Meta):
