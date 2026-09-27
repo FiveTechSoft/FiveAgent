@@ -86,24 +86,11 @@ func (j *jobobject) Run(ctx context.Context, userKey string, argv []string) (Res
 	ctx, cancel := context.WithTimeout(ctx, j.timeout)
 	defer cancel()
 
-	// KILL_ON_JOB_CLOSE guarantees the process tree dies when the job
-	// handle closes, even if the timeout path fails.
-	h, _, errNo := procCreateJobObjectW.Call(0, 0)
-	if h == 0 {
-		return Result{}, fmt.Errorf("sandbox: CreateJobObject: %v", errNo)
+	job, err := createJob(j.maxRAM)
+	if err != nil {
+		return Result{}, err
 	}
-	job := syscall.Handle(h)
 	defer syscall.CloseHandle(job)
-
-	lim := jobobjectExtendedLimitInformation{}
-	lim.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose | jobObjectLimitProcessMemory
-	lim.ProcessMemoryLimit = uintptr(j.maxRAM) << 20
-	r, _, errNo := procSetInformationJobObject.Call(
-		uintptr(job), jobObjectExtendedLimitInformation,
-		uintptr(unsafe.Pointer(&lim)), unsafe.Sizeof(lim))
-	if r == 0 {
-		return Result{}, fmt.Errorf("sandbox: SetInformationJobObject: %v", errNo)
-	}
 
 	var out, errb limitedWriter
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
@@ -138,4 +125,25 @@ func (j *jobobject) Run(ctx context.Context, userKey string, argv []string) (Res
 		waitErr = nil
 	}
 	return res, waitErr
+}
+
+// createJob makes a Job Object that kills the whole process tree when
+// its handle closes and caps per-process memory at maxRAM MiB.
+func createJob(maxRAM int) (syscall.Handle, error) {
+	h, _, errNo := procCreateJobObjectW.Call(0, 0)
+	if h == 0 {
+		return 0, fmt.Errorf("sandbox: CreateJobObject: %v", errNo)
+	}
+	job := syscall.Handle(h)
+	lim := jobobjectExtendedLimitInformation{}
+	lim.BasicLimitInformation.LimitFlags = jobObjectLimitKillOnJobClose | jobObjectLimitProcessMemory
+	lim.ProcessMemoryLimit = uintptr(maxRAM) << 20
+	r, _, errNo := procSetInformationJobObject.Call(
+		uintptr(job), jobObjectExtendedLimitInformation,
+		uintptr(unsafe.Pointer(&lim)), unsafe.Sizeof(lim))
+	if r == 0 {
+		syscall.CloseHandle(job)
+		return 0, fmt.Errorf("sandbox: SetInformationJobObject: %v", errNo)
+	}
+	return job, nil
 }
