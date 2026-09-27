@@ -97,7 +97,9 @@ go build -o fiveagent ./app/fiveagent
 
 WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md) - guía en español, paso a paso, con las trampas reales ya documentadas.
 
-![Real conversation: a phone talks to FiveAgent on WhatsApp, answered by DeepSeek](docs/images/1-2-whatsapp-e2e-real.jpg) Telegram: [docs/telegram.md](docs/telegram.md), five minutes with @BotFather, no tunnel needed. iMessage is coming next.
+![Real conversation: a phone talks to FiveAgent on WhatsApp, answered by DeepSeek](docs/images/1-2-whatsapp-e2e-real.jpg)
+
+![Real conversation: FiveAgent answers on WhatsApp using a local model (Ollama qwen3.8:27b) on a home PC, no cloud](docs/images/1-3-whatsapp-ollama-pc-real.jpg) Telegram: [docs/telegram.md](docs/telegram.md), five minutes with @BotFather, no tunnel needed. iMessage is coming next.
 
 Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent/issues - tell us your operating system and the exact error message.
 
