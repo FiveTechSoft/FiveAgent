@@ -51,7 +51,12 @@ the phases are milestones.
       short self-critique in plain words when a task fails or the user
       corrects it ("no, the other Taylor"), recalled as data in later
       turns. User corrections are the evaluation signal, and in a chat
-      bot they come for free.
+      bot they come for free. Inbound emoji reactions are free feedback
+      too: keep the wamid-to-reply mapping at send time, record 👍/❤️
+      as positive and 👎 as negative feedback on that exact reply, and
+      feed it to learnings and eval scenarios. (Inbound reactions are
+      already intercepted before the agent: they never trigger a
+      turn.)
    g. **Rolling session digest** - today the conversation history
       truncates to the last 20 messages, so old detail is lost unless
       the agent stored it. Before truncating, summarize the outgoing
