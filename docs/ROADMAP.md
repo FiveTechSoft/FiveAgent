@@ -85,24 +85,45 @@ the phases are milestones.
    everything else to the chat model. The coder inherits base_url,
    provider and api_key from model when omitted. Later: more task
    classes beyond chat/code and fully configurable model sets.
+11. **Model tuning** (planned) - get the most out of the local model,
+   each step adopted or dropped by evals, never vibes, roughly in
+   cost/benefit order:
+   a. **Sampling parameters** - low temperature for tool calls and
+      facts, higher for chat; presence_penalty against the repetition
+      loops small models fall into.
+   b. **Structured outputs** - force a JSON schema on tool calls
+      (Ollama supports it): turns "almost always parses" into
+      "always parses" for a small model.
+   c. **Few-shot system prompt** - 2-3 examples of perfect
+      interactions; small models punch far above their weight with
+      concrete examples.
+   d. **Tool discipline** - few tools, well described; every extra
+      tool degrades a small model.
+   e. **Explicit planning step** - for complex tasks, plan before
+      acting; small models fail by skipping steps, not by capacity.
+   f. **Quantization choices** - a 9b at q8 usually beats a 14b at q4
+      at equal VRAM. Measurable.
+   g. **LoRA on real conversations** (long-term) - the end of the
+      curve, not the start; a 9b adapter fits in 12GB with Unsloth.
+   First candidates: a and b (one afternoon, direct impact), then c.
 
 ## Phase 3 - v0.3: tools
 
-11. **Web search** - pluggable backend, with a self-hosted SearXNG option.
-12. **Browser** - drive the Playwright sidecar (already in docker compose).
-13. **Email + calendar** - read and act on the user's accounts (OAuth).
+12. **Web search** - pluggable backend, with a self-hosted SearXNG option.
+13. **Browser** - drive the Playwright sidecar (already in docker compose).
+14. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
 
-14. **iMessage** - bridge docs + reference implementation (needs a Mac).
-15. **WhatsApp extras** - status reactions (working): 👀 when an
+15. **iMessage** - bridge docs + reference implementation (needs a Mac).
+16. **WhatsApp extras** - status reactions (working): 👀 when an
     inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
     through the same /messages endpoint, replacing the previous
     reaction on the same message, best-effort (a failed reaction never
     breaks the reply), behind `reactions: off|status` in the yml. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
-16. **Content reactions** (planned) - on top of status reactions, the
+17. **Content reactions** (planned) - on top of status reactions, the
     agent reacts to what a message says, not just its state: a
     celebration, a joke, a thank-you gets a fitting emoji chosen from
     the message content. Cheap to build (a small extra model call or
@@ -111,7 +132,7 @@ the phases are milestones.
 
 ## Phase 5 - setup that does not need a manual
 
-17. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+18. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
