@@ -24,7 +24,22 @@ the phases are milestones.
 
 ## Phase 2 - v0.2: memory and safety
 
-7. **Long-term memory** - pgvector embeddings, recall beyond the last 20 messages.
+7. **File-based long-term memory** (planned) - the agent remembers
+   beyond the last 20 messages using plain markdown files with git as
+   the source of truth: readable, versioned, no extra infrastructure,
+   and an LLM reads markdown natively. It grows in stages:
+   a. **Minimal memory** - three files: people.md, preferences.md,
+      workstreams.md. Empty folders from day one are debt; the
+      structure grows only when real use demands it.
+   b. **Keyword and alias retrieval** - recall by exact words and
+      curated aliases kept in each memory file.
+   c. **SQLite FTS5 index** - an embedded full-text index as a
+      rebuildable cache. The files stay the source of truth; the index
+      is disposable. Database speed, zero infrastructure.
+   d. **Organic growth and links** - new files and folders appear when
+      they hurt; [[id]] links connect related records (a plain-text
+      graph, parsed when needed). A graph or vector database only
+      enters if real scale one day demands it.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (planned) - send each request to the model
