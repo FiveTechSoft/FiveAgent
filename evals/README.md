@@ -30,9 +30,15 @@ both sides of scripted conversations, so the numbers say how the memory
 - `TestConcurrentSaves` - parallel saves from concurrent senders must
   all land: no silent fact loss on the git-backed store.
 
+- `TestAbstentionPrompt` - the honesty rules must stay in the system
+  prompt (born from a real confabulation: the model invented Harbour
+  syntax and the meaning of FWH, the owner's own product).
+
 **Live model evals (manual quality gate).** `TestLiveModelMemory` runs
 the same loop against a real model server, with the model itself
-deciding what to save. Non-deterministic and needs a running model, so
+deciding what to save. `TestLiveAbstention` replays the exact Harbour/
+FWH confabulation: the answer must not contain the invented tokens and
+must name FiveWin or abstain. Non-deterministic and needs a running model, so
 it does not run in CI:
 
 ```
