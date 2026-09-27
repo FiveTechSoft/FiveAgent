@@ -44,6 +44,10 @@ type Channel struct {
 type Memory struct {
 	Postgres string `yaml:"postgres"`
 	JSON     string `yaml:"json,omitempty"`
+	// Knowledge is the long-term memory folder (markdown + git). When
+	// set, the agent recalls from it every turn and gets save_memory /
+	// forget_memory tools to curate it. Empty disables long-term memory.
+	Knowledge string `yaml:"knowledge,omitempty"`
 }
 
 // Sandbox holds the per-user isolated execution settings. Disabled by
