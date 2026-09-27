@@ -27,6 +27,8 @@ both sides of scripted conversations, so the numbers say how the memory
   forget_memory and it stops being injected.
 - `TestHistoryIsolation` - one sender's conversation never leaks into
   another sender's request.
+- `TestConcurrentSaves` - parallel saves from concurrent senders must
+  all land: no silent fact loss on the git-backed store.
 
 **Live model evals (manual quality gate).** `TestLiveModelMemory` runs
 the same loop against a real model server, with the model itself
@@ -52,6 +54,8 @@ passes against the target model.
 - injection cost at 50 notes: 726 chars (~181 tokens)
 - forget by agent: 1/1
 - cross-sender history leaks: 0/1
+- concurrent saves: 8/8 stored and recallable (was 5-7/8 before the
+  store mutex: silent fact loss under parallel senders)
 
 First catch: the precision eval proved the template description lines
 ("Who the user knows...") polluted recall for common words; recall now
@@ -61,3 +65,7 @@ Second catch: the scaling eval showed injection cost growing linearly
 with matching notes (2956 chars / ~739 tokens at 50 notes, guardrail
 breaks around 60). Recall now caps each file at its 10 most recent
 matching bullets: 726 chars at 50 notes.
+
+Third catch: the concurrency eval proved parallel senders lost facts
+silently (5-7 of 8 saves landed, no error). Knowledge now serializes
+reads and writes with one mutex: 8/8, race-detector clean.
