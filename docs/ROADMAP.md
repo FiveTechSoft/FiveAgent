@@ -25,6 +25,11 @@ the phases are milestones.
 6. **Long-term memory** - pgvector embeddings, recall beyond the last 20 messages.
 7. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 8. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
+9. **Per-task model routing** (planned) - send each request to the model
+   that does it best: conversation to Qwen3-30B, code to Qwen2.5-Coder
+   (great at code, weaker prose). Configurable in fiveagent.yml
+   (models: chat / code / ...), with a router that classifies each
+   request. Several local models share the work, each doing its own job.
 
 ## Phase 3 - v0.3: tools
 
