@@ -1,133 +1,202 @@
-# WhatsApp setup, step by step (with pictures)
+# Conectar WhatsApp, paso a paso
 
-Goal: when someone writes to your WhatsApp number, the message reaches
-FiveAgent running on your own PC, and the agent answers.
+Esta guía te lleva de cero a hablar con FiveAgent por WhatsApp en unos
+15 minutos. Todo es gratis. Está escrita desde una instalación real: cada
+trampa descrita aquí nos pasó de verdad.
 
-You need three things, all free:
+**English summary:** this is the WhatsApp setup guide (Meta Cloud API,
+cloudflared tunnel, webhook registration). The steps below are in simple
+Spanish; the Meta panel button names are quoted so you can follow them in
+any language.
 
-- **A Meta developer app** - gives you a test phone number and a token.
-- **cloudflared** - gives your PC a public web address (one command).
-- **fiveagent.yml** - the file where you paste the values.
+## Lo que necesitas
 
-Total time: about 15 minutes the first time.
+- Tu PC con FiveAgent funcionando (ver el README).
+- **cloudflared**: da una dirección pública a tu PC. Sin cuenta.
+- Una cuenta de Facebook para crear la **app de Meta** (gratis): de ahí
+  salen el número de prueba y el token.
 
----
+## Paso 1 - Crear la app de Meta y copiar 2 valores
 
-## Step 1 - Create the Meta app and copy 2 values
-
-1. Go to https://developers.facebook.com and log in with a Facebook account.
-2. **Mis aplicaciones** → **Crear app** → type **Otro** → **Empresa**,
-   name it whatever you like.
-3. In the left menu open **Casos de uso**, find **WhatsApp** and click
+1. Entra en https://developers.facebook.com e inicia sesión.
+2. **Mis aplicaciones** → **Crear app** → **Otro** → **Empresa**, ponle
+   el nombre que quieras.
+3. En el menú de la izquierda: **Casos de uso** → busca **WhatsApp** →
    **Personalizar**.
-4. You land on **Configuración de la API**. Copy these two values:
-   - **Token de acceso temporal** (access token)
-   - **Identificador del número de teléfono** (phone number id), under
-     "De" / "From"
+4. Estás en **Configuración de la API**. Apunta:
+   - **Token de acceso temporal**
+   - **Identificador del número de teléfono** (phone number id), bajo "De"
+   - El **número de prueba** que aparece ahí (a ese número escribirás)
 
-> Picture coming soon - waiting for a real screenshot of this page.
-> (Issue: we only publish real captures, no mockups.)
+> Ojo: el token temporal **caduca en 24 horas**. Cuando caduque, vuelve a
+> esta página y pega el nuevo en fiveagent.yml. (Existe un token
+> permanente con un "usuario del sistema" en Meta Business; no hace falta
+> para empezar.)
 
-> The temporary token lasts 24 hours. When it expires, come back to this
-> page and copy the new one into fiveagent.yml. A permanent token needs a
-> "system user" in Meta Business settings - that is optional homework for
-> later, not needed for your first test.
+> Captura real pendiente de publicar.
 
-## Step 2 - Give your PC a public address (cloudflared)
+## Paso 2 - Añadir tu número como destinatario de prueba
 
-FiveAgent listens on your PC, but Meta's servers need a public address to
-deliver messages. cloudflared makes one in seconds, no account needed:
+Mientras la app está en modo prueba, Meta **solo** entrega mensajes a los
+números que autorices:
 
-1. Download cloudflared: https://github.com/cloudflare/cloudflared/releases
-   (Windows: `cloudflared-windows-amd64.msi`).
-2. Start FiveAgent first (it listens on port 8080), then run:
-
-   ```
-   cloudflared tunnel --url http://localhost:8080
-   ```
-
-3. The terminal shows a public URL like
-   `https://something-random.trycloudflare.com`. Copy it.
-
-> **Important:** this URL changes every time you restart cloudflared. If
-> you restart it, you must repeat Step 3 with the new URL. Keep the
-> cloudflared window open while you use the bot.
-
-> Picture coming soon - waiting for a real screenshot of the cloudflared
-> terminal showing the URL.
-
-## Step 3 - Tell Meta where to deliver your messages (Webhook)
-
-1. Back in the Meta app, left menu: **Casos de uso** → WhatsApp →
-   **Personalizar** → **Configuración**.
-2. Scroll to **Webhook** and click **Editar**.
-3. Fill in:
-   - **URL de devolución de llamada** (callback URL): your cloudflared URL
-     **plus** `/webhook/whatsapp`, e.g.
-     `https://something-random.trycloudflare.com/webhook/whatsapp`
-   - **Token de verificación / Identificador de verificación** (verify
-     token): the same value you put in `verify_token` in fiveagent.yml.
-     You invent this value yourself; both sides must match exactly.
-4. Click **Verificar y guardar**. If FiveAgent and cloudflared are
-   running, it saves on the first try.
-5. In **Campos del webhook**, subscribe to **messages**.
-
-> Pictures coming soon - waiting for real screenshots of the Webhook
-> dialog and the messages subscription.
-
-> Wrong page? If you see "Información básica" with an app id and a secret
-> key, you are in the wrong place (and never touch the secret key). Go to
-> **Casos de uso** instead:
->
-> ![The basic settings page is NOT where the webhook lives](images/1-whatsapp-meta-basic.png)
-
-## Step 4 - Add yourself as a test recipient
-
-While the app is in test mode, Meta only delivers messages to numbers you
-approve:
-
-1. **Configuración de la API** → section **Para** / "To" →
+1. En la misma **Configuración de la API**, sección **Para** →
    **Administrar lista de números**.
-2. Add your own phone number with country code (e.g. +34 600 123 456).
-3. Meta sends you a code on WhatsApp - enter it to confirm.
+2. Añade tu número con prefijo de país (ej.: +34 600 123 456).
+3. Meta te manda un código por WhatsApp; introdúcelo para confirmar.
 
-> Picture coming soon - waiting for a real screenshot of this page.
+> Captura real pendiente de publicar.
 
-## Step 5 - Fill fiveagent.yml and start
+## Paso 3 - Rellenar fiveagent.yml y arrancar
 
 ```yaml
 channels:
   whatsapp:
     enabled: true
-    access_token: "<temporary token from Step 1>"
-    phone_number_id: "<phone number id from Step 1>"
-    verify_token: "<a random string you invent>"
-    # app_secret: "<Meta app secret>"  # optional: verifies webhook signatures
+    access_token: "<token temporal del Paso 1>"
+    phone_number_id: "<identificador del número del Paso 1>"
+    verify_token: "<una palabra inventada por ti, larga y rara>"
 ```
 
-Start FiveAgent (`fiveagent.exe` or `docker compose up`), keep cloudflared
-running, and send **hola** from your WhatsApp to the test number (it
-appears on the Configuración de la API page). FiveAgent should answer.
+Arranca FiveAgent (`fiveagent.exe` o `docker compose up`). Debe decir
+`whatsapp webhook listening on :8080/webhook/whatsapp`.
+
+## Paso 4 - Dar una dirección pública a tu PC (cloudflared)
+
+1. Descarga cloudflared:
+   https://github.com/cloudflare/cloudflared/releases
+   (Windows: `cloudflared-windows-amd64.msi`).
+2. Ejecuta:
+
+   ```
+   cloudflared tunnel --url http://localhost:8080
+   ```
+
+3. El terminal muestra una URL tipo
+   `https://palabras-al-azar.trycloudflare.com`. Cópiala.
+
+> **Importante:** la URL **cambia cada vez que reinicias cloudflared**.
+> Si lo reinicias, repite el Paso 5 con la URL nueva. Deja la ventana de
+> cloudflared abierta mientras uses el bot.
+
+## Paso 5 - Registrar el webhook (las DOS cosas, no una)
+
+Aquí es donde casi todo el mundo se queda atascado. Hacen falta **dos
+registros distintos**, y el panel de Meta te deja hacer el primero sin
+avisarte de que falta el segundo. Nos pasó: el panel mostraba "eventos"
+pero **no llegaba ningún mensaje**.
+
+### 5a - El webhook de la app
+
+1. **Casos de uso** → WhatsApp → **Personalizar** → **Configuración**
+   (si ves "Información básica", estás en la página equivocada - abajo
+   hay una captura).
+2. Sección **Webhook** → **Editar**:
+   - **URL de devolución de llamada**: tu URL de cloudflared **más**
+     `/webhook/whatsapp`, por ejemplo
+     `https://palabras-al-azar.trycloudflare.com/webhook/whatsapp`
+   - **Token de verificación**: el mismo `verify_token` de fiveagent.yml
+3. **Verificar y guardar**. Con FiveAgent y cloudflared encendidos,
+   funciona a la primera.
+4. **No cierres todavía:** en **Campos de webhook** (aparece en el
+   "Paso 2. Configuración de producción" del asistente) **suscríbete a
+   `messages`**. Sin esto, Meta muestra eventos en el panel pero **nunca
+   envía nada a tu PC**. Esta fue nuestra primera trampa real.
+
+> Captura real pendiente de publicar.
+
+### 5b - Suscribir la app a la cuenta de WhatsApp Business
+
+Aunque el webhook esté registrado, los mensajes reales **no llegan** si la
+app no está suscrita a la WhatsApp Business Account (WABA). Síntoma real:
+en `subscribed_apps` solo aparece "WA DevX Webhook Events 1P App" (la app
+interna de Meta), no la tuya. Esta fue nuestra segunda trampa real.
+
+El panel no deja hacer esto; va por API. Necesitas tu **WABA id**: está en
+**Configuración de la API**, o en la URL cuando navegas por WhatsApp en
+el panel. Con el token del Paso 1:
+
+```
+curl -X POST "https://graph.facebook.com/v21.0/<WABA_ID>/subscribed_apps" \
+  -H "Authorization: Bearer <TOKEN>"
+```
+
+Debe responder `{"success": true}`. Compruébalo con un GET al mismo URL:
+tu app tiene que aparecer en la lista.
+
+## Paso 6 - Probar
+
+Desde tu WhatsApp (el número que autorizaste en el Paso 2), escribe
+**Hola** al número de prueba. FiveAgent responde.
+
+En el registro de FiveAgent verás líneas como:
+
+```
+whatsapp: inbound POST, 439 bytes
+whatsapp: message from 34600123456 (type text)
+```
+
+Si no aparece **nada**, Meta no está entregando: repasa 5a (¿`messages`
+suscrito?) y 5b (¿tu app en `subscribed_apps`?). Son las dos trampas que
+nos costaron horas.
+
+## Si reinicias algo
+
+- **cloudflared** → URL nueva → repite el Paso 5a con la URL nueva.
+- **Token de 24 h caducado** → token nuevo del Paso 1 en fiveagent.yml y
+  reinicia FiveAgent.
+
+## ¿Y en el futuro?
+
+Queremos un `fiveagent setup whatsapp` que haga todo esto con un comando
+([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
+**Todavía no existe**: hoy el camino es esta guía.
+
+## Página equivocada frecuente
+
+Si al entrar ves "Información básica" con un "Identificador de la
+aplicación" y una "Clave secreta", **no es ahí** (y no toques la clave
+secreta). Ve a **Casos de uso** → WhatsApp → **Personalizar**:
+
+![La página de información básica NO es donde vive el webhook](images/1-whatsapp-meta-basic.png)
 
 ---
 
-## What works today
+## Referencia técnica
 
-- Webhook verification (`GET`), constant-time token compare.
-- Inbound: text, image, audio (voice notes), document, video, sticker,
-  location and reaction messages, described to the agent (e.g. `[image: caption]`).
-  `DownloadMedia` fetches the actual bytes from Meta when a tool needs them.
-- Outbound: text, media by link (`SendMedia`), approved templates for the
-  >24 h window (`SendTemplate`), media upload by id (`UploadMedia`).
-- Read receipts + typing indicator on incoming messages.
-- Replies quote the original message.
-- Delivery/read/failed status notifications are logged.
-- Optional X-Hub-Signature-256 verification when `app_secret` is set.
-- Async processing (we 200 fast, Meta retries on non-200).
-- Unit tests: `go test ./internal/channel/`.
+### Lo que funciona hoy
 
-## Missing today
+- Verificación del webhook (`GET`) con comparación en tiempo constante.
+- Entrante: texto, imágenes, notas de voz, documentos, vídeo, stickers,
+  ubicaciones y reacciones, descritos al agente (ej.: `[image: caption]`).
+  `DownloadMedia` baja los bytes de Meta cuando haga falta.
+- Saliente: texto, media por enlace (`SendMedia`), plantillas aprobadas
+  para fuera de la ventana de 24 h (`SendTemplate`), subida de media
+  (`UploadMedia`).
+- Acuse de lectura + indicador de "escribiendo..." al recibir.
+- Las respuestas citan el mensaje original.
+- Estados de entrega (enviado/entregado/leído/fallido) en el registro.
+- Verificación opcional de firma X-Hub-Signature-256 con `app_secret`.
+- Procesado asíncrono (200 rápido; Meta reintenta si no).
+- Registro de cada POST entrante y cada mensaje.
+- Tests: `go test ./internal/channel/`.
 
-- Voice note transcription (needs a speech-to-text tool).
-- Some screenshots in this guide - real captures are being collected;
-  no mockups are published.
+### Probado en vivo
+
+Circuito completo verificado de punta a punta (27-sep-2026): un "Hola"
+real desde un teléfono entró por el webhook, el agente respondió con
+DeepSeek y la respuesta llegó al teléfono. Registro real:
+
+```
+whatsapp: inbound POST, 555 bytes
+whatsapp: message from 346XXXXXXXXX (type text)
+```
+
+y la respuesta entregada en WhatsApp segundos después. Las trampas 5a y
+5b de arriba son exactamente las que encontramos en esa instalación.
+
+### Lo que falta hoy
+
+- Transcribir notas de voz (necesita un servicio de voz a texto).
+- Capturas reales de los pasos 1, 2, 4 y 5 (se publican solo capturas
+  reales, nunca maquetas).
