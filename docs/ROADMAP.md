@@ -42,11 +42,13 @@ the phases are milestones.
       enters if real scale one day demands it.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
-10. **Per-task model routing** (planned) - send each request to the model
-   that does it best: conversation to Qwen3-30B, code to Qwen2.5-Coder
-   (great at code, weaker prose). Configurable in fiveagent.yml
-   (models: chat / code / ...), with a router that classifies each
-   request. Several local models share the work, each doing its own job.
+10. **Per-task model routing** (first version working) - an optional
+   `coder:` model in fiveagent.yml serves code-heavy requests. Each
+   message goes through a local heuristic (two tiers of signals with
+   word boundaries, no model call): code goes to the coder model,
+   everything else to the chat model. The coder inherits base_url,
+   provider and api_key from model when omitted. Later: more task
+   classes beyond chat/code and fully configurable model sets.
 
 ## Phase 3 - v0.3: tools
 
