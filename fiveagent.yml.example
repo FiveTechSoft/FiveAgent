@@ -33,3 +33,11 @@ memory:
   # json: fiveagent-memory.json
   # For docker compose / real deployments use Postgres (set DB_PASSWORD in .env).
   postgres: postgres://fiveagent:${DB_PASSWORD}@db:5432/fiveagent
+
+# sandbox: per-user isolated execution for the run_command tool.
+#   enabled: false
+#   backend: auto          # auto | bubblewrap (Linux) | jobobject (Windows) | docker
+#   root: data/sandbox     # one writable folder per user inside it
+#   timeout: 30            # seconds per command
+#   max_ram_mb: 512        # docker / jobobject only
+#   image: alpine          # docker only
