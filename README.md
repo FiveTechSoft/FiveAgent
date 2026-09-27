@@ -8,7 +8,7 @@ FiveAgent wants to be a personal assistant that lives in your messaging apps and
 
 - **Self-host for real.** One `docker compose up`. Postgres and the agent on your machine. No mandatory cloud accounts, no vendor lock-in.
 - **Model freedom.** Any OpenAI-compatible endpoint: local models via Ollama / llama.cpp / vLLM, or commercial APIs (OpenAI, DeepSeek, Anthropic via adapter). Change model by editing one config line.
-- **Chat-first.** WhatsApp works today (official Cloud API); Telegram and iMessage are on the roadmap. You talk to it where you already talk.
+- **Chat-first.** WhatsApp (official Cloud API) and Telegram work today; iMessage is on the roadmap. You talk to it where you already talk.
 - **Your data stays yours.** Memory in your own Postgres. Data only leaves your machine where you decide: to the model you configured and to the messaging platforms you connect (e.g. Meta's servers when you use the official WhatsApp API).
 - **Open by design.** MIT license, semantic releases, public roadmap. Community PRs welcome and actually reviewed.
 
@@ -75,7 +75,7 @@ go build -o fiveagent ./app/fiveagent
 
 ### Step 5. Talk to it
 
-WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md) - it walks you through the free Meta test number step by step. Telegram and iMessage are coming next.
+WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md) - guía en español, paso a paso, con las trampas reales ya documentadas. Telegram: [docs/telegram.md](docs/telegram.md), five minutes with @BotFather, no tunnel needed. iMessage is coming next.
 
 Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent/issues - tell us your operating system and the exact error message.
 
@@ -83,14 +83,14 @@ Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent
 
 One service, three layers. See [docs/design.md](docs/design.md) for the full design.
 
-- **Channels** - thin adapters that normalize messages into one event format. WhatsApp is implemented; Telegram and iMessage are planned.
+- **Channels** - thin adapters that normalize messages into one event format. WhatsApp and Telegram are implemented; iMessage is planned.
 - **Core** - a single Go binary running the agent loop: conversation memory and model calls. Provider-agnostic.
 - **Tools** - planned: web search, email, calendar, files, and a sandboxed browser (Playwright sidecar container, already in docker compose).
 
 ## Works today
 
 - Single Go binary, no runtime. Docker compose brings up the agent, Postgres and a Playwright sidecar.
-- WhatsApp channel via the official Cloud API: receive text messages and reply ([docs/whatsapp.md](docs/whatsapp.md)).
+- WhatsApp channel via the official Cloud API, verified end-to-end in a live install ([guía en español paso a paso](docs/whatsapp.md)). Telegram channel via long polling (no public URL needed).
 - Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
 - Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
 - Tool calling: the model can call tools (OpenAI-style function calling). First built-in tool: current date/time.
