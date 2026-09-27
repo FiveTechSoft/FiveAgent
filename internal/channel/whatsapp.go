@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -28,6 +29,9 @@ type whatsapp struct {
 	mux     *http.ServeMux
 	http    *http.Client
 	baseURL string // graph api base, overridable in tests
+	// agentTimeout caps one full agent run; set by Build from the model
+	// timeout, defaults to 5 minutes.
+	agentTimeout time.Duration
 }
 
 // NewWhatsApp builds the WhatsApp Cloud API adapter.
@@ -250,22 +254,38 @@ func quoteOf(m inboundMessage) string {
 }
 
 // process marks the message read + typing, runs the agent, sends the reply
-// quoting the original message.
+// quoting the original message. Each phase gets its own fresh context:
+// the agent's deadline must never kill the reply send (a slow model used
+// to mean total silence for the user).
 func (w *whatsapp) process(from, msgID, text, replyTo string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	if err := w.markRead(ctx, msgID); err != nil {
+	mrCtx, mrCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	// A mark-read failure is logged but never affects the reply.
+	if err := w.markRead(mrCtx, msgID); err != nil {
 		log.Printf("whatsapp: mark read: %v", err)
 	}
-	reply, err := w.core.Handle(ctx, "whatsapp", from, text)
+	mrCancel()
+
+	budget := w.agentTimeout
+	if budget <= 0 {
+		budget = 5 * time.Minute
+	}
+	agentCtx, agentCancel := context.WithTimeout(context.Background(), budget)
+	reply, err := w.core.Handle(agentCtx, "whatsapp", from, text)
+	agentCancel()
 	if err != nil {
 		log.Printf("whatsapp: agent: %v", err)
-		reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
+		if errors.Is(err, context.DeadlineExceeded) {
+			reply = "El modelo está tardando demasiado. Inténtalo de nuevo."
+		} else {
+			reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
+		}
 	}
-	if err := w.SendText(ctx, from, reply, replyTo); err != nil {
+	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer sendCancel()
+	if err := w.SendText(sendCtx, from, reply, replyTo); err != nil {
 		log.Printf("whatsapp: send: %v", err)
 	}
 }
