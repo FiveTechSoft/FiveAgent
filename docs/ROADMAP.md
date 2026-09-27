@@ -171,6 +171,11 @@ the phases are milestones.
 - Simple first: one binary, one config file, one command to run.
 - Windows first in docs and installers.
 - The README only claims what the code does today.
+- Single-agent by design: one agent loop with good tools. Multi-agent
+  orchestration adds a model call, latency and coordination failures
+  per extra agent - a bad trade for small local models, which fail more
+  coordinating than executing. It stays a future path specifically for
+  large models, or for long tasks worth parallelizing.
 - Measure, then decide: architecture and model choices follow objective
   measurements (the memory evals of stage h), never vibes. Example: if
   evals show the small chat model handles injected memories poorly -
