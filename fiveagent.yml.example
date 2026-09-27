@@ -36,6 +36,9 @@ channels:
     enabled: false
 
 memory:
+  # Long-term memory folder: markdown files versioned with git. The agent
+  # recalls it every turn and curates it with save_memory/forget_memory.
+  knowledge: data/memory
   # Simplest for a first local run: a JSON file next to the binary.
   # json: fiveagent-memory.json
   # For docker compose / real deployments use Postgres (set DB_PASSWORD in .env).
