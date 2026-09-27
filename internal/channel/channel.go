@@ -4,9 +4,17 @@ package channel
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/model"
 )
+
+// agentBudget caps a whole agent run (model call plus tool rounds)
+// from the model timeout: three model calls worst case, plus margin.
+func agentBudget(cfg *config.Config) time.Duration {
+	return 3*model.ModelTimeout(cfg.Model) + 30*time.Second
+}
 
 // Event is one inbound message, whatever the platform.
 type Event struct {
@@ -62,9 +70,13 @@ func Build(cfg *config.Config, core Handler) []Channel {
 		}
 		switch name {
 		case "telegram":
-			out = append(out, NewTelegram(ch, core))
+			t := NewTelegram(ch, core).(*telegram)
+			t.agentTimeout = agentBudget(cfg)
+			out = append(out, t)
 		case "whatsapp":
-			out = append(out, NewWhatsApp(ch, core))
+			w := NewWhatsApp(ch, core).(*whatsapp)
+			w.agentTimeout = agentBudget(cfg)
+			out = append(out, w)
 		default:
 			out = append(out, &noop{name: name})
 		}
