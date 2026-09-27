@@ -10,22 +10,24 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
 
 // telegram is the Telegram Bot API adapter. It uses long polling, so it
 // works behind NAT with no public URL or tunnel: the agent calls out to
 // Telegram and nothing needs to listen on the internet.
 type telegram struct {
-	token   string
+	cfg     config.Channel
 	core    Handler
 	http    *http.Client
 	baseURL string // bot api base, overridable in tests
 }
 
 // NewTelegram builds the Telegram adapter.
-func NewTelegram(token string, core Handler) Channel {
+func NewTelegram(cfg config.Channel, core Handler) Channel {
 	return &telegram{
-		token:   token,
+		cfg:     cfg,
 		core:    core,
 		http:    &http.Client{Timeout: 45 * time.Second}, // > poll timeout
 		baseURL: "https://api.telegram.org",
@@ -36,6 +38,9 @@ func (t *telegram) Name() string { return "telegram" }
 
 // Run checks the token, then polls getUpdates until ctx is cancelled.
 func (t *telegram) Run(ctx context.Context) error {
+	if len(t.cfg.AllowedSenders) == 0 {
+		log.Printf("telegram: allowed_senders is empty - answering messages from ANY chat; set allowed_senders in fiveagent.yml to restrict")
+	}
 	me, err := t.getMe(ctx)
 	if err != nil {
 		return fmt.Errorf("telegram: token check failed: %w", err)
@@ -142,11 +147,15 @@ func (m *tgMessage) describe() string {
 func (t *telegram) process(m *tgMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
+	chatID := strconv.FormatInt(m.Chat.ID, 10)
+	if !senderAllowed(t.cfg.AllowedSenders, chatID) {
+		log.Printf("telegram: ignored message from chat %s (not in allowed_senders)", chatID)
+		return
+	}
 	text := m.describe()
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	chatID := strconv.FormatInt(m.Chat.ID, 10)
 	if err := t.sendChatAction(ctx, chatID); err != nil {
 		log.Printf("telegram: typing indicator: %v", err)
 	}
@@ -228,7 +237,7 @@ func (t *telegram) call(ctx context.Context, method string, payload any, out any
 		}
 		body = strings.NewReader(string(b))
 	}
-	url := fmt.Sprintf("%s/bot%s/%s", t.baseURL, t.token, method)
+	url := fmt.Sprintf("%s/bot%s/%s", t.baseURL, t.cfg.BotToken, method)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return err
