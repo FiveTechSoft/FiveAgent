@@ -32,16 +32,18 @@ type whatsapp struct {
 	// agentTimeout caps one full agent run; set by Build from the model
 	// timeout, defaults to 5 minutes.
 	agentTimeout time.Duration
+	reactions    bool // react 👀/✅/⚠️ to inbound messages
 }
 
 // NewWhatsApp builds the WhatsApp Cloud API adapter.
 func NewWhatsApp(cfg config.Channel, core Handler) Channel {
 	w := &whatsapp{
-		cfg:     cfg,
-		core:    core,
-		mux:     http.NewServeMux(),
-		http:    &http.Client{Timeout: 30 * time.Second},
-		baseURL: "https://graph.facebook.com/v21.0",
+		cfg:       cfg,
+		core:      core,
+		mux:       http.NewServeMux(),
+		http:      &http.Client{Timeout: 30 * time.Second},
+		baseURL:   "https://graph.facebook.com/v21.0",
+		reactions: cfg.Reactions != "off", // default: status reactions on
 	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
@@ -253,7 +255,8 @@ func quoteOf(m inboundMessage) string {
 	return ""
 }
 
-// process marks the message read + typing, runs the agent, sends the reply
+// process reacts to the message, marks it read + typing, runs the agent,
+// sends the reply
 // quoting the original message. Each phase gets its own fresh context:
 // the agent's deadline must never kill the reply send (a slow model used
 // to mean total silence for the user).
@@ -261,6 +264,19 @@ func (w *whatsapp) process(from, msgID, text, replyTo string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
+	react := func(emoji string) {
+		if !w.reactions {
+			return
+		}
+		rCtx, rCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer rCancel()
+		// A reaction failure is logged but never affects the reply.
+		if err := w.React(rCtx, from, msgID, emoji); err != nil {
+			log.Printf("whatsapp: react: %v", err)
+		}
+	}
+	react("\U0001F440") // eyes: got it, working on it
+
 	mrCtx, mrCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	// A mark-read failure is logged but never affects the reply.
 	if err := w.markRead(mrCtx, msgID); err != nil {
@@ -275,7 +291,8 @@ func (w *whatsapp) process(from, msgID, text, replyTo string) {
 	agentCtx, agentCancel := context.WithTimeout(context.Background(), budget)
 	reply, err := w.core.Handle(agentCtx, "whatsapp", from, text)
 	agentCancel()
-	if err != nil {
+	agentFailed := err != nil
+	if agentFailed {
 		log.Printf("whatsapp: agent: %v", err)
 		if errors.Is(err, context.DeadlineExceeded) {
 			reply = "El modelo está tardando demasiado. Inténtalo de nuevo."
@@ -287,7 +304,27 @@ func (w *whatsapp) process(from, msgID, text, replyTo string) {
 	defer sendCancel()
 	if err := w.SendText(sendCtx, from, reply, replyTo); err != nil {
 		log.Printf("whatsapp: send: %v", err)
+		react("⚠️")
+		return
 	}
+	if agentFailed {
+		react("⚠️") // the reply was a fallback, not a real answer
+	} else {
+		react("✅")
+	}
+}
+
+// React sets the agent's reaction on a message. WhatsApp keeps one
+// reaction per user per message: a second reaction on the same message
+// replaces the first, and an empty emoji removes it.
+func (w *whatsapp) React(ctx context.Context, to, messageID, emoji string) error {
+	return w.post(ctx, map[string]any{
+		"messaging_product": "whatsapp",
+		"recipient_type":    "individual",
+		"to":                to,
+		"type":              "reaction",
+		"reaction":          map[string]string{"message_id": messageID, "emoji": emoji},
+	})
 }
 
 // markRead marks a message as read and shows the typing indicator.
