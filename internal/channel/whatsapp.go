@@ -1,32 +1,41 @@
 package channel
 
 import (
+	"bytes"
 	"context"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
+	"mime/multipart"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
 
 // whatsapp is the official WhatsApp Cloud API adapter.
-// Inbound: Meta POSTs message webhooks to ListenAddr. Outbound: Graph API.
+// Inbound: Meta POSTs webhooks to ListenAddr/webhook/whatsapp.
+// Outbound: Graph API v21.0.
 type whatsapp struct {
-	cfg  config.Channel
-	core *agent.Agent
-	mux  *http.ServeMux
+	cfg     config.Channel
+	core    Handler
+	mux     *http.ServeMux
+	http    *http.Client
+	baseURL string // graph api base, overridable in tests
 }
 
 // NewWhatsApp builds the WhatsApp Cloud API adapter.
-// Endpoint docs: https://developers.facebook.com/docs/whatsapp/cloud-api
-func NewWhatsApp(cfg config.Channel, core *agent.Agent) Channel {
-	w := &whatsapp{cfg: cfg, core: core, mux: http.NewServeMux()}
+func NewWhatsApp(cfg config.Channel, core Handler) Channel {
+	w := &whatsapp{
+		cfg:     cfg,
+		core:    core,
+		mux:     http.NewServeMux(),
+		http:    &http.Client{Timeout: 30 * time.Second},
+		baseURL: "https://graph.facebook.com/v21.0",
+	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
 }
@@ -64,8 +73,7 @@ func (w *whatsapp) handleWebhook(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// verify answers Meta's webhook handshake:
-// GET ?hub.mode=subscribe&hub.verify_token=...&hub.challenge=...
+// verify answers Meta's webhook handshake.
 func (w *whatsapp) verify(rw http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	if q.Get("hub.mode") == "subscribe" &&
@@ -82,23 +90,59 @@ type webhookPayload struct {
 	Entry []struct {
 		Changes []struct {
 			Value struct {
-				Messages []struct {
-					From string `json:"from"`
-					ID   string `json:"id"`
-					Type string `json:"type"`
-					Text struct {
-						Body string `json:"body"`
-					} `json:"text"`
-				} `json:"messages"`
+				Messages []inboundMessage `json:"messages"`
+				Statuses []struct {
+					ID     string `json:"id"`
+					Status string `json:"status"` // sent, delivered, read, failed
+					Errors []struct {
+						Title string `json:"title"`
+					} `json:"errors"`
+				} `json:"statuses"`
 			} `json:"value"`
 		} `json:"changes"`
 	} `json:"entry"`
 }
 
-// inbound receives message notifications. Always 200 fast, process async,
-// per Meta's requirement (they retry on non-200).
+// inboundMessage is one message in a webhook notification.
+type inboundMessage struct {
+	From string `json:"from"`
+	ID   string `json:"id"`
+	Type string `json:"type"`
+	Text struct {
+		Body string `json:"body"`
+	} `json:"text"`
+	Image    mediaRef `json:"image"`
+	Audio    mediaRef `json:"audio"`
+	Document mediaRef `json:"document"`
+	Video    mediaRef `json:"video"`
+	Sticker  mediaRef `json:"sticker"`
+	Location *struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+		Name      string  `json:"name"`
+		Address   string  `json:"address"`
+	} `json:"location"`
+	Reaction *struct {
+		MessageID string `json:"message_id"`
+		Emoji     string `json:"emoji"`
+	} `json:"reaction"`
+	Context *struct {
+		MessageID string `json:"id"` // quoted message wamid
+	} `json:"context"`
+}
+
+// mediaRef is a reference to media stored on Meta's servers.
+type mediaRef struct {
+	ID       string `json:"id"`
+	MimeType string `json:"mime_type"`
+	Caption  string `json:"caption"`
+	Filename string `json:"filename"`
+}
+
+// inbound receives notifications. Always 200 fast, process async (Meta
+// retries on non-200).
 func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {
 		rw.WriteHeader(http.StatusOK)
 		return
@@ -112,51 +156,222 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 	}
 	for _, e := range p.Entry {
 		for _, ch := range e.Changes {
-			for _, m := range ch.Value.Messages {
-				if m.Type != "text" || strings.TrimSpace(m.Text.Body) == "" {
-					continue
+			for _, s := range ch.Value.Statuses {
+				if s.Status == "failed" {
+					log.Printf("whatsapp: message %s FAILED: %+v", s.ID, s.Errors)
+				} else {
+					log.Printf("whatsapp: message %s -> %s", s.ID, s.Status)
 				}
-				from, text := m.From, m.Text.Body
-				go w.answer(from, text)
+			}
+			for _, m := range ch.Value.Messages {
+				go w.process(m.From, m.ID, describe(m), quoteOf(m))
 			}
 		}
 	}
 }
 
-// answer runs the agent and sends the reply via the Graph API.
-func (w *whatsapp) answer(to, text string) {
+// describe turns one inbound message into text for the agent.
+func describe(m inboundMessage) string {
+	cap := func(s string) string {
+		if s == "" {
+			return ""
+		}
+		return ": " + s
+	}
+	switch m.Type {
+	case "text":
+		return m.Text.Body
+	case "image":
+		return "[image" + cap(m.Image.Caption) + "]"
+	case "audio":
+		return "[voice note]"
+	case "document":
+		return "[document: " + m.Document.Filename + cap(m.Document.Caption) + "]"
+	case "video":
+		return "[video" + cap(m.Video.Caption) + "]"
+	case "sticker":
+		return "[sticker]"
+	case "location":
+		if m.Location != nil {
+			return fmt.Sprintf("[location: %f,%f %s %s]", m.Location.Latitude, m.Location.Longitude, m.Location.Name, m.Location.Address)
+		}
+		return "[location]"
+	case "reaction":
+		if m.Reaction != nil {
+			return "[reaction " + m.Reaction.Emoji + " to " + m.Reaction.MessageID + "]"
+		}
+		return "[reaction]"
+	default:
+		return "[" + m.Type + " message - not supported yet]"
+	}
+}
+
+func quoteOf(m inboundMessage) string {
+	if m.Context != nil {
+		return m.Context.MessageID
+	}
+	return ""
+}
+
+// process marks the message read + typing, runs the agent, sends the reply
+// quoting the original message.
+func (w *whatsapp) process(from, msgID, text, replyTo string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
-	reply, err := w.core.Handle(ctx, "whatsapp", to, text)
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	if err := w.markRead(ctx, msgID); err != nil {
+		log.Printf("whatsapp: mark read: %v", err)
+	}
+	reply, err := w.core.Handle(ctx, "whatsapp", from, text)
 	if err != nil {
 		log.Printf("whatsapp: agent: %v", err)
 		reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
 	}
-	if err := w.send(ctx, to, reply); err != nil {
+	if err := w.SendText(ctx, from, reply, replyTo); err != nil {
 		log.Printf("whatsapp: send: %v", err)
 	}
 }
 
-// send posts a text message through the Graph API.
-func (w *whatsapp) send(ctx context.Context, to, text string) error {
+// markRead marks a message as read and shows the typing indicator.
+func (w *whatsapp) markRead(ctx context.Context, messageID string) error {
+	return w.post(ctx, map[string]any{
+		"messaging_product": "whatsapp",
+		"status":            "read",
+		"message_id":        messageID,
+		"typing_indicator":  map[string]string{"type": "text"},
+	})
+}
+
+// SendText sends a text message. replyTo (a wamid) quotes that message.
+func (w *whatsapp) SendText(ctx context.Context, to, text, replyToMessageID string) error {
 	payload := map[string]any{
 		"messaging_product": "whatsapp",
 		"to":                to,
 		"type":              "text",
 		"text":              map[string]string{"body": text},
 	}
+	if replyToMessageID != "" {
+		payload["context"] = map[string]string{"message_id": replyToMessageID}
+	}
+	return w.post(ctx, payload)
+}
+
+// SendMedia sends an image, audio, document or video hosted at link,
+// with an optional caption.
+func (w *whatsapp) SendMedia(ctx context.Context, to, mediaType, link, caption string) error {
+	body := map[string]string{"link": link}
+	if caption != "" && (mediaType == "image" || mediaType == "document" || mediaType == "video") {
+		body["caption"] = caption
+	}
+	return w.post(ctx, map[string]any{
+		"messaging_product": "whatsapp",
+		"to":                to,
+		"type":              mediaType,
+		mediaType:           body,
+	})
+}
+
+// SendTemplate sends an approved template (required outside the 24 h window).
+func (w *whatsapp) SendTemplate(ctx context.Context, to, templateName, lang string, bodyParams []string) error {
+	tmpl := map[string]any{
+		"name":     templateName,
+		"language": map[string]string{"code": lang},
+	}
+	if len(bodyParams) > 0 {
+		params := make([]map[string]string, len(bodyParams))
+		for i, p := range bodyParams {
+			params[i] = map[string]string{"type": "text", "text": p}
+		}
+		tmpl["components"] = []map[string]any{{
+			"type":       "body",
+			"parameters": params,
+		}}
+	}
+	return w.post(ctx, map[string]any{
+		"messaging_product": "whatsapp",
+		"to":                to,
+		"type":              "template",
+		"template":          tmpl,
+	})
+}
+
+// UploadMedia uploads media bytes and returns the media id to send by id.
+func (w *whatsapp) UploadMedia(ctx context.Context, mimeType, filename string, data []byte) (string, error) {
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	_ = mw.WriteField("messaging_product", "whatsapp")
+	_ = mw.WriteField("type", mimeType)
+	part, err := mw.CreateFormFile("file", filename)
+	if err != nil {
+		return "", err
+	}
+	if _, err := part.Write(data); err != nil {
+		return "", err
+	}
+	if err := mw.Close(); err != nil {
+		return "", err
+	}
+	url := fmt.Sprintf("%s/%s/media", w.baseURL, w.cfg.PhoneNumberID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &buf)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", mw.FormDataContentType())
+	req.Header.Set("Authorization", "Bearer "+w.cfg.AccessToken)
+	resp, err := w.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		return "", fmt.Errorf("graph api: %s: %s", resp.Status, raw)
+	}
+	var out struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return "", err
+	}
+	return out.ID, nil
+}
+
+// DownloadMedia fetches inbound media bytes (e.g. a voice note) by media id.
+func (w *whatsapp) DownloadMedia(ctx context.Context, mediaID string) ([]byte, string, error) {
+	meta, err := w.graphGet(ctx, w.baseURL+"/"+mediaID)
+	if err != nil {
+		return nil, "", err
+	}
+	var info struct {
+		URL      string `json:"url"`
+		MimeType string `json:"mime_type"`
+	}
+	if err := json.Unmarshal(meta, &info); err != nil {
+		return nil, "", err
+	}
+	data, err := w.graphGet(ctx, info.URL)
+	if err != nil {
+		return nil, "", err
+	}
+	return data, info.MimeType, nil
+}
+
+// post sends one payload to the messages endpoint.
+func (w *whatsapp) post(ctx context.Context, payload map[string]any) error {
 	b, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("https://graph.facebook.com/v21.0/%s/messages", w.cfg.PhoneNumberID)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(b)))
+	url := fmt.Sprintf("%s/%s/messages", w.baseURL, w.cfg.PhoneNumberID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+w.cfg.AccessToken)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := w.http.Do(req)
 	if err != nil {
 		return err
 	}
@@ -166,4 +381,23 @@ func (w *whatsapp) send(ctx context.Context, to, text string) error {
 		return fmt.Errorf("graph api: %s: %s", resp.Status, raw)
 	}
 	return nil
+}
+
+// graphGet does an authenticated GET against the Graph API.
+func (w *whatsapp) graphGet(ctx context.Context, url string) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Authorization", "Bearer "+w.cfg.AccessToken)
+	resp, err := w.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("graph api: %s: %s", resp.Status, raw)
+	}
+	return raw, nil
 }
