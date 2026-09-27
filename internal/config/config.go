@@ -47,6 +47,9 @@ type Config struct {
 	Model    Model              `yaml:"model"`
 	Channels map[string]Channel `yaml:"channels"`
 	Memory   Memory             `yaml:"memory"`
+	// SystemPrompt overrides the agent's built-in persona. Optional; the
+	// model identity line is always appended (see agent.SystemPrompt).
+	SystemPrompt string `yaml:"system_prompt,omitempty"`
 }
 
 // Load reads path (default ./fiveagent.yml).
