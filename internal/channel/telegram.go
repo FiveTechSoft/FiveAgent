@@ -1,23 +1,258 @@
 package channel
 
-import "context"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+)
 
-// telegram is the Telegram Bot API adapter (long polling). Skeleton.
+// telegram is the Telegram Bot API adapter. It uses long polling, so it
+// works behind NAT with no public URL or tunnel: the agent calls out to
+// Telegram and nothing needs to listen on the internet.
 type telegram struct {
-	token string
-	core  Handler
+	token   string
+	core    Handler
+	http    *http.Client
+	baseURL string // bot api base, overridable in tests
 }
 
 // NewTelegram builds the Telegram adapter.
 func NewTelegram(token string, core Handler) Channel {
-	return &telegram{token: token, core: core}
+	return &telegram{
+		token:   token,
+		core:    core,
+		http:    &http.Client{Timeout: 45 * time.Second}, // > poll timeout
+		baseURL: "https://api.telegram.org",
+	}
 }
 
 func (t *telegram) Name() string { return "telegram" }
 
-// Run polls getUpdates and feeds messages into the agent. Skeleton:
-// real implementation lands in the v0 milestone.
+// Run checks the token, then polls getUpdates until ctx is cancelled.
 func (t *telegram) Run(ctx context.Context) error {
-	<-ctx.Done()
-	return ctx.Err()
+	me, err := t.getMe(ctx)
+	if err != nil {
+		return fmt.Errorf("telegram: token check failed: %w", err)
+	}
+	log.Printf("telegram: connected as @%s, long polling (no public URL needed)", me)
+
+	offset := 0
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		updates, err := t.getUpdates(ctx, offset)
+		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
+			log.Printf("telegram: getUpdates: %v (retrying in 5s)", err)
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(5 * time.Second):
+			}
+			continue
+		}
+		for _, u := range updates {
+			offset = u.UpdateID + 1
+			if u.Message != nil {
+				go t.process(u.Message)
+			}
+		}
+	}
+}
+
+// tgUpdate is the subset of a Telegram update we use.
+type tgUpdate struct {
+	UpdateID int        `json:"update_id"`
+	Message  *tgMessage `json:"message"`
+}
+
+// tgMessage is one incoming message.
+type tgMessage struct {
+	MessageID int `json:"message_id"`
+	From      struct {
+		ID        int64  `json:"id"`
+		FirstName string `json:"first_name"`
+	} `json:"from"`
+	Chat struct {
+		ID int64 `json:"id"`
+	} `json:"chat"`
+	Text    string `json:"text"`
+	Caption string `json:"caption"`
+	Photo   []struct {
+		FileID string `json:"file_id"`
+	} `json:"photo"`
+	Document *struct {
+		FileID   string `json:"file_id"`
+		FileName string `json:"file_name"`
+	} `json:"document"`
+	Voice *struct {
+		FileID   string `json:"file_id"`
+		Duration int    `json:"duration"`
+	} `json:"voice"`
+	Video *struct {
+		FileID string `json:"file_id"`
+	} `json:"video"`
+	Sticker *struct {
+		Emoji string `json:"emoji"`
+	} `json:"sticker"`
+	Location *struct {
+		Latitude  float64 `json:"latitude"`
+		Longitude float64 `json:"longitude"`
+	} `json:"location"`
+}
+
+// describe turns one Telegram message into text for the agent.
+func (m *tgMessage) describe() string {
+	cap := func(c string) string {
+		if c == "" {
+			return ""
+		}
+		return ": " + c
+	}
+	switch {
+	case m.Text != "":
+		return m.Text
+	case len(m.Photo) > 0:
+		return "[photo" + cap(m.Caption) + "]"
+	case m.Document != nil:
+		return "[document: " + m.Document.FileName + cap(m.Caption) + "]"
+	case m.Voice != nil:
+		return fmt.Sprintf("[voice message, %ds]", m.Voice.Duration)
+	case m.Video != nil:
+		return "[video" + cap(m.Caption) + "]"
+	case m.Sticker != nil:
+		return "[sticker " + m.Sticker.Emoji + "]"
+	case m.Location != nil:
+		return fmt.Sprintf("[location: %f,%f]", m.Location.Latitude, m.Location.Longitude)
+	default:
+		return "[unsupported message type]"
+	}
+}
+
+// process runs the agent and replies, quoting the original message.
+func (t *telegram) process(m *tgMessage) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+	text := m.describe()
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	chatID := strconv.FormatInt(m.Chat.ID, 10)
+	if err := t.sendChatAction(ctx, chatID); err != nil {
+		log.Printf("telegram: typing indicator: %v", err)
+	}
+	reply, err := t.core.Handle(ctx, "telegram", chatID, text)
+	if err != nil {
+		log.Printf("telegram: agent: %v", err)
+		reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
+	}
+	if err := t.SendText(ctx, chatID, reply, m.MessageID); err != nil {
+		log.Printf("telegram: send: %v", err)
+	}
+}
+
+// SendText sends a text message. replyToMessageID > 0 quotes that message.
+func (t *telegram) SendText(ctx context.Context, chatID, text string, replyToMessageID int) error {
+	payload := map[string]any{
+		"chat_id": chatID,
+		"text":    text,
+	}
+	if replyToMessageID > 0 {
+		payload["reply_to_message_id"] = replyToMessageID
+	}
+	return t.call(ctx, "sendMessage", payload, nil)
+}
+
+// SendMedia sends a photo, document, audio or video hosted at url,
+// with an optional caption.
+func (t *telegram) SendMedia(ctx context.Context, chatID, kind, url, caption string) error {
+	method := map[string]string{
+		"photo": "sendPhoto", "document": "sendDocument",
+		"audio": "sendAudio", "video": "sendVideo",
+	}[kind]
+	if method == "" {
+		return fmt.Errorf("telegram: unknown media kind %q", kind)
+	}
+	payload := map[string]any{"chat_id": chatID, kind: url}
+	if caption != "" {
+		payload["caption"] = caption
+	}
+	return t.call(ctx, method, payload, nil)
+}
+
+// sendChatAction shows "typing..." in the chat.
+func (t *telegram) sendChatAction(ctx context.Context, chatID string) error {
+	return t.call(ctx, "sendChatAction", map[string]any{
+		"chat_id": chatID, "action": "typing",
+	}, nil)
+}
+
+// getMe returns the bot's username, proving the token works.
+func (t *telegram) getMe(ctx context.Context) (string, error) {
+	var out struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+	}
+	if err := t.call(ctx, "getMe", nil, &out); err != nil {
+		return "", err
+	}
+	return out.Username, nil
+}
+
+// getUpdates long-polls for updates after offset.
+func (t *telegram) getUpdates(ctx context.Context, offset int) ([]tgUpdate, error) {
+	var out []tgUpdate
+	err := t.call(ctx, "getUpdates", map[string]any{
+		"offset": offset, "timeout": 30,
+		"allowed_updates": []string{"message"},
+	}, &out)
+	return out, err
+}
+
+// call POSTs one Bot API method and decodes result into out.
+func (t *telegram) call(ctx context.Context, method string, payload any, out any) error {
+	var body io.Reader
+	if payload != nil {
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		body = strings.NewReader(string(b))
+	}
+	url := fmt.Sprintf("%s/bot%s/%s", t.baseURL, t.token, method)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := t.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	var envelope struct {
+		OK          bool            `json:"ok"`
+		Description string          `json:"description"`
+		Result      json.RawMessage `json:"result"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return fmt.Errorf("telegram api: bad response: %s", raw)
+	}
+	if !envelope.OK {
+		return fmt.Errorf("telegram api: %s", envelope.Description)
+	}
+	if out != nil && len(envelope.Result) > 0 {
+		return json.Unmarshal(envelope.Result, out)
+	}
+	return nil
 }
