@@ -79,7 +79,7 @@ deliver messages. cloudflared makes one in seconds, no account needed:
 > key, you are in the wrong place (and never touch the secret key). Go to
 > **Casos de uso** instead:
 >
-> ![The basic settings page is NOT where the webhook lives](images/whatsapp-meta-basic.png)
+> ![The basic settings page is NOT where the webhook lives](images/1-whatsapp-meta-basic.png)
 
 ## Step 4 - Add yourself as a test recipient
 
