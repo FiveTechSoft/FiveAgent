@@ -76,6 +76,12 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	}
 	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel)}}
 	for _, h := range history {
+		// Never replay a stored system message: the prompt comes from
+		// the current code/config, so upgrades take effect at once and
+		// an old prompt lingering in memory cannot override it.
+		if h[0] == "system" {
+			continue
+		}
 		msgs = append(msgs, model.Message{Role: h[0], Content: h[1]})
 	}
 
