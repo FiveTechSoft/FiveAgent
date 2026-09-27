@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
@@ -41,7 +42,23 @@ type Client struct {
 
 // NewOpenAICompat builds a client for the configured endpoint.
 func NewOpenAICompat(cfg config.Model) *Client {
-	return &Client{cfg: cfg, http: &http.Client{Timeout: 120 * time.Second}}
+	return &Client{cfg: cfg, http: &http.Client{Timeout: ModelTimeout(cfg)}}
+}
+
+// ModelTimeout picks the per-call timeout: model.timeout from the yml
+// wins; otherwise 600s for local endpoints (Ollama loads big models
+// into RAM on first use) and 120s for remote ones.
+func ModelTimeout(cfg config.Model) time.Duration {
+	if cfg.Timeout > 0 {
+		return time.Duration(cfg.Timeout) * time.Second
+	}
+	if u, err := url.Parse(cfg.BaseURL); err == nil {
+		switch u.Hostname() {
+		case "localhost", "127.0.0.1", "::1":
+			return 600 * time.Second
+		}
+	}
+	return 120 * time.Second
 }
 
 type chatRequest struct {
