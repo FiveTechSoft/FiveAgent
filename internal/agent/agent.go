@@ -33,7 +33,21 @@ func SystemPrompt(cfg *config.Config) string {
 	if u, err := url.Parse(cfg.Model.BaseURL); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly.", p, cfg.Model.Name, host)
+	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. %s works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them.", p, cfg.Model.Name, host, "FiveAgent")
+}
+
+// channelStyle tells the model how the channel renders text, so it does
+// not emit Markdown the channel would show literally.
+func channelStyle(channel string) string {
+	switch channel {
+	case "whatsapp":
+		return "Formatting for WhatsApp: *bold*, _italic_, ~strikethrough~ and ```code``` only; no Markdown headers, links or tables (they show literally)."
+	case "telegram":
+		// sendMessage is sent without parse_mode: Telegram renders plain text.
+		return "Formatting for Telegram: plain text only; Markdown is not rendered and would show literally."
+	default:
+		return "Reply in plain text; do not rely on Markdown formatting."
+	}
 }
 
 // Agent ties the model, memory and tools together.
@@ -60,7 +74,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	if err != nil {
 		return "", err
 	}
-	msgs := []model.Message{{Role: "system", Content: a.sysPrompt}}
+	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel)}}
 	for _, h := range history {
 		msgs = append(msgs, model.Message{Role: h[0], Content: h[1]})
 	}
