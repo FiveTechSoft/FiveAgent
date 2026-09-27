@@ -1,19 +1,15 @@
 package channel
 
-import (
-	"context"
-
-	"github.com/FiveTechSoft/FiveAgent/internal/agent"
-)
+import "context"
 
 // telegram is the Telegram Bot API adapter (long polling). Skeleton.
 type telegram struct {
 	token string
-	core  *agent.Agent
+	core  Handler
 }
 
 // NewTelegram builds the Telegram adapter.
-func NewTelegram(token string, core *agent.Agent) Channel {
+func NewTelegram(token string, core Handler) Channel {
 	return &telegram{token: token, core: core}
 }
 
