@@ -236,6 +236,16 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 					log.Printf("whatsapp: ignored message from %s (not in allowed_senders)", m.From)
 					continue
 				}
+				if m.Type == "reaction" {
+					// A reaction is feedback on a message, not a turn:
+					// never run the agent for it (it used to answer with
+					// a full model run). Structured capture is roadmap
+					// stage f (learnings).
+					if m.Reaction != nil {
+						log.Printf("whatsapp: reaction %q to %s from %s (not a turn)", m.Reaction.Emoji, m.Reaction.MessageID, m.From)
+					}
+					continue
+				}
 				log.Printf("whatsapp: message from %s (type %s)", m.From, m.Type)
 				w.enqueue(m.From, m.ID, describe(m), quoteOf(m))
 			}
