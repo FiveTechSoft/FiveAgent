@@ -7,7 +7,7 @@ model:
 
 # Optional: a second model for code-heavy requests. When set, the agent
 # auto-routes: messages that look like code go here, everything else to
-# model above. base_url and provider are inherited from model if omitted.
+# model above. base_url, provider and api_key are inherited from model if omitted.
 # coder:
 #   name: qwen3.8:27b    # or deepseek-chat, gpt-4o-mini, ...
 
