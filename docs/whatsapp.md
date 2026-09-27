@@ -141,6 +141,19 @@ Para Ollama: instálalo de https://ollama.com y descarga un modelo con
 `ollama pull qwen3` (u otro). Déjalo corriendo; FiveAgent habla con él
 en tu propio PC.
 
+Dos trucos para modelos locales grandes:
+
+- `OLLAMA_KEEP_ALIVE=-1`: Ollama descarga el modelo de memoria a los
+  pocos minutos sin uso, y recargarlo (un 27b) tarda más de un minuto.
+  Con esta variable el modelo se queda cargado. El `fiveagent.bat` del
+  repo ya la pone y arranca Ollama si hace falta (si Ollama ya está
+  abierto desde la bandeja de Windows, ciérralo con Quit y deja que lo
+  arranque el script).
+- `timeout` en el yml: si el modelo local es grande, cada llamada puede
+  pasar de dos minutos (sobre todo la primera). FiveAgent espera 600
+  segundos por defecto con modelos locales; ajústalo con
+  `model.timeout` si hace falta.
+
 - `verify_token`: invéntatelo tú. Lo usarás dos veces: aquí y en el
   panel de Meta. Sirve para que Meta compruebe que habla contigo.
 
