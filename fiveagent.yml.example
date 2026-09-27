@@ -32,6 +32,8 @@ channels:
     # allowed_senders: ["34600000000"]           # solo estos números reciben respuesta;
     # con prefijo de país, sin el "+", separados por comas. Vacío = contesta a cualquiera.
     # listen_addr: ":8080"                       # webhook listener
+    # reactions: "off"                           # default: eyes while working, check when
+    #                                            # the reply lands, warning on failure
   imessage:
     enabled: false
 
