@@ -18,7 +18,7 @@ flowchart LR
     B --> C["Túnel de Cloudflare"]
     C --> D{"FiveAgent<br>en tu PC"}
     D -->|"¿firma de Meta correcta?<br>¿remitente permitido?"| E["Modelo<br>(DeepSeek u Ollama)"]
-    D -->|"si algo no cuadra:<br>se ignora y se apunta en el log"| X[" "]
+    D -->|"si algo no cuadra:<br>se ignora y se apunta"| X["fa_err.log"]
     E -->|"respuesta"| D
     D --> C
     C --> B
