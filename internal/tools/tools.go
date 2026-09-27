@@ -22,7 +22,7 @@ type Tool interface {
 
 // Registry is the set of tools available to the agent.
 type Registry struct {
-	tools []Tool
+	tools  []Tool
 	byName map[string]Tool
 }
 
