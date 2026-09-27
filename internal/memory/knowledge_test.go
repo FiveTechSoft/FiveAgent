@@ -65,7 +65,7 @@ func TestOpenKnowledgeCreatesDefaults(t *testing.T) {
 func TestAppendCommits(t *testing.T) {
 	k := openTemp(t)
 	before := commitCount(t, k)
-	if err := k.Append("preferences", "Loves pasta; noted 2026-09-28."); err != nil {
+	if _, err := k.Append("preferences", "Loves pasta; noted 2026-09-28."); err != nil {
 		t.Fatal(err)
 	}
 	raw, err := os.ReadFile(filepath.Join(k.dir, "preferences.md"))
@@ -82,7 +82,7 @@ func TestAppendCommits(t *testing.T) {
 
 func TestAppendUnknownID(t *testing.T) {
 	k := openTemp(t)
-	err := k.Append("spaceships", "x")
+	_, err := k.Append("spaceships", "x")
 	if err == nil || !strings.Contains(err.Error(), "people") {
 		t.Errorf("want error naming available files, got: %v", err)
 	}
@@ -90,7 +90,7 @@ func TestAppendUnknownID(t *testing.T) {
 
 func TestRecallByKeyword(t *testing.T) {
 	k := openTemp(t)
-	if err := k.Append("preferences", "Loves pasta; noted 2026-09-28."); err != nil {
+	if _, err := k.Append("preferences", "Loves pasta; noted 2026-09-28."); err != nil {
 		t.Fatal(err)
 	}
 	hits, err := k.Recall("¿le gusta la pasta?")
@@ -113,7 +113,7 @@ func TestRecallByKeyword(t *testing.T) {
 
 func TestRecallByAlias(t *testing.T) {
 	k := openTemp(t)
-	if err := k.Append("people", "María is his sister."); err != nil {
+	if _, err := k.Append("people", "María is his sister."); err != nil {
 		t.Fatal(err)
 	}
 	// "contactos" is an alias of people.md, absent from its body.
@@ -148,10 +148,10 @@ func TestRecallNoMatch(t *testing.T) {
 
 func TestRecallRanksRelevance(t *testing.T) {
 	k := openTemp(t)
-	if err := k.Append("preferences", "Loves pasta and paella."); err != nil {
+	if _, err := k.Append("preferences", "Loves pasta and paella."); err != nil {
 		t.Fatal(err)
 	}
-	if err := k.Append("workstreams", "Paused the pasta blog redesign."); err != nil {
+	if _, err := k.Append("workstreams", "Paused the pasta blog redesign."); err != nil {
 		t.Fatal(err)
 	}
 	hits, err := k.Recall("pasta paella")
@@ -160,5 +160,52 @@ func TestRecallRanksRelevance(t *testing.T) {
 	}
 	if len(hits) != 2 || hits[0].ID != "preferences" {
 		t.Errorf("hits = %+v, want preferences first (2 line matches)", hits)
+	}
+}
+
+func TestAppendDeduplicates(t *testing.T) {
+	k := openTemp(t)
+	if added, err := k.Append("preferences", "Loves pasta."); err != nil || !added {
+		t.Fatalf("first append: added=%v err=%v", added, err)
+	}
+	// Same fact, different casing, spacing and trailing period: no copy.
+	if added, err := k.Append("preferences", "  loves pasta"); err != nil || added {
+		t.Fatalf("duplicate append: added=%v err=%v, want added=false", added, err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(k.dir, "preferences.md"))
+	if n := strings.Count(strings.ToLower(string(raw)), "loves pasta"); n != 1 {
+		t.Errorf("file holds %d copies, want 1", n)
+	}
+}
+
+func TestForget(t *testing.T) {
+	k := openTemp(t)
+	if _, err := k.Append("preferences", "Loves pasta."); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Append("preferences", "Hates cilantro."); err != nil {
+		t.Fatal(err)
+	}
+	n, err := k.Forget("preferences", "PASTA")
+	if err != nil || n != 1 {
+		t.Fatalf("forget: n=%d err=%v, want n=1", n, err)
+	}
+	raw, _ := os.ReadFile(filepath.Join(k.dir, "preferences.md"))
+	if strings.Contains(string(raw), "pasta") {
+		t.Error("pasta entry not removed")
+	}
+	if !strings.Contains(string(raw), "cilantro") {
+		t.Error("unrelated entry removed")
+	}
+	if !strings.HasPrefix(string(raw), "---\nid: preferences") {
+		t.Error("header damaged")
+	}
+	// Forgetting something absent is a no-op with no commit.
+	before := commitCount(t, k)
+	if n, err := k.Forget("preferences", "sushi"); err != nil || n != 0 {
+		t.Fatalf("forget absent: n=%d err=%v", n, err)
+	}
+	if c := commitCount(t, k); c != before {
+		t.Errorf("no-op forget committed: %d -> %d", before, c)
 	}
 }
