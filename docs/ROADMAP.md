@@ -52,6 +52,11 @@ the phases are milestones.
       corrects it ("no, the other Taylor"), recalled as data in later
       turns. User corrections are the evaluation signal, and in a chat
       bot they come for free.
+   g. **Rolling session digest** - today the conversation history
+      truncates to the last 20 messages, so old detail is lost unless
+      the agent stored it. Before truncating, summarize the outgoing
+      messages into a session digest file, also recalled as data in
+      later turns.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
