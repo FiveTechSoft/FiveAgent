@@ -1,8 +1,16 @@
 package agent
 
 import (
+	"context"
+	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/FiveTechSoft/FiveAgent/internal/model"
+	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
@@ -97,5 +105,61 @@ func TestSystemPromptStatesOpenSource(t *testing.T) {
 		if !strings.Contains(p, want) {
 			t.Errorf("identity line should state %q: %q", want, p)
 		}
+	}
+}
+
+type fakeStore struct {
+	hist [][2]string
+}
+
+func (f *fakeStore) Append(_ context.Context, _, _, role, content string) error {
+	f.hist = append(f.hist, [2]string{role, content})
+	return nil
+}
+
+func (f *fakeStore) Recent(_ context.Context, _, _ string, _ int) ([][2]string, error) {
+	return f.hist, nil
+}
+
+func (f *fakeStore) Close() error { return nil }
+
+func TestHandleIgnoresStoredSystemPrompt(t *testing.T) {
+	var got []model.Message
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Messages []model.Message `json:"messages"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		got = req.Messages
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"hola"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "test-model"}}
+	mdl := model.NewOpenAICompat(cfg.Model)
+	store := &fakeStore{hist: [][2]string{
+		{"system", "OLD STALE PROMPT"},
+		{"user", "hola"},
+	}}
+	a := New(mdl, store, tools.NewRegistry(), SystemPrompt(cfg))
+
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1", "hola"); err != nil {
+		t.Fatal(err)
+	}
+	var sys []string
+	for _, m := range got {
+		if m.Role == "system" {
+			sys = append(sys, m.Content)
+		}
+		if strings.Contains(m.Content, "OLD STALE PROMPT") {
+			t.Fatalf("stale system prompt reached the model: %+v", got)
+		}
+	}
+	if len(sys) != 1 {
+		t.Fatalf("expected exactly 1 system message, got %d: %v", len(sys), sys)
+	}
+	if !strings.HasPrefix(sys[0], baseSystemPrompt) {
+		t.Fatalf("system message is not the current prompt: %q", sys[0])
 	}
 }
