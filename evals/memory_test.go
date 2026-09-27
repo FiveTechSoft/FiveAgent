@@ -490,3 +490,42 @@ func TestHistoryIsolation(t *testing.T) {
 	}
 	t.Log("METRIC cross-sender history leaks: 0/1")
 }
+
+// TestConcurrentSaves: parallel turns saving different facts must not
+// race the git-backed store: every save either lands or is cleanly
+// reported, and the store stays readable afterwards. Metric: facts
+// stored / facts saved OK.
+func TestConcurrentSaves(t *testing.T) {
+	r := newRig(t)
+	const n = 8
+	errs := make(chan error, n)
+	for i := 0; i < n; i++ {
+		go func(i int) {
+			_, err := r.kn.Append("preferences", fmt.Sprintf("Concurrent fact number %d.", i))
+			errs <- err
+		}(i)
+	}
+	stored := 0
+	for i := 0; i < n; i++ {
+		if err := <-errs; err != nil {
+			t.Logf("concurrent append error: %v", err)
+		}
+	}
+	for i := 0; i < n; i++ {
+		hits, err := r.kn.Recall(fmt.Sprintf("number %d", i))
+		if err != nil {
+			t.Fatalf("store unreadable after concurrent saves: %v", err)
+		}
+		for _, h := range hits {
+			for _, ln := range h.Lines {
+				if strings.Contains(ln, fmt.Sprintf("number %d", i)) {
+					stored++
+				}
+			}
+		}
+	}
+	t.Logf("METRIC concurrent saves: %d/%d facts stored and recallable", stored, n)
+	if stored != n {
+		t.Errorf("lost facts under concurrency: %d of %d stored", stored, n)
+	}
+}
