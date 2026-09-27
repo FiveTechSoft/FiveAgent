@@ -4,7 +4,7 @@ WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o /bin/fiveagent ./cmd/fiveagent
+RUN CGO_ENABLED=0 go build -o /bin/fiveagent ./app/fiveagent
 
 # Run stage: one static binary, no runtime needed
 FROM gcr.io/distroless/static-debian12
