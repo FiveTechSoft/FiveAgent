@@ -62,6 +62,7 @@ func TestWebhookVerify(t *testing.T) {
 func TestInboundText(t *testing.T) {
 	fc := &fakeCore{}
 	w := newTestWhatsApp(fc)
+	w.debounce = 10 * time.Millisecond // webhook path test, not a debounce test
 	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -235,6 +236,7 @@ func TestWhatsAppAllowedSendersListed(t *testing.T) {
 		AllowedSenders: []string{"34600123456"},
 	}
 	w := NewWhatsApp(cfg, fc).(*whatsapp)
+	w.debounce = 10 * time.Millisecond // webhook path test, not a debounce test
 	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -375,6 +377,7 @@ func (quickCore) Handle(_ context.Context, _, _, _ string) (string, error) {
 type reactionCapture struct {
 	mu    sync.Mutex
 	react []string
+	ids   []string
 	texts int
 }
 
@@ -386,6 +389,7 @@ func (c *reactionCapture) handler(rw http.ResponseWriter, r *http.Request) {
 	if full["type"] == "reaction" {
 		if rec, ok := full["reaction"].(map[string]any); ok {
 			c.react = append(c.react, rec["emoji"].(string))
+			c.ids = append(c.ids, rec["message_id"].(string))
 		}
 	}
 	if full["type"] == "text" {
@@ -453,5 +457,106 @@ func TestProcessReactionsOff(t *testing.T) {
 	}
 	if cap.texts != 1 {
 		t.Fatalf("text replies = %d, want 1", cap.texts)
+	}
+}
+
+// turnCapture counts and records every agent turn.
+type turnCapture struct {
+	mu    sync.Mutex
+	texts []string
+}
+
+func (c *turnCapture) Handle(_ context.Context, _, _, text string) (string, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.texts = append(c.texts, text)
+	return "ok", nil
+}
+
+func (c *turnCapture) turns() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return append([]string(nil), c.texts...)
+}
+
+// TestDebounceBurst: two messages inside the window become ONE agent
+// turn with both texts in arrival order; reactions: 👀 on the first
+// message, ✅ on every message of the burst; one reply.
+func TestDebounceBurst(t *testing.T) {
+	cap := &reactionCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
+	defer srv.Close()
+	core := &turnCapture{}
+	w := newTestWhatsApp(core)
+	w.baseURL = srv.URL
+	w.debounce = 100 * time.Millisecond
+
+	w.enqueue("34600111222", "wamid.1", "hola", "")
+	time.Sleep(20 * time.Millisecond)
+	w.enqueue("34600111222", "wamid.2", "mundo", "wamid.2")
+	time.Sleep(400 * time.Millisecond)
+
+	turns := core.turns()
+	if len(turns) != 1 {
+		t.Fatalf("turns = %d, want 1 (burst must join): %q", len(turns), turns)
+	}
+	if turns[0] != "hola\nmundo" {
+		t.Fatalf("burst text = %q, want %q (order preserved)", turns[0], "hola\nmundo")
+	}
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	wantReact := []string{"👀", "✅", "✅"}
+	wantIDs := []string{"wamid.1", "wamid.1", "wamid.2"}
+	if len(cap.react) != 3 {
+		t.Fatalf("reactions = %v %v, want %v on %v", cap.react, cap.ids, wantReact, wantIDs)
+	}
+	for i := range wantReact {
+		if cap.react[i] != wantReact[i] || cap.ids[i] != wantIDs[i] {
+			t.Fatalf("reactions = %v %v, want %v on %v", cap.react, cap.ids, wantReact, wantIDs)
+		}
+	}
+	if cap.texts != 1 {
+		t.Fatalf("text replies = %d, want 1", cap.texts)
+	}
+}
+
+// TestDebounceSeparateTurns: messages further apart than the window are
+// independent turns.
+func TestDebounceSeparateTurns(t *testing.T) {
+	core := &turnCapture{}
+	w := newTestWhatsApp(core)
+	w.debounce = 80 * time.Millisecond
+	w.reactions = false
+
+	w.enqueue("34600111222", "wamid.1", "hola", "")
+	time.Sleep(250 * time.Millisecond)
+	w.enqueue("34600111222", "wamid.2", "mundo", "")
+	time.Sleep(250 * time.Millisecond)
+
+	turns := core.turns()
+	if len(turns) != 2 || turns[0] != "hola" || turns[1] != "mundo" {
+		t.Fatalf("turns = %q, want two independent turns [hola mundo]", turns)
+	}
+}
+
+// TestDebounceOff: with debounce disabled every message is answered on
+// arrival (the old parallel behavior).
+func TestDebounceOff(t *testing.T) {
+	core := &turnCapture{}
+	w := newTestWhatsApp(core)
+	w.debounceOn = false
+	w.reactions = false
+
+	w.enqueue("34600111222", "wamid.1", "hola", "")
+	w.enqueue("34600111222", "wamid.2", "mundo", "")
+	time.Sleep(200 * time.Millisecond)
+
+	turns := core.turns()
+	if len(turns) != 2 {
+		t.Fatalf("turns = %q, want 2 immediate turns", turns)
+	}
+	joined := turns[0] + "|" + turns[1]
+	if !strings.Contains(joined, "hola") || !strings.Contains(joined, "mundo") {
+		t.Fatalf("lost a message with debounce off: %q", turns)
 	}
 }
