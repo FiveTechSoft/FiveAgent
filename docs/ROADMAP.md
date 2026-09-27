@@ -28,8 +28,10 @@ the phases are milestones.
    beyond the last 20 messages using plain markdown files with git as
    the source of truth: readable, versioned, no extra infrastructure,
    and an LLM reads markdown natively. It grows in stages:
-   a. **Minimal memory** - three files: people.md, preferences.md,
-      workstreams.md. Empty folders from day one are debt; the
+   a. **Minimal memory** (package ready, not wired into the agent yet) -
+      three files: people.md, preferences.md, workstreams.md, with git
+      auto-commits on every write and keyword/alias recall
+      (internal/memory). Empty folders from day one are debt; the
       structure grows only when real use demands it.
    b. **Keyword and alias retrieval** - recall by exact words and
       curated aliases kept in each memory file.
