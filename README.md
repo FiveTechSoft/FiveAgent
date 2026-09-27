@@ -14,38 +14,51 @@ FiveAgent is a personal assistant that lives in your messaging apps and works fo
 
 ## Quick start
 
-### Prerequisites
+FiveAgent needs just two things: somewhere to run (Docker or Go) and a model to talk to (one you run yourself, like Ollama, or a paid API like OpenAI or DeepSeek).
 
-One of:
-- **Docker Desktop** (easiest: runs the agent, Postgres and the browser sidecar for you), or
-- **Go 1.24+** (builds a single binary; you run Postgres yourself or use Docker just for it).
+### Step 1. Install what you need
 
-### 1. Clone and configure
+Pick ONE:
+- **Docker Desktop** (recommended, easiest): https://www.docker.com/products/docker-desktop - runs everything for you: the agent, its database and its browser.
+- **Go** (if you prefer a single program file): https://go.dev/dl - version 1.24 or newer.
+
+If you want a free local model, also install **Ollama**: https://ollama.com - then run `ollama pull llama3.1` once.
+
+### Step 2. Download FiveAgent
 
 ```bash
 git clone https://github.com/FiveTechSoft/FiveAgent
 cd FiveAgent
 ```
 
-Copy the example config and edit it:
+No git? On the repo page click the green **Code** button and then **Download ZIP**, and unzip it.
+
+### Step 3. Create your settings file
+
+Make your own copy of the example settings:
 
 ```bash
-# Windows (cmd or PowerShell)
+# Windows (type this in cmd or PowerShell)
 copy fiveagent.yml.example fiveagent.yml
 
-# Linux / macOS
+# Mac / Linux
 cp fiveagent.yml.example fiveagent.yml
 ```
 
-Open `fiveagent.yml` and set the model you want to use:
+Open `fiveagent.yml` with any text editor (Notepad works). The only part you must touch is `model`:
 
-- `model.base_url` - the OpenAI-compatible endpoint. `http://localhost:11434/v1` for Ollama, `https://api.openai.com/v1` for OpenAI, `https://api.deepseek.com/v1` for DeepSeek.
-- `model.name` - the model, e.g. `llama3.1`, `gpt-4o-mini`, `deepseek-chat`.
-- `model.api_key` - empty for local Ollama; your API key for commercial providers.
-- `channels` - enable WhatsApp / Telegram / iMessage. WhatsApp needs the Meta app fields, see [docs/whatsapp.md](docs/whatsapp.md).
-- `memory.postgres` - where to store memory. The docker compose below already brings Postgres up with these exact values, so with Docker you can leave it as is.
+```yaml
+model:
+  base_url: http://localhost:11434/v1   # where the model lives
+  name: llama3.1                        # which model to use
+  api_key: ""                           # empty for Ollama; your key for OpenAI/DeepSeek
+```
 
-### 2. Run it
+- Using Ollama? Leave it as shown above.
+- Using OpenAI? Set `base_url: https://api.openai.com/v1`, `name: gpt-4o-mini` and paste your API key.
+- Using DeepSeek? Set `base_url: https://api.deepseek.com/v1`, `name: deepseek-chat` and paste your API key.
+
+### Step 4. Start it
 
 With Docker:
 
@@ -53,16 +66,18 @@ With Docker:
 docker compose up --build
 ```
 
-Or with Go (needs a Postgres reachable at the DSN in `fiveagent.yml`):
+Or with Go:
 
 ```bash
 go build -o fiveagent ./app/fiveagent
 ./fiveagent
 ```
 
-### 3. Link a channel
+### Step 5. Talk to it
 
-WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md). Telegram and iMessage: coming next (see the roadmap in [docs/design.md](docs/design.md)).
+WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md) - it walks you through the free Meta test number step by step. Telegram and iMessage are coming next.
+
+Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent/issues - tell us your operating system and the exact error message.
 
 ## Architecture
 
