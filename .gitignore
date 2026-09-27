@@ -1,7 +1,6 @@
 fiveagent.yml
 .env
 fiveagent
-fiveagent.exe
 data/
 out.log
 err.log
