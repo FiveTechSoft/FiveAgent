@@ -14,15 +14,12 @@ in any language.
 
 ```mermaid
 flowchart LR
-    A["Tu móvil<br>(WhatsApp)"] --> B["Meta<br>(servidores de WhatsApp)"]
-    B --> C["Túnel de Cloudflare"]
+    A["Tu móvil<br>(WhatsApp)"] --> B["Meta"]
+    B --> C["Túnel<br>Cloudflare"]
     C --> D{"FiveAgent<br>en tu PC"}
-    D -->|"¿firma de Meta correcta?<br>¿remitente permitido?"| E["Modelo<br>(DeepSeek u Ollama)"]
-    D -->|"si algo no cuadra:<br>se ignora y se apunta"| X["fa_err.log"]
-    E -->|"respuesta"| D
-    D --> C
-    C --> B
-    B --> A
+    D -->|"firma y remitente OK"| E["Modelo:<br>DeepSeek u Ollama"]
+    D -->|"si no cuadra:<br>se ignora"| X["fa_err.log"]
+    E -->|"respuesta"| A
 ```
 
 Tu móvil escribe al número de prueba. Meta avisa a tu PC a través del
