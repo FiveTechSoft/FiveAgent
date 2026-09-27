@@ -41,6 +41,24 @@ func OpenJSON(path string) (Store, error) {
 			return nil, err
 		}
 	}
+	// Migration: drop stored system messages. The system prompt is
+	// prepended at request time from the current code/config, so old
+	// prompts must not survive in memory.
+	kept := s.msgs[:0]
+	dropped := false
+	for _, m := range s.msgs {
+		if m.Role == "system" {
+			dropped = true
+			continue
+		}
+		kept = append(kept, m)
+	}
+	s.msgs = kept
+	if dropped {
+		if err := s.save(); err != nil {
+			return nil, err
+		}
+	}
 	return s, nil
 }
 
