@@ -560,3 +560,25 @@ func TestDebounceOff(t *testing.T) {
 		t.Fatalf("lost a message with debounce off: %q", turns)
 	}
 }
+
+// TestInboundReactionIgnored: an incoming emoji reaction is feedback,
+// not a turn: it must never reach the agent (a reaction used to trigger
+// a full model run and a reply).
+func TestInboundReactionIgnored(t *testing.T) {
+	fc := &fakeCore{}
+	w := newTestWhatsApp(fc)
+	w.debounce = 10 * time.Millisecond
+	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.r1","type":"reaction","reaction":{"message_id":"wamid.out1","emoji":"\ud83d\udc4d"}}]}}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	time.Sleep(300 * time.Millisecond)
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if fc.text != "" {
+		t.Fatalf("reaction reached the agent as a turn: %q", fc.text)
+	}
+}
