@@ -165,6 +165,7 @@ type mediaRef struct {
 func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {
+		log.Printf("whatsapp: inbound POST unreadable: %v", err)
 		rw.WriteHeader(http.StatusOK)
 		return
 	}
@@ -177,9 +178,10 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 
 	var p webhookPayload
 	if err := json.Unmarshal(body, &p); err != nil {
-		log.Printf("whatsapp: bad payload: %v", err)
+		log.Printf("whatsapp: bad payload (%d bytes): %v", len(body), err)
 		return
 	}
+	log.Printf("whatsapp: inbound POST, %d bytes", len(body))
 	for _, e := range p.Entry {
 		for _, ch := range e.Changes {
 			for _, s := range ch.Value.Statuses {
@@ -190,6 +192,7 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 			for _, m := range ch.Value.Messages {
+				log.Printf("whatsapp: message from %s (type %s)", m.From, m.Type)
 				go w.process(m.From, m.ID, describe(m), quoteOf(m))
 			}
 		}
