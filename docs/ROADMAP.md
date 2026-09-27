@@ -57,12 +57,15 @@ the phases are milestones.
       the agent stored it. Before truncating, summarize the outgoing
       messages into a session digest file, also recalled as data in
       later turns.
-   h. **Memory evals** - an evals/ directory of scripted conversations
-      running in CI: store a fact on turn 1, ask for it on turn 30
-      (past truncation), correct a fact and check the old one is gone.
-      Metrics: recall hit rate, false-save rate (noise), injection
-      precision (nothing irrelevant), tokens injected per turn. Each
-      stage above is only marked done when its evals pass.
+   h. **Memory evals** (working in CI) - evals/ runs scripted
+      conversations in CI: a fact stored on turn 1 is recalled on turn
+      32 (past truncation), corrections remove the old value, dedup
+      rejects repeats, injection precision and per-turn injected cost
+      are measured. Model-judgment evals (does the model save and use
+      memories well) run locally against the real model
+      (FIVEAGENT_EVAL_LIVE=1) and are the gate for marking a stage
+      done. First catch: the precision eval proved template description
+      lines polluted recall; recall now scores fact bullets only.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
@@ -82,7 +85,14 @@ the phases are milestones.
 ## Phase 4 - v0.4: more channels
 
 14. **iMessage** - bridge docs + reference implementation (needs a Mac).
-15. **WhatsApp extras** - templates, media, groups.
+15. **WhatsApp extras** - status reactions first: 👀 when an inbound
+    message checks out, ✅ when the reply lands, ⚠️ on failure. The
+    Cloud API sends reactions through the same /messages endpoint and a
+    new reaction on the same message replaces the old one, so this is
+    ~60-90 lines plus tests, best-effort (a failed reaction never
+    breaks the reply), behind `reactions: off|status` in the yml. Then
+    templates, media, groups. Telegram reactions (setMessageReaction)
+    follow the same pattern later.
 
 ## Phase 5 - setup that does not need a manual
 
