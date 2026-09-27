@@ -377,3 +377,76 @@ func TestLiveModelMemory(t *testing.T) {
 	}
 	t.Log("METRIC live save+recall with real model: 1/1")
 }
+
+// TestRecallRate: with 10 distinct facts stored, every targeted query
+// must inject its fact. Metric: recall hit rate over 10 queries.
+func TestRecallRate(t *testing.T) {
+	r := newRig(t)
+	facts := []struct{ entry, term string }{
+		{"My cat is named Neko.", "neko"},
+		{"My dog is named Toby.", "toby"},
+		{"I drink my coffee black.", "coffee"},
+		{"My sister lives in Porto.", "porto"},
+		{"I run on Tuesdays.", "tuesdays"},
+		{"My bike is a red Orbea.", "orbea"},
+		{"I hate coriander.", "coriander"},
+		{"My Wi-Fi is called CasaLoma.", "casaloma"},
+		{"I support Rayo Vallecano.", "rayo"},
+		{"My editor is Neovim.", "neovim"},
+	}
+	for _, f := range facts {
+		if _, err := r.kn.Append("preferences", f.entry); err != nil {
+			t.Fatal(err)
+		}
+	}
+	hits := 0
+	for _, f := range facts {
+		r.turn(t, "tell me about "+f.term)
+		mem := injectedMemory(t, r.player.last())
+		if strings.Contains(strings.ToLower(mem), f.term) {
+			hits++
+		} else {
+			t.Errorf("recall MISS for %q; injected block: %q", f.term, mem)
+		}
+	}
+	t.Logf("METRIC recall rate: %d/%d", hits, len(facts))
+}
+
+// TestAliasRecall: a query using a file alias ("contactos") must inject
+// the people file even when no body word matches. Metric: alias hit
+// rate.
+func TestAliasRecall(t *testing.T) {
+	r := newRig(t)
+	if _, err := r.kn.Append("people", "María is his sister."); err != nil {
+		t.Fatal(err)
+	}
+	r.turn(t, "mira mis contactos")
+	mem := injectedMemory(t, r.player.last())
+	if !strings.Contains(mem, "María") {
+		t.Fatalf("alias recall MISS for contactos; injected block: %q", mem)
+	}
+	t.Log("METRIC alias recall: 1/1")
+}
+
+// TestInjectionCostScaling: the injected block must stay bounded as the
+// store grows, even when many notes match the query. Metric: chars and
+// estimated tokens per turn with a 50-note store.
+func TestInjectionCostScaling(t *testing.T) {
+	r := newRig(t)
+	for i := 0; i < 50; i++ {
+		if _, err := r.kn.Append("preferences", fmt.Sprintf("Likes dish number %d with extra detail.", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	r.turn(t, "dish")
+	mem := injectedMemory(t, r.player.last())
+	estTokens := len(mem) / 4
+	t.Logf("METRIC injection cost at 50 notes: %d chars (~%d tokens)", len(mem), estTokens)
+	const maxChars = 4000
+	if len(mem) > maxChars {
+		t.Errorf("injected block %d chars exceeds the %d-char guardrail", len(mem), maxChars)
+	}
+	if !strings.Contains(mem, "dish number 49") {
+		t.Errorf("recall cap must keep the most recent notes; block: %q", mem)
+	}
+}
