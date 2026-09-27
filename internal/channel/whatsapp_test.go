@@ -317,10 +317,11 @@ func TestProcessConcurrentSenders(t *testing.T) {
 			To string `json:"to"`
 		}
 		raw, _ := io.ReadAll(r.Body)
-		// mark-read posts carry no "to"; reply posts do
+		// mark-read posts carry no "to"; reaction posts carry "to" but
+		// are not replies; only text posts count as replies
 		var full map[string]any
 		json.Unmarshal(raw, &full)
-		if to, ok := full["to"].(string); ok {
+		if to, ok := full["to"].(string); ok && full["type"] == "text" {
 			body.To = to
 			mu.Lock()
 			replies[body.To]++
@@ -360,5 +361,97 @@ func TestProcessConcurrentSenders(t *testing.T) {
 	}
 	if elapsed > 600*time.Millisecond {
 		t.Fatalf("senders look serialized: %s for two 300ms replies", elapsed)
+	}
+}
+
+// quickCore answers instantly.
+type quickCore struct{}
+
+func (quickCore) Handle(_ context.Context, _, _, _ string) (string, error) {
+	return "ahí va", nil
+}
+
+// reactionCapture records the reaction payloads in order.
+type reactionCapture struct {
+	mu    sync.Mutex
+	react []string
+	texts int
+}
+
+func (c *reactionCapture) handler(rw http.ResponseWriter, r *http.Request) {
+	raw, _ := io.ReadAll(r.Body)
+	var full map[string]any
+	json.Unmarshal(raw, &full)
+	c.mu.Lock()
+	if full["type"] == "reaction" {
+		if rec, ok := full["reaction"].(map[string]any); ok {
+			c.react = append(c.react, rec["emoji"].(string))
+		}
+	}
+	if full["type"] == "text" {
+		c.texts++
+	}
+	c.mu.Unlock()
+	rw.Header().Set("Content-Type", "application/json")
+	io.WriteString(rw, `{"messages":[{"id":"wamid.x"}]}`)
+}
+
+func TestProcessReactions(t *testing.T) {
+	cap := &reactionCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
+	defer srv.Close()
+
+	w := newTestWhatsApp(quickCore{})
+	w.baseURL = srv.URL
+	w.process("34600111222", "wamid.inbound", "hola", "")
+
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	want := []string{"\U0001F440", "✅"}
+	if len(cap.react) != len(want) || cap.react[0] != want[0] || cap.react[1] != want[1] {
+		t.Fatalf("reactions = %v, want %v (eyes while working, check when done)", cap.react, want)
+	}
+	if cap.texts != 1 {
+		t.Fatalf("text replies = %d, want 1", cap.texts)
+	}
+}
+
+func TestProcessReactionOnAgentFailure(t *testing.T) {
+	cap := &reactionCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
+	defer srv.Close()
+
+	w := newTestWhatsApp(slowCore{})
+	w.baseURL = srv.URL
+	w.agentTimeout = 50 * time.Millisecond
+	w.process("34600111222", "wamid.inbound", "hola", "")
+
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	if len(cap.react) != 2 || cap.react[1] != "⚠️" {
+		t.Fatalf("reactions = %v, want [👀 ⚠️] on agent failure", cap.react)
+	}
+	if cap.texts != 1 {
+		t.Fatalf("fallback reply not sent: texts = %d", cap.texts)
+	}
+}
+
+func TestProcessReactionsOff(t *testing.T) {
+	cap := &reactionCapture{}
+	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
+	defer srv.Close()
+
+	w := newTestWhatsApp(quickCore{})
+	w.baseURL = srv.URL
+	w.reactions = false
+	w.process("34600111222", "wamid.inbound", "hola", "")
+
+	cap.mu.Lock()
+	defer cap.mu.Unlock()
+	if len(cap.react) != 0 {
+		t.Fatalf("reactions disabled but got %v", cap.react)
+	}
+	if cap.texts != 1 {
+		t.Fatalf("text replies = %d, want 1", cap.texts)
 	}
 }
