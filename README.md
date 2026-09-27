@@ -23,6 +23,13 @@ docker compose up -d
 
 Then link a channel (WhatsApp / Telegram / iMessage) from the setup wizard at `http://localhost:8000/setup`.
 
+Prefer bare metal? FiveAgent is written in Go and builds to a single static binary - no runtime needed:
+
+```bash
+go build ./cmd/fiveagent
+./fiveagent
+```
+
 ## Configuration
 
 One file, `fiveagent.yml` (or env vars). Everything important is a config line, never a code change:
@@ -45,7 +52,7 @@ memory:
 One service, three layers. See [docs/design.md](docs/design.md) for the full design.
 
 - **Channels** - thin adapters (WhatsApp, Telegram, iMessage) that normalize messages into one event format.
-- **Core** - the agent loop: memory, tools, planning. Provider-agnostic.
+- **Core** - a single Go binary running the agent loop: memory, tools, planning. Provider-agnostic.
 - **Tools** - web search, email, calendar, files, and a sandboxed browser (Playwright in a sidecar container).
 
 ## Security
