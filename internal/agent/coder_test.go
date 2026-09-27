@@ -17,12 +17,20 @@ func TestLooksLikeCode(t *testing.T) {
 	code := []string{
 		"```go\nfunc main() {}\n```",
 		"func Add(a, b int) int",
-		"¿me explicas esta función?",
-		"SELECT * FROM users WHERE id = 1",
+		"SELECT * FROM users WHERE id = 1", // select + from: two weak signals
 		"git commit failed, why?",
 		"traceback: ValueError at line 3",
-		"hay un bug en el bucle",
-		"import os",
+		"hay un bug en el bucle", // bug + bucle: two weak signals
+		"escribe una función en go",
+		"escríbeme un programa que sume dos números",
+		"hazme un script en bash",
+		"no me compila el proyecto",
+		"¿cómo centro un div?",
+		"corrige mi html por favor",
+		"devuélveme un json con los datos",
+		"quiero aprender java",
+		"mi api no responde",
+		"tengo un error en el bucle",
 	}
 	for _, s := range code {
 		if !looksLikeCode(s) {
@@ -35,6 +43,29 @@ func TestLooksLikeCode(t *testing.T) {
 		"let me think about it",
 		"gracias, funciona genial",
 		"nos vemos mañana",
+		// Word boundaries: substrings inside other words do not fire.
+		"me gustan las bugambilias",
+		"that's def cool",
+		// Single weak signals stay on the chat model, however code-ish
+		// they read: ambiguous words need two distinct matches.
+		"¿me explicas esta función?",
+		"explícame esta función matemática",
+		"¿qué función cumple el botón rojo?",
+		"¿cuál es el código postal de Sevilla?",
+		"tengo un código de descuento",
+		"hay un bug en la app de fotos",
+		"¿me explicas qué es un algoritmo?",
+		"import os",
+		"¿qué hace este método?",
+		"arréglame el bucle infinito",
+		"error en la línea 3 del archivo",
+		"¿qué es una variable global?",
+		"nice class today",
+		"please select a date for the meeting",
+		"the import of goods rose",
+		"compile a list of restaurants",
+		// Punctuation alone is not a signal.
+		"hola; ¿cómo estás?",
 	}
 	for _, s := range chat {
 		if looksLikeCode(s) {
