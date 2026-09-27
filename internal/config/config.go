@@ -41,6 +41,12 @@ type Channel struct {
 	// working, check when the reply lands, warning on failure; "off"
 	// disables reactions. WhatsApp only for now.
 	Reactions string `yaml:"reactions,omitempty"`
+	// Debounce joins rapid message bursts from one sender into a single
+	// agent turn: people write in bursts ("hola" / "una pregunta" / "...")
+	// and the natural reply reads them together. Value is a Go duration
+	// ("3s", "1500ms"); empty defaults to 3s; "off" answers every message
+	// on arrival (the old parallel behavior).
+	Debounce string `yaml:"debounce,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
