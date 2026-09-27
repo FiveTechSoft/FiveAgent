@@ -29,6 +29,10 @@ type Channel struct {
 	VerifyToken   string `yaml:"verify_token,omitempty"`
 	AppSecret     string `yaml:"app_secret,omitempty"`  // enables X-Hub-Signature-256 checks
 	ListenAddr    string `yaml:"listen_addr,omitempty"` // webhook listen address, default :8080
+	// AllowedSenders limits who the bot answers: WhatsApp phone numbers as
+	// they arrive (e.g. "34600123456"), Telegram chat IDs (e.g. "123456789").
+	// Empty means allow everyone (a warning is logged at startup).
+	AllowedSenders []string `yaml:"allowed_senders,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
