@@ -64,10 +64,18 @@ Crea un archivo `fiveagent.yml` al lado de `fiveagent.exe` con este
 contenido (de momento deja los valores de WhatsApp vacíos, los
 rellenarás en el Paso 8):
 
+El modelo es quien redacta las respuestas. Tienes dos opciones;
+rellena **una** de las dos:
+
+Opción A - **DeepSeek** (nube, es con la que hicimos la prueba en vivo
+de esta guía; necesita una API key de https://platform.deepseek.com):
+
 ```yaml
 model:
-  provider: "deepseek"        # o "ollama" si prefieres todo en local
-  api_key: "<tu clave de DeepSeek>"   # con ollama no hace falta
+  provider: openai-compatible
+  base_url: "https://api.deepseek.com/v1"
+  api_key: "<tu clave de DeepSeek>"
+  name: "deepseek-chat"
 
 channels:
   whatsapp:
@@ -77,13 +85,30 @@ channels:
     verify_token: "inventa-una-palabra-larga-y-rara"
 ```
 
+Opción B - **Ollama** (gratis, todo en tu PC, sin nube; todavía no lo
+hemos probado en vivo - si lo pruebas, cuéntanos):
+
+```yaml
+model:
+  provider: openai-compatible
+  base_url: "http://localhost:11434/v1"
+  api_key: ""                 # con Ollama va vacío
+  name: "qwen3"               # el modelo que hayas descargado
+
+channels:
+  whatsapp:
+    enabled: true
+    access_token: ""          # Paso 8
+    phone_number_id: ""       # Paso 8
+    verify_token: "inventa-una-palabra-larga-y-rara"
+```
+
+Para Ollama: instálalo de https://ollama.com y descarga un modelo con
+`ollama pull qwen3` (u otro). Déjalo corriendo; FiveAgent habla con él
+en tu propio PC.
+
 - `verify_token`: invéntatelo tú. Lo usarás dos veces: aquí y en el
   panel de Meta. Sirve para que Meta compruebe que habla contigo.
-- El modelo es quien redacta las respuestas: **Ollama** (gratis, corre
-  en tu PC: instálalo de https://ollama.com y haz `ollama pull qwen3`
-  u otro modelo) o **DeepSeek** (nube, necesita una API key de
-  https://platform.deepseek.com). La prueba en vivo de esta guía se
-  hizo con DeepSeek.
 
 ## Paso 3 - Arranca FiveAgent
 
