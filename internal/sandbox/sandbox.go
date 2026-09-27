@@ -4,9 +4,12 @@
 //     read-only system dirs, only the user's folder writable, timeout.
 //   - docker (any OS with Docker): no network, RAM/CPU caps, only the
 //     user's folder mounted writable, timeout.
-//   - jobobject (Windows): process tree killed with the job, RAM cap,
-//     per-user working directory, timeout. Filesystem and network
-//     isolation are NOT enforced yet (AppContainer is the next step).
+//   - appcontainer (Windows): AppContainer + Job Object: host files not
+//     readable, no network, RAM cap, process tree killed with the job,
+//     per-user writable folder, timeout. Pending live verification on a
+//     real Windows PC. jobobject (older fallback) enforces only the RAM
+//     cap, process-tree kill and timeout - no filesystem or network
+//     isolation.
 package sandbox
 
 import (
@@ -70,7 +73,7 @@ func New(cfg config.Sandbox) (Sandbox, error) {
 				return nil, fmt.Errorf("sandbox: no backend available: install bubblewrap (recommended) or docker")
 			}
 		case "windows":
-			backend = "jobobject"
+			backend = "appcontainer"
 		default: // darwin and others: docker until a native backend lands
 			if _, err := exec.LookPath("docker"); err == nil {
 				backend = "docker"
@@ -80,6 +83,14 @@ func New(cfg config.Sandbox) (Sandbox, error) {
 		}
 	}
 	switch backend {
+	case "appcontainer":
+		sb, err := newAppContainer(root, timeout, maxRAM)
+		if err != nil {
+			// No AppContainer support (very old Windows): degrade to
+			// the weaker Job Objects backend instead of failing.
+			return newJobObject(root, timeout, maxRAM)
+		}
+		return sb, nil
 	case "bubblewrap":
 		return newBubblewrap(root, timeout)
 	case "docker":
