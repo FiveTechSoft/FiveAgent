@@ -85,11 +85,10 @@ the phases are milestones.
 ## Phase 4 - v0.4: more channels
 
 14. **iMessage** - bridge docs + reference implementation (needs a Mac).
-15. **WhatsApp extras** - status reactions first: 👀 when an inbound
-    message checks out, ✅ when the reply lands, ⚠️ on failure. The
-    Cloud API sends reactions through the same /messages endpoint and a
-    new reaction on the same message replaces the old one, so this is
-    ~60-90 lines plus tests, best-effort (a failed reaction never
+15. **WhatsApp extras** - status reactions (working): 👀 when an
+    inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
+    through the same /messages endpoint, replacing the previous
+    reaction on the same message, best-effort (a failed reaction never
     breaks the reply), behind `reactions: off|status` in the yml. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
