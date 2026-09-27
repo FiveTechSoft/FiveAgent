@@ -138,7 +138,10 @@ the phases are milestones.
     inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
     through the same /messages endpoint, replacing the previous
     reaction on the same message, best-effort (a failed reaction never
-    breaks the reply), behind `reactions: off|status` in the yml. Then
+    breaks the reply), behind `reactions: off|status` in the yml.
+    Burst debounce (working): rapid messages from one sender join a
+    single turn (3s window, `debounce` in the yml), one reply with the
+    full context in arrival order, quoting the last message. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
 17. **Content reactions** (planned) - on top of status reactions, the
