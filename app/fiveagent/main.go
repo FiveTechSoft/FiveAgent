@@ -35,7 +35,7 @@ func main() {
 	defer store.Close()
 
 	reg := tools.NewRegistry(tools.Datetime{})
-	core := agent.New(mdl, store, reg)
+	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
