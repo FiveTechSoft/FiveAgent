@@ -110,8 +110,8 @@ channels:
     verify_token: "inventa-una-palabra-larga-y-rara"
 ```
 
-Opción B - **Ollama** (gratis, todo en tu PC, sin nube; todavía no lo
-hemos probado en vivo - si lo pruebas, cuéntanos):
+Opción B - **Ollama** (gratis, todo en tu PC, sin nube; probado en
+vivo el 27-sep-2026 con qwen3.8:27b contestando por WhatsApp):
 
 ```yaml
 model:
@@ -333,6 +333,11 @@ whatsapp: message from 346XXXXXXXXX (type text)
 Esto está probado en vivo, de punta a punta (27-sep-2026):
 
 ![Conversación real: FiveAgent responde por WhatsApp](images/1-2-whatsapp-e2e-real.jpg)
+
+Y también con un modelo **local**, sin nube: Ollama con qwen3.8:27b en
+un PC de casa (27-sep-2026):
+
+![Conversación real: FiveAgent responde por WhatsApp usando Ollama en local](images/1-3-whatsapp-ollama-pc-real.jpg)
 
 ---
 
