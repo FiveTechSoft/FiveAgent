@@ -117,7 +117,7 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 - WhatsApp channel via the official Cloud API, verified end-to-end in a live install ([guía en español paso a paso](docs/whatsapp.md)). Telegram channel via long polling (no public URL needed).
 - Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
 - Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
-- Tool calling: the model can call tools (OpenAI-style function calling). First built-in tool: current date/time.
+- Tool calling: the model can call tools (OpenAI-style function calling). Built-in tools: current date/time and `run_command`, which executes commands inside a per-user sandbox (bubblewrap backend on Linux, tested: no network, only the user's folder writable; Docker and Windows Job Objects backends included, pending live verification).
 
 ## Roadmap
 
@@ -125,11 +125,12 @@ Tracked as GitHub issues and milestones, in this order:
 
 1. ~~Tool calling in the agent loop~~ (done)
 2. ~~Telegram channel~~ (done)
-3. CI with tests (GitHub Actions)
-4. First release: v0.0.1
-5. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
-6. Tools: web search, browser, email, calendar
-7. iMessage channel
+3. Per-user sandboxed command execution (bubblewrap on Linux works; Windows Job Objects and Docker fallback pending live verification; AppContainer and macOS sandbox-exec later)
+4. CI with tests (GitHub Actions)
+5. First release: v0.0.1
+6. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
+7. Tools: web search, browser, email, calendar
+8. iMessage channel
 
 Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
