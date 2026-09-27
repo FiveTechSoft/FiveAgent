@@ -67,6 +67,8 @@ func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt s
 // Tool-call iterations stay in memory; only the user text and the final
 // reply are persisted.
 func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (string, error) {
+	// Tools (e.g. the sandbox) scope their work per channel+user.
+	ctx = tools.WithRequestInfo(ctx, channel, userID)
 	if err := a.store.Append(ctx, channel, userID, "user", text); err != nil {
 		return "", err
 	}
