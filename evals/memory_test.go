@@ -104,6 +104,14 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		io.WriteString(w, reply("Anotado."))
+	case strings.HasPrefix(lastUser, "forget: "):
+		entry := strings.TrimPrefix(lastUser, "forget: ")
+		if toolResults == 0 {
+			io.WriteString(w, toolCall("forget_memory",
+				fmt.Sprintf(`{"file":"preferences","match":%q}`, entry)))
+			return
+		}
+		io.WriteString(w, reply("Olvidado."))
 	case strings.HasPrefix(lastUser, "correct: "):
 		rest := strings.TrimPrefix(lastUser, "correct: ")
 		parts := strings.SplitN(rest, " -> ", 2)
@@ -159,7 +167,12 @@ func newRig(t *testing.T) *rig {
 
 func (r *rig) turn(t *testing.T, text string) string {
 	t.Helper()
-	reply, err := r.agent.Handle(context.Background(), "whatsapp", "eval-user", text)
+	return r.turnAs(t, "eval-user", text)
+}
+
+func (r *rig) turnAs(t *testing.T, userID, text string) string {
+	t.Helper()
+	reply, err := r.agent.Handle(context.Background(), "whatsapp", userID, text)
 	if err != nil {
 		t.Fatalf("turn %q: %v", text, err)
 	}
@@ -449,4 +462,31 @@ func TestInjectionCostScaling(t *testing.T) {
 	if !strings.Contains(mem, "dish number 49") {
 		t.Errorf("recall cap must keep the most recent notes; block: %q", mem)
 	}
+}
+
+// TestForgetByAgent: the model can delete a fact through forget_memory
+// and it stops being injected. Metric: forget success rate.
+func TestForgetByAgent(t *testing.T) {
+	r := newRig(t)
+	r.turn(t, "remember: my cat is named Neko")
+	r.turn(t, "forget: Neko")
+	r.turn(t, "what is my cat called")
+	mem := injectedMemory(t, r.player.last())
+	if strings.Contains(mem, "Neko") {
+		t.Fatalf("forgotten fact still injected; block: %q", mem)
+	}
+	t.Log("METRIC forget by agent: 1/1")
+}
+
+// TestHistoryIsolation: one sender's conversation must never leak into
+// another sender's request. Metric: cross-sender history leaks (want 0).
+func TestHistoryIsolation(t *testing.T) {
+	r := newRig(t)
+	r.turnAs(t, "user-a", "mi palabra secreta es bananaphone")
+	r.turnAs(t, "user-b", "hola, ¿qué sabes de mí?")
+	body := r.player.last()
+	if strings.Contains(body, "bananaphone") {
+		t.Fatal("sender A history leaked into sender B request")
+	}
+	t.Log("METRIC cross-sender history leaks: 0/1")
 }
