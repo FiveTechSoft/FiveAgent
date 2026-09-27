@@ -1,0 +1,33 @@
+services:
+  agent:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - FIVEAGENT_CONFIG=/config/fiveagent.yml
+      - FIVEAGENT_MASTER_KEY=${FIVEAGENT_MASTER_KEY}
+    volumes:
+      - ./fiveagent.yml:/config/fiveagent.yml:ro
+      - fiveagent-workspace:/workspace
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      - POSTGRES_USER=fiveagent
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-fiveagent}
+      - POSTGRES_DB=fiveagent
+    volumes:
+      - fiveagent-db:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  browser:
+    image: mcr.microsoft.com/playwright:v1.48.0-jammy
+    command: ["npx", "playwright", "run-server", "--port", "3000"]
+    restart: unless-stopped
+
+volumes:
+  fiveagent-workspace:
+  fiveagent-db:
