@@ -187,10 +187,16 @@ func normalizeNote(s string) string {
 	return strings.TrimRight(s, " .;,")
 }
 
+// maxLinesPerFile caps how many matching bullets one file contributes
+// to a recall. Without it a popular word injects the whole file and the
+// per-turn cost grows linearly with the store.
+const maxLinesPerFile = 10
+
 // Recall returns the memory lines relevant to a query, best files first.
 // Scoring: an alias match counts 3, each matching body line counts 1.
 // A file matched only by alias returns its whole body (files are small
-// at this stage).
+// at this stage). One file contributes at most maxLinesPerFile matching
+// bullets, keeping the most recent.
 func (k *Knowledge) Recall(query string) ([]FileHit, error) {
 	terms := queryTerms(query)
 	if len(terms) == 0 {
@@ -232,6 +238,13 @@ func (k *Knowledge) Recall(query string) ([]FileHit, error) {
 		}
 		if len(lines) == 0 {
 			lines = nonEmptyLines(f.Body, 20)
+		}
+		if len(lines) > maxLinesPerFile {
+			// Notes are appended chronologically; past the cap keep the
+			// most recent matches so injection cost stays bounded as the
+			// store grows (measured: ~739 tokens/turn at 50 notes without
+			// a cap, evals/TestInjectionCostScaling).
+			lines = lines[len(lines)-maxLinesPerFile:]
 		}
 		hits = append(hits, FileHit{ID: f.ID, Score: score, Lines: lines})
 	}
