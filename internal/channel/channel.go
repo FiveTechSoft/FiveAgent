@@ -44,6 +44,8 @@ func Build(cfg *config.Config, core *agent.Agent) []Channel {
 		switch name {
 		case "telegram":
 			out = append(out, NewTelegram(ch.BotToken, core))
+		case "whatsapp":
+			out = append(out, NewWhatsApp(ch, core))
 		default:
 			out = append(out, &noop{name: name})
 		}
