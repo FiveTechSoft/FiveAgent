@@ -54,7 +54,7 @@ func (s *pgStore) Recent(ctx context.Context, channel, userID string, limit int)
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT role, content FROM (
 			SELECT role, content, id FROM messages
-			WHERE channel = $1 AND user_id = $2
+			WHERE channel = $1 AND user_id = $2 AND role <> 'system'
 			ORDER BY id DESC LIMIT $3
 		) m ORDER BY id`, channel, userID, limit)
 	if err != nil {
