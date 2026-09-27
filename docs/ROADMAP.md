@@ -29,6 +29,16 @@ the phases are milestones.
 12. **iMessage** - bridge docs + reference implementation (needs a Mac).
 13. **WhatsApp extras** - templates, media, groups.
 
+## Phase 5 - setup that does not need a manual
+
+14. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+    does the Meta configuration through the Graph API for you: check the
+    token, register the webhook callback, subscribe the app to the
+    `messages` field and to the WhatsApp Business Account
+    (`subscribed_apps`), and confirm the phone number id. Idea born from a
+    real first-time setup: the Meta panel is confusing enough to stop new
+    users. Until this exists, docs/whatsapp.md is the way.
+
 ## Principles
 
 - Simple first: one binary, one config file, one command to run.
