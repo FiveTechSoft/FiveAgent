@@ -26,7 +26,7 @@ Then link a channel (WhatsApp / Telegram / iMessage) from the setup wizard at `h
 Prefer bare metal? FiveAgent is written in Go and builds to a single static binary - no runtime needed:
 
 ```bash
-go build ./cmd/fiveagent
+go build ./app/fiveagent
 ./fiveagent
 ```
 
