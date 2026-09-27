@@ -122,7 +122,7 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 Tracked as GitHub issues and milestones, in this order:
 
 1. ~~Tool calling in the agent loop~~ (done)
-2. Telegram channel
+2. ~~Telegram channel~~ (done)
 3. CI with tests (GitHub Actions)
 4. First release: v0.0.1
 5. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
