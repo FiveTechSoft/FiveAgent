@@ -87,3 +87,15 @@ func TestChannelStyle(t *testing.T) {
 		t.Errorf("unknown channels should fall back to plain text: %q", got)
 	}
 }
+
+func TestSystemPromptStatesOpenSource(t *testing.T) {
+	cfg := &config.Config{
+		Model: config.Model{BaseURL: "https://api.deepseek.com/v1", Name: "deepseek-chat"},
+	}
+	p := SystemPrompt(cfg)
+	for _, want := range []string{"open source", "MIT", "https://github.com/FiveTechSoft/FiveAgent"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("identity line should state %q: %q", want, p)
+		}
+	}
+}
