@@ -8,24 +8,26 @@ the phases are milestones.
 1. **Tool calling** (done) - the model can call tools through the OpenAI function-calling
    protocol, with a registry to add more. First tool: current date/time.
 2. **Telegram channel** - Bot API with long polling. Simplest official API there is.
-3. **Per-user sandbox** (in progress) - the agent can run commands for each
-   user inside an isolated environment, via a `run_command` tool. Backends:
-   bubblewrap on Linux (working, tested: no network, host files hidden, one
-   writable folder per user, timeout), Windows AppContainer + Job Objects
-   (compiles: no network, host files unreadable, RAM cap, timeout - pending
-   live verification on a real Windows PC; plain Job Objects remains as the
-   fallback), Docker fallback (implemented, pending live test). Later:
-   sandbox-exec on macOS.
-3. **CI** - GitHub Actions: build, vet, run tests on every push.
-4. **Unit tests** - model client, WhatsApp webhook, agent loop.
-5. **Release v0.0.1** - tag, changelog, prebuilt binaries for Windows/Linux/macOS.
+3. **Per-user sandbox** (working, verified in CI) - the agent can run
+   commands for each user inside an isolated environment, via a
+   `run_command` tool. Backends, all with green tests on real runners:
+   bubblewrap on Linux (no network, host files hidden, one writable folder
+   per user, timeout), Windows AppContainer + Job Objects (no network, host
+   files unreadable, RAM cap, timeout; plain Job Objects remains as the
+   fallback), Docker (no network, RAM/CPU caps). Later: sandbox-exec on
+   macOS.
+4. **CI** (done) - GitHub Actions: build, vet and tests on every push, on
+   ubuntu-latest, windows-latest and macos-latest. First all-green run:
+   https://github.com/FiveTechSoft/FiveAgent/actions/runs/36331174095
+5. **Unit tests** - model client, WhatsApp webhook, agent loop.
+6. **Release v0.0.1** - tag, changelog, prebuilt binaries for Windows/Linux/macOS.
 
 ## Phase 2 - v0.2: memory and safety
 
-6. **Long-term memory** - pgvector embeddings, recall beyond the last 20 messages.
-7. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
-8. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
-9. **Per-task model routing** (planned) - send each request to the model
+7. **Long-term memory** - pgvector embeddings, recall beyond the last 20 messages.
+8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
+9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
+10. **Per-task model routing** (planned) - send each request to the model
    that does it best: conversation to Qwen3-30B, code to Qwen2.5-Coder
    (great at code, weaker prose). Configurable in fiveagent.yml
    (models: chat / code / ...), with a router that classifies each
@@ -33,18 +35,18 @@ the phases are milestones.
 
 ## Phase 3 - v0.3: tools
 
-9. **Web search** - pluggable backend, with a self-hosted SearXNG option.
-10. **Browser** - drive the Playwright sidecar (already in docker compose).
-11. **Email + calendar** - read and act on the user's accounts (OAuth).
+11. **Web search** - pluggable backend, with a self-hosted SearXNG option.
+12. **Browser** - drive the Playwright sidecar (already in docker compose).
+13. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
 
-12. **iMessage** - bridge docs + reference implementation (needs a Mac).
-13. **WhatsApp extras** - templates, media, groups.
+14. **iMessage** - bridge docs + reference implementation (needs a Mac).
+15. **WhatsApp extras** - templates, media, groups.
 
 ## Phase 5 - setup that does not need a manual
 
-14. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+16. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
