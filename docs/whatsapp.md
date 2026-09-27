@@ -467,14 +467,30 @@ Ojo con dos detalles que aprendimos a las malas:
 ## Paso 18 - Token permanente de Meta
 
 El token que te da el panel de Meta (Paso 7) es **temporal: dura hora
-y media aproximadamente**. Para producción crea uno permanente:
+y media aproximadamente**. Para producción crea uno permanente de
+"usuario del sistema". Está probado: verificado con `debug_token` -
+`expires_at: 0` (no caduca), tipo `SYSTEM_USER` y los dos permisos de
+WhatsApp.
 
-1. En **Meta Business Suite - Configuración de empresa - Usuarios -
-   Usuarios del sistema**, crea un usuario del sistema (rol de
-   administrador).
-2. Dale acceso a tu app y genera un token con los permisos
+1. Entra en la **configuración de empresa** de Meta Business
+   (https://business.facebook.com/settings) y ve a **Usuarios -
+   Usuarios del sistema**.
+2. Pulsa **Añadir**. Ponle un nombre (ej.: `fiveagent`) y el rol
+   **Administrador**.
+3. Pulsa **Asignar activos**. En el mismo diálogo asigna **dos**
+   cosas:
+   - Tu **app**, con el permiso **"Administrar la aplicación"**.
+   - Tu **cuenta de WhatsApp**, con **acceso total**.
+
+   Ojo: Meta muestra un aviso alarmante tipo "se quitarán permisos...
+   Todavía no hay nada asignado". **Es un aviso confuso; es seguro
+   confirmar.** Y después de asignar, la página puede seguir mostrando
+   que no hay nada asignado hasta que la recargues (F5).
+4. Pulsa **Generar identificador** (generar token). Elige tu **app**,
+   marca **"Nunca"** como caducidad y selecciona los dos permisos:
    `whatsapp_business_messaging` y `whatsapp_business_management`.
-3. Pon ese token en `access_token` de tu `fiveagent.yml`.
+5. **Copia el token: solo se muestra una vez.** Ponlo en
+   `access_token` de tu `fiveagent.yml` y reinicia FiveAgent.
 
 Ese token no caduca (salvo que lo revoques). Referencia:
 https://developers.facebook.com/docs/whatsapp/business-management-api/get-started
