@@ -58,3 +58,32 @@ func TestSystemPromptWhitespaceOnlyFallsBack(t *testing.T) {
 		t.Errorf("whitespace-only prompt should fall back to default: %q", p)
 	}
 }
+
+func TestSystemPromptMentionsProviderSwitch(t *testing.T) {
+	cfg := &config.Config{
+		Model: config.Model{BaseURL: "https://api.deepseek.com/v1", Name: "deepseek-chat"},
+	}
+	p := SystemPrompt(cfg)
+	for _, want := range []string{"Ollama", "DeepSeek", "fiveagent.yml"} {
+		if !strings.Contains(p, want) {
+			t.Errorf("identity line should mention %q: %q", want, p)
+		}
+	}
+}
+
+func TestChannelStyle(t *testing.T) {
+	w := channelStyle("whatsapp")
+	if !strings.Contains(w, "*bold*") || !strings.Contains(w, "_italic_") {
+		t.Errorf("whatsapp style should document WhatsApp markup: %q", w)
+	}
+	if !strings.Contains(w, "no Markdown") {
+		t.Errorf("whatsapp style should forbid full Markdown: %q", w)
+	}
+	tg := channelStyle("telegram")
+	if !strings.Contains(tg, "plain text") {
+		t.Errorf("telegram style should require plain text: %q", tg)
+	}
+	if got := channelStyle("imessage"); !strings.Contains(got, "plain text") {
+		t.Errorf("unknown channels should fall back to plain text: %q", got)
+	}
+}
