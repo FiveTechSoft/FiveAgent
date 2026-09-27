@@ -148,6 +148,7 @@ func (t *telegram) process(m *tgMessage) {
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	chatID := strconv.FormatInt(m.Chat.ID, 10)
+	log.Printf("telegram: message from chat %s", chatID)
 	if !senderAllowed(t.cfg.AllowedSenders, chatID) {
 		log.Printf("telegram: ignored message from chat %s (not in allowed_senders)", chatID)
 		return
