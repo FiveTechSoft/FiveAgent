@@ -11,9 +11,9 @@ Goal: a personal AI agent that is simple to self-host, effective in daily use, a
 
 ## Components
 
-### Core (Python, FastAPI)
+### Core (Go)
 
-The agent loop: receives a normalized message event, gathers context (memory, tools, conversation), calls the configured model, executes tool calls, replies through the channel adapter. Single process; scale-out is out of scope for v1.
+A single static binary: no runtime, no dependency hell, trivial to ship for Windows, Linux and macOS. The agent loop: receives a normalized message event, gathers context (memory, tools, conversation), calls the configured model, executes tool calls, replies through the channel adapter. Single process; scale-out is out of scope for v1.
 
 ### Model layer
 
@@ -54,7 +54,7 @@ Encrypted at rest with AES-256-GCM using a master key from the environment. Tool
 
 ## Roadmap (v0)
 
-- [ ] Repo skeleton + docker compose (agent + Postgres + browser sidecar)
+- [x] Repo skeleton + docker compose (agent + Postgres + browser sidecar)
 - [ ] Model layer with Ollama and OpenAI configs
 - [ ] Telegram channel
 - [ ] WhatsApp channel
