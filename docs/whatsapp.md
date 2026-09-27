@@ -192,7 +192,9 @@ whatsapp: inbound POST, 555 bytes
 whatsapp: message from 346XXXXXXXXX (type text)
 ```
 
-y la respuesta entregada en WhatsApp segundos después. Las trampas 5a y
+y la respuesta entregada en WhatsApp segundos después:
+
+![Conversación real: FiveAgent responde por WhatsApp](images/2-whatsapp-e2e-real.jpg) Las trampas 5a y
 5b de arriba son exactamente las que encontramos en esa instalación.
 
 ### Lo que falta hoy
