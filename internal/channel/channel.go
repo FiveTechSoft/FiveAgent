@@ -22,6 +22,20 @@ type Handler interface {
 	Handle(ctx context.Context, channel, userID, text string) (string, error)
 }
 
+// senderAllowed reports whether id may talk to the bot. An empty list
+// allows everyone.
+func senderAllowed(list []string, id string) bool {
+	if len(list) == 0 {
+		return true
+	}
+	for _, a := range list {
+		if a == id {
+			return true
+		}
+	}
+	return false
+}
+
 // Channel is one messaging adapter.
 type Channel interface {
 	Name() string
@@ -48,7 +62,7 @@ func Build(cfg *config.Config, core Handler) []Channel {
 		}
 		switch name {
 		case "telegram":
-			out = append(out, NewTelegram(ch.BotToken, core))
+			out = append(out, NewTelegram(ch, core))
 		case "whatsapp":
 			out = append(out, NewWhatsApp(ch, core))
 		default:
