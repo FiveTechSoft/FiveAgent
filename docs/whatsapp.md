@@ -146,6 +146,12 @@ en tu propio PC.
 
 ## Paso 3 - Arranca FiveAgent
 
+La forma fácil: doble clic en `fiveagent.bat` (viene en el repo).
+Arranca FiveAgent, crea la carpeta `data` si falta y te enseña los
+logs. Si ya estaba arrancado, lo reinicia.
+
+O desde PowerShell:
+
 ```
 .\fiveagent.exe
 ```
