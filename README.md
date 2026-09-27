@@ -125,8 +125,8 @@ Tracked as GitHub issues and milestones, in this order:
 
 1. ~~Tool calling in the agent loop~~ (done)
 2. ~~Telegram channel~~ (done)
-3. Per-user sandboxed command execution (bubblewrap on Linux works and is tested; Windows AppContainer + Job Objects backend compiles, pending live verification on a real PC; Docker fallback included, pending live test; macOS sandbox-exec later)
-4. CI with tests (GitHub Actions)
+3. Per-user sandboxed command execution (all backends verified in CI: bubblewrap on Linux, AppContainer + Job Objects on Windows, Docker fallback; macOS sandbox-exec later)
+4. ~~CI with tests (GitHub Actions)~~ (done: ubuntu + windows + macos on every push)
 5. First release: v0.0.1
 6. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
 7. Tools: web search, browser, email, calendar
