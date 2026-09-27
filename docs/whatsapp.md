@@ -247,8 +247,10 @@ túnel: una dirección pública temporal que lleva a tu PC.
 2. Abre PowerShell y ejecuta:
 
    ```
-   cloudflared tunnel --url http://localhost:8080
+   cloudflared tunnel --url http://localhost:8080 --protocol http2
    ```
+
+   (El `--protocol http2` es importante; abajo se explica por qué.)
 
 3. En el texto que sale, busca una línea con una URL tipo
    `https://palabras-al-azar.trycloudflare.com`. Cópiala.
