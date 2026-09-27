@@ -104,6 +104,15 @@ channels:
     verify_token: "inventa-una-palabra-larga-y-rara"
 ```
 
+Las dos opciones llevan la misma idea: el bot sabe qué modelo usa y, si se
+lo preguntas ("¿qué modelo eres?"), te lo dice claro. Antes se inventaba la
+respuesta; ahora el programa le dice al modelo su nombre y su dirección.
+
+Si quieres cambiar su forma de hablar, añade al final del archivo una línea
+`system_prompt` con tu propia descripción (opcional; en
+`fiveagent.yml.example` tienes un ejemplo). La parte de "qué modelo soy" se
+añade siempre sola.
+
 Para Ollama: instálalo de https://ollama.com y descarga un modelo con
 `ollama pull qwen3` (u otro). Déjalo corriendo; FiveAgent habla con él
 en tu propio PC.
