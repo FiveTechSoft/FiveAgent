@@ -66,7 +66,8 @@ type Config struct {
 	Sandbox  Sandbox            `yaml:"sandbox,omitempty"`
 	// Coder is an optional second model for code-heavy requests. When set,
 	// the agent picks it for messages that look like code and keeps
-	// Model for everything else. It inherits model.base_url when omitted.
+	// Model for everything else. It inherits model.base_url, model.provider
+	// and model.api_key when omitted.
 	Coder Model `yaml:"coder,omitempty"`
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
@@ -94,6 +95,9 @@ func Load(path string) (*Config, error) {
 	}
 	if c.Coder.Name != "" && c.Coder.Provider == "" {
 		c.Coder.Provider = c.Model.Provider
+	}
+	if c.Coder.Name != "" && c.Coder.APIKey == "" {
+		c.Coder.APIKey = c.Model.APIKey
 	}
 	return &c, nil
 }
