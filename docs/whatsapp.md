@@ -76,7 +76,7 @@ siguiente) y Git (https://git-scm.com/download/win). Abre PowerShell:
 ```
 git clone https://github.com/FiveTechSoft/FiveAgent
 cd FiveAgent
-go build -o fiveagent.exe ./app
+go build -o fiveagent.exe ./app/fiveagent
 ```
 
 **Qué deberías ver:** un archivo `fiveagent.exe` en la carpeta. (De
@@ -204,7 +204,7 @@ Apunta en un papel (o directamente en tu `fiveagent.yml`, Paso 8):
 **Qué deberías ver:** los campos rellenos donde la captura tiene los
 huecos en blanco (en la captura están tapados, son datos privados).
 
-> Ojo: este token **caduca en 24 horas**. Si mañana el bot no envía,
+> Ojo: este token **caduca en hora y media más o menos**. Si al rato el bot no envía,
 > vuelve aquí, copia el token nuevo y ponlo en `fiveagent.yml`.
 
 ## Paso 8 - Rellena fiveagent.yml
@@ -256,15 +256,16 @@ túnel: una dirección pública temporal que lleva a tu PC.
 **Qué deberías ver:** la URL del túnel y líneas de "Registered tunnel
 connection". Deja esta ventana abierta siempre que uses el bot.
 
-> **Aviso honesto (probado hoy):** este túnel rápido es inestable. En
-> nuestras pruebas se cayó 3 veces en unos 25 minutos (cada ~10 minutos)
-> con el error `timeout: no recent network activity`: la conexión
-> QUIC/UDP muere cuando el router la deja inactiva, y los mensajes que
-> llegan mientras tanto se pierden. Estamos probando como mitigación
-> arrancarlo con `cloudflared tunnel --url http://localhost:8080
-> --protocol http2`; **todavía está en prueba**, actualizaremos esta
-> guía cuando confirmemos que aguanta. Para algo serio usa la **Parte
-> 5** (túnel fijo con tu dominio), que sí está probada en producción.
+> **Aviso honesto (probado hoy):** con el arranque normal, este túnel
+> rápido es inestable: en nuestras pruebas se cayó 3 veces en unos 25
+> minutos con el error `timeout: no recent network activity`. La
+> conexión QUIC/UDP muere cuando el router la deja inactiva, llegó a
+> cortarse cada ~6 minutos, y **los mensajes que llegan durante la caída
+> se pierden** (Meta solo reintenta el envío a veces). La solución
+> probada: arrancar siempre con
+> `cloudflared tunnel --url http://localhost:8080 --protocol http2`.
+> Para algo serio usa la **Parte 5** (túnel fijo con tu dominio), que sí
+> está probada en producción.
 
 ---
 
@@ -330,14 +331,14 @@ Esto está probado en vivo, de punta a punta (27-sep-2026):
 | En el log no llega NADA al escribir al bot | Paso 12: `messages` no está "Suscrito" |
 | Llegan avisos raros pero no tus mensajes | Falta suscribir la app a la WABA (caja avanzada de abajo) |
 | "Verificar y guardar" falla | FiveAgent apagado, túnel caído, o verify_token distinto en los dos lados |
-| El bot recibe pero no responde | Token de Meta caducado (24 h) o clave del modelo mal |
+| El bot recibe pero no responde | Token de Meta caducado (dura ~1,5 h; el permanente del Paso 18 no caduca) o clave del modelo mal |
 | Dejó de funcionar al rato | El túnel rápido se cayó (ver Paso 10) o lo reiniciaste y la URL cambió |
 
 ## Si reinicias algo
 
 - **cloudflared** → la URL cambia → repite el Paso 11 con la URL nueva.
 - **Token caducado** → token nuevo del Paso 7 en `fiveagent.yml` y
-  reinicia FiveAgent.
+  reinicia FiveAgent (mejor: el permanente del Paso 18, que no caduca).
 
 ## Página equivocada frecuente
 
@@ -453,12 +454,18 @@ ya está hecho desde el panel. Si prefieres el archivo de configuración
 de cloudflared (`config.yml`), el filtro son las reglas **ingress**:
 
 ```yaml
+protocol: http2
 ingress:
   - hostname: bot.tudominio.com
     path: /webhook/whatsapp
     service: http://localhost:8080
   - service: http_status:404
 ```
+
+La línea `protocol: http2` es importante: con el protocolo por defecto
+(QUIC) el túnel se cae cuando el router deja la conexión inactiva (lo
+vimos caer cada ~6 minutos) y los mensajes que llegan durante la caída
+se pierden.
 
 La última línea devuelve 404 a cualquier otra ruta: aunque alguien
 adivine tu subdominio, solo existe `/webhook/whatsapp`.
@@ -534,6 +541,16 @@ WhatsApp.
 
 7. **Copia el token: solo se muestra una vez.** Ponlo en
    `access_token` de tu `fiveagent.yml` y reinicia FiveAgent.
+8. Comprueba que el token en uso es el permanente (no te fíes de
+   haberlo pegado bien):
+
+   ```
+   curl "https://graph.facebook.com/debug_token?input_token=<TU_TOKEN>&access_token=<TU_TOKEN>"
+   ```
+
+**Qué deberías ver:** `"expires_at": 0` (no caduca) y
+`"type": "SYSTEM_USER"`, con `whatsapp_business_messaging` y
+`whatsapp_business_management` en los permisos.
 
 Ese token no caduca (salvo que lo revoques). Referencia:
 https://developers.facebook.com/docs/whatsapp/business-management-api/get-started
@@ -625,7 +642,7 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 - Las respuestas citan el mensaje original.
 - Estados de entrega (enviado/entregado/leído/fallido) en el registro.
 - Verificación opcional de firma X-Hub-Signature-256 con `app_secret`.
-- Procesado asíncrono (200 rápido; Meta reintenta si no).
+- Procesado asíncrono (200 rápido; ojo: Meta solo reintenta la entrega a veces).
 - Registro de cada POST entrante y cada mensaje en `fa_err.log`.
 - Tests: `go test ./internal/channel/`.
 
