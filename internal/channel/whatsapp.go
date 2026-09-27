@@ -58,6 +58,9 @@ func (w *whatsapp) Run(ctx context.Context) error {
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
 	}()
+	if len(w.cfg.AllowedSenders) == 0 {
+		log.Printf("whatsapp: allowed_senders is empty - answering messages from ANY sender; set allowed_senders in fiveagent.yml to restrict")
+	}
 	log.Printf("whatsapp webhook listening on %s/webhook/whatsapp", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
@@ -192,6 +195,10 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 				}
 			}
 			for _, m := range ch.Value.Messages {
+				if !senderAllowed(w.cfg.AllowedSenders, m.From) {
+					log.Printf("whatsapp: ignored message from %s (not in allowed_senders)", m.From)
+					continue
+				}
 				log.Printf("whatsapp: message from %s (type %s)", m.From, m.Type)
 				go w.process(m.From, m.ID, describe(m), quoteOf(m))
 			}
