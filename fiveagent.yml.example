@@ -34,6 +34,8 @@ channels:
     # listen_addr: ":8080"                       # webhook listener
     # reactions: "off"                           # default: eyes while working, check when
     #                                            # the reply lands, warning on failure
+    # debounce: "off"                            # default "3s": joins a sender's rapid
+    #                                            # message bursts into one turn, one reply
   imessage:
     enabled: false
 
