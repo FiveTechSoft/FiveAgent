@@ -28,7 +28,7 @@ Every model role (main agent, memory summarizer, browser agent) is independently
 
 Adapters normalize each platform into one `MessageEvent` and one `send` call.
 
-- **WhatsApp** - via a self-hosted bridge (Baileys-style web client in a sidecar container).
+- **WhatsApp** - via the official WhatsApp Cloud API (Meta): webhook in, Graph API out. No ban risk; needs a Meta app, see docs/whatsapp.md.
 - **Telegram** - Bot API (long polling by default; webhook optional).
 - **iMessage** - via a macOS bridge process (documented; requires a Mac on the network).
 
