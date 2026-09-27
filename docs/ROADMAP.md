@@ -92,10 +92,16 @@ the phases are milestones.
     breaks the reply), behind `reactions: off|status` in the yml. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
+16. **Content reactions** (planned) - on top of status reactions, the
+    agent reacts to what a message says, not just its state: a
+    celebration, a joke, a thank-you gets a fitting emoji chosen from
+    the message content. Cheap to build (a small extra model call or
+    simple rules on top of the existing React()); whether rules are
+    enough or the model chooses is decided by evals, not taste.
 
 ## Phase 5 - setup that does not need a manual
 
-16. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+17. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
