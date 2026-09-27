@@ -8,6 +8,13 @@ the phases are milestones.
 1. **Tool calling** (done) - the model can call tools through the OpenAI function-calling
    protocol, with a registry to add more. First tool: current date/time.
 2. **Telegram channel** - Bot API with long polling. Simplest official API there is.
+3. **Per-user sandbox** (in progress) - the agent can run commands for each
+   user inside an isolated environment, via a `run_command` tool. Backends:
+   bubblewrap on Linux (working, tested: no network, host files hidden, one
+   writable folder per user, timeout), Windows Job Objects (compiles; RAM cap
+   and process-tree kill; filesystem/network isolation via AppContainer is the
+   next step - pending live verification on a real Windows PC), Docker
+   fallback (implemented, pending live test). Later: sandbox-exec on macOS.
 3. **CI** - GitHub Actions: build, vet, run tests on every push.
 4. **Unit tests** - model client, WhatsApp webhook, agent loop.
 5. **Release v0.0.1** - tag, changelog, prebuilt binaries for Windows/Linux/macOS.
