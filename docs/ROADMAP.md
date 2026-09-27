@@ -66,6 +66,16 @@ the phases are milestones.
       (FIVEAGENT_EVAL_LIVE=1) and are the gate for marking a stage
       done. First catch: the precision eval proved template description
       lines polluted recall; recall now scores fact bullets only.
+      Second catch: the scaling eval showed injection cost growing
+      without bound on popular words; recall now caps each file at its
+      10 most recent matching bullets.
+   i. **Per-sender memory scoping** (decision pending) - knowledge is
+      global across senders today, while conversation history is
+      already per sender. For a single-owner personal bot that is
+      fine; if the bot ever serves more than one person, one sender's
+      memories would be visible to the rest. Decide the scoping model
+      (per-sender files vs one shared owner memory) before opening the
+      bot to multiple users.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
