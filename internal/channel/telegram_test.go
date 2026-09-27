@@ -10,6 +10,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
 
 // fakeTelegram is a stub Bot API server that records calls.
@@ -62,7 +64,7 @@ func (f *fakeTelegram) got(method string) []map[string]any {
 func TestTelegramFlow(t *testing.T) {
 	f, srv := newFakeTelegram(t)
 	fc := &fakeCore{}
-	tg := NewTelegram("token", fc).(*telegram)
+	tg := NewTelegram(config.Channel{BotToken: "token"}, fc).(*telegram)
 	tg.baseURL = srv.URL
 	tg.http = &http.Client{Timeout: 5 * time.Second}
 
@@ -134,9 +136,56 @@ func TestTelegramAPIError(t *testing.T) {
 		_ = json.NewEncoder(rw).Encode(map[string]any{"ok": false, "description": "Unauthorized"})
 	}))
 	defer srv.Close()
-	tg := NewTelegram("bad-token", &fakeCore{}).(*telegram)
+	tg := NewTelegram(config.Channel{BotToken: "bad-token"}, &fakeCore{}).(*telegram)
 	tg.baseURL = srv.URL
 	if err := tg.Run(context.Background()); err == nil || !strings.Contains(err.Error(), "Unauthorized") {
 		t.Fatalf("expected Unauthorized, got %v", err)
 	}
+}
+
+func TestTelegramAllowedSenders(t *testing.T) {
+	f, srv := newFakeTelegram(t)
+	fc := &fakeCore{}
+	tg := NewTelegram(config.Channel{BotToken: "token", AllowedSenders: []string{"999"}}, fc).(*telegram)
+	tg.baseURL = srv.URL
+	tg.http = &http.Client{Timeout: 5 * time.Second}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go tg.Run(ctx)
+	time.Sleep(500 * time.Millisecond)
+	cancel()
+
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if fc.text != "" {
+		t.Fatalf("non-listed chat reached the core: %q", fc.text)
+	}
+	if len(f.got("sendMessage")) != 0 {
+		t.Fatal("replied to a non-listed chat")
+	}
+}
+
+func TestTelegramAllowedSendersListed(t *testing.T) {
+	_, srv := newFakeTelegram(t)
+	fc := &fakeCore{}
+	tg := NewTelegram(config.Channel{BotToken: "token", AllowedSenders: []string{"42"}}, fc).(*telegram)
+	tg.baseURL = srv.URL
+	tg.http = &http.Client{Timeout: 5 * time.Second}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go tg.Run(ctx)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		fc.mu.Lock()
+		got := fc.text
+		fc.mu.Unlock()
+		if got != "" {
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatal("listed chat never reached the core")
 }
