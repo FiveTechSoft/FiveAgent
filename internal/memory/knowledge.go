@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -33,6 +34,12 @@ import (
 
 // Knowledge is the open memory folder.
 type Knowledge struct {
+	// mu serializes reads and writes: Append/Forget are read-modify-write
+	// cycles and concurrent senders otherwise lose facts silently
+	// (measured: 5-7 of 8 concurrent saves landed, evals/
+	// TestConcurrentSaves). Memory operations are fast, so one mutex for
+	// everything is the simple correct answer.
+	mu   sync.Mutex
 	dir  string
 	repo *git.Repository
 }
@@ -125,6 +132,8 @@ func OpenKnowledge(dir string) (*Knowledge, error) {
 // already stored (same text, ignoring case, spacing and trailing
 // punctuation) and adds nothing.
 func (k *Knowledge) Append(id, entry string) (bool, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	name := id + ".md"
 	path := filepath.Join(k.dir, name)
 	raw, err := os.ReadFile(path)
@@ -154,6 +163,8 @@ func (k *Knowledge) Append(id, entry string) (bool, error) {
 // YAML header are never touched. It returns how many bullets were
 // removed.
 func (k *Knowledge) Forget(id, match string) (int, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	name := id + ".md"
 	path := filepath.Join(k.dir, name)
 	raw, err := os.ReadFile(path)
@@ -198,6 +209,8 @@ const maxLinesPerFile = 10
 // at this stage). One file contributes at most maxLinesPerFile matching
 // bullets, keeping the most recent.
 func (k *Knowledge) Recall(query string) ([]FileHit, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
 	terms := queryTerms(query)
 	if len(terms) == 0 {
 		return nil, nil
