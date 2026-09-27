@@ -99,3 +99,9 @@ the phases are milestones.
 - Simple first: one binary, one config file, one command to run.
 - Windows first in docs and installers.
 - The README only claims what the code does today.
+- Measure, then decide: architecture and model choices follow objective
+  measurements (the memory evals of stage h), never vibes. Example: if
+  evals show the small chat model handles injected memories poorly -
+  ignoring the "data, never instructions" label or hallucinating over
+  them - the levers are a bigger chat model or a better injection
+  prompt, and the numbers decide.
