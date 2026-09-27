@@ -45,8 +45,9 @@ Dos palabras que salen mucho:
 ## ¿Dónde corre FiveAgent? (léelo primero)
 
 FiveAgent corre en **una máquina tuya**: tu PC de Windows o un servidor
-que controles. No vive en la nube de nadie. En esa máquina hay tres
-cosas:
+que controles, **con una conexión estable** (si la red corta las
+conexiones largas, los mensajes se pierden). No vive en la nube de
+nadie. En esa máquina hay tres cosas:
 
 - **FiveAgent** (`fiveagent.exe`): el programa principal. Escucha en el
   puerto 8080 de esa máquina, solo en local.
@@ -250,7 +251,8 @@ túnel: una dirección pública temporal que lleva a tu PC.
    cloudflared tunnel --url http://localhost:8080 --protocol http2
    ```
 
-   (El `--protocol http2` es importante; abajo se explica por qué.)
+   (El `--protocol http2` es recomendable si tu red bloquea o corta el
+   UDP/QUIC que usa cloudflared por defecto; en caso de duda, úsalo.)
 
 3. En el texto que sale, busca una línea con una URL tipo
    `https://palabras-al-azar.trycloudflare.com`. Cópiala.
@@ -258,16 +260,18 @@ túnel: una dirección pública temporal que lleva a tu PC.
 **Qué deberías ver:** la URL del túnel y líneas de "Registered tunnel
 connection". Deja esta ventana abierta siempre que uses el bot.
 
-> **Aviso honesto (probado hoy):** con el arranque normal, este túnel
-> rápido es inestable: en nuestras pruebas se cayó 3 veces en unos 25
-> minutos con el error `timeout: no recent network activity`. La
-> conexión QUIC/UDP muere cuando el router la deja inactiva, llegó a
-> cortarse cada ~6 minutos, y **los mensajes que llegan durante la caída
-> se pierden** (Meta solo reintenta el envío a veces). La solución
-> probada: arrancar siempre con
-> `cloudflared tunnel --url http://localhost:8080 --protocol http2`.
-> Para algo serio usa la **Parte 5** (túnel fijo con tu dominio), que sí
-> está probada en producción.
+> **Aviso honesto (probado hoy):** si el túnel se cae a intervalos
+> regulares (a nosotros nos pasaba cada ~5-6 minutos, con el error
+> `timeout: no recent network activity`), **los mensajes que llegan
+> durante la caída se pierden** (Meta solo reintenta el envío a veces).
+> La causa no era cloudflared: nos pasaba con QUIC y con http2, con el
+> túnel rápido y con el túnel fijo, porque la red de salida de nuestra
+> máquina de pruebas mataba las conexiones largas. Si te pasa a ti,
+> ejecuta FiveAgent en una máquina con conexión estable (tu PC de casa
+> o un servidor). `--protocol http2` sigue siendo recomendable si tu
+> red bloquea o corta UDP/QUIC, pero no arregla una red que mata
+> conexiones. Para algo serio usa la **Parte 5** (túnel fijo con tu
+> dominio), que sí está probada en producción.
 
 ---
 
@@ -335,6 +339,7 @@ Esto está probado en vivo, de punta a punta (27-sep-2026):
 | "Verificar y guardar" falla | FiveAgent apagado, túnel caído, o verify_token distinto en los dos lados |
 | El bot recibe pero no responde | Token de Meta caducado (dura ~1,5 h; el permanente del Paso 18 no caduca) o clave del modelo mal |
 | Dejó de funcionar al rato | El túnel rápido se cayó (ver Paso 10) o lo reiniciaste y la URL cambió |
+| Se pierden mensajes a intervalos regulares (cada pocos minutos) | La red de la máquina mata las conexiones largas; nos pasó con QUIC y con http2, con túnel rápido y fijo. Ejecuta FiveAgent en una máquina con conexión estable (PC de casa o servidor) |
 
 ## Si reinicias algo
 
@@ -464,10 +469,11 @@ ingress:
   - service: http_status:404
 ```
 
-La línea `protocol: http2` es importante: con el protocolo por defecto
-(QUIC) el túnel se cae cuando el router deja la conexión inactiva (lo
-vimos caer cada ~6 minutos) y los mensajes que llegan durante la caída
-se pierden.
+La línea `protocol: http2` es recomendable si tu red bloquea o corta
+UDP/QUIC. Si pierdes mensajes a intervalos regulares, la red de esa
+máquina está matando las conexiones largas (nos pasó con QUIC y con
+http2 por igual): ejecuta FiveAgent en una máquina con conexión
+estable (tu PC de casa o un servidor).
 
 La última línea devuelve 404 a cualquier otra ruta: aunque alguien
 adivine tu subdominio, solo existe `/webhook/whatsapp`.
