@@ -201,3 +201,53 @@ func TestSignatureVerification(t *testing.T) {
 		t.Fatalf("bad signature: got %d, want 401", rec.Code)
 	}
 }
+
+func TestWhatsAppAllowedSenders(t *testing.T) {
+	fc := &fakeCore{}
+	cfg := config.Channel{
+		VerifyToken:    "secret-token",
+		PhoneNumberID:  "123",
+		AccessToken:    "token",
+		AllowedSenders: []string{"34600999888"},
+	}
+	w := NewWhatsApp(cfg, fc).(*whatsapp)
+	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	time.Sleep(300 * time.Millisecond)
+	fc.mu.Lock()
+	defer fc.mu.Unlock()
+	if fc.text != "" {
+		t.Fatalf("non-listed sender reached the core: %q", fc.text)
+	}
+}
+
+func TestWhatsAppAllowedSendersListed(t *testing.T) {
+	fc := &fakeCore{}
+	cfg := config.Channel{
+		VerifyToken:    "secret-token",
+		PhoneNumberID:  "123",
+		AccessToken:    "token",
+		AllowedSenders: []string{"34600123456"},
+	}
+	w := NewWhatsApp(cfg, fc).(*whatsapp)
+	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		fc.mu.Lock()
+		got := fc.text
+		fc.mu.Unlock()
+		if got == "hola" {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("listed sender never reached the core")
+}
