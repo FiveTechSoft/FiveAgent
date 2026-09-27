@@ -30,7 +30,8 @@ la devuelve por el mismo camino.
 Dos palabras que salen mucho:
 
 - **token**: una contraseña larga que Meta te da para que tu programa
-  pueda hablar con su API. Caduca en 24 horas (la versión para empezar).
+  pueda hablar con su API. La del Paso 7 caduca en hora y media más o
+  menos; en el Paso 18 creamos una que no caduca.
 - **webhook**: la dirección pública donde Meta entrega los mensajes que
   te escriben. Es la URL del túnel más `/webhook/whatsapp`.
 
@@ -40,6 +41,28 @@ Dos palabras que salen mucho:
 - Una cuenta de Facebook (para crear la app de Meta, gratis).
 - Tu móvil con WhatsApp.
 - Unos 30 minutos.
+
+## ¿Dónde corre FiveAgent? (léelo primero)
+
+FiveAgent corre en **una máquina tuya**: tu PC de Windows o un servidor
+que controles. No vive en la nube de nadie. En esa máquina hay tres
+cosas:
+
+- **FiveAgent** (`fiveagent.exe`): el programa principal. Escucha en el
+  puerto 8080 de esa máquina, solo en local.
+- **cloudflared**: corre **al lado, en la misma máquina**, y es lo
+  único que se asoma a internet. Mantiene el túnel y entrega los avisos
+  de Meta a `localhost:8080`. En Windows se instala con su MSI y, en la
+  Parte 5, lo dejamos como servicio (`cloudflared service install
+  <token-del-túnel>`) para que arranque solo al encender el PC.
+- **Ollama** (solo si usas un modelo local): también en esa máquina, en
+  `localhost:11434`. **Nunca lo expongas a internet**: no pide
+  contraseña; cualquiera que lo alcanzara podría usarlo. Como solo
+  escucha en `localhost`, no hay que tocar nada.
+
+¿Te cambias de máquina algún día? Instalas FiveAgent y cloudflared en
+la nueva y arrancas el túnel con el mismo token: **la URL pública y el
+webhook de Meta no cambian**, porque viven en Cloudflare, no en tu PC.
 
 ---
 
@@ -475,21 +498,41 @@ WhatsApp.
 1. Entra en la **configuración de empresa** de Meta Business
    (https://business.facebook.com/settings) y ve a **Usuarios -
    Usuarios del sistema**.
-2. Pulsa **Añadir**. Ponle un nombre (ej.: `fiveagent`) y el rol
+
+   ![Usuarios del sistema: botón Añadir](images/t1-meta-usuarios-sistema.png)
+
+2. Pulsa **Añadir**. Ponle un nombre (ej.: `fiveagent-bot`) y el rol
    **Administrador**.
+
+   ![Crear usuario del sistema: nombre y rol](images/t2-meta-crear-usuario-sistema.png)
+
 3. Pulsa **Asignar activos**. En el mismo diálogo asigna **dos**
    cosas:
    - Tu **app**, con el permiso **"Administrar la aplicación"**.
    - Tu **cuenta de WhatsApp**, con **acceso total**.
 
+   ![Asignar la app con Administrar la aplicación](images/t3-meta-asignar-app.png)
+   ![Asignar la cuenta de WhatsApp con acceso total](images/t4-meta-asignar-whatsapp.png)
+
    Ojo: Meta muestra un aviso alarmante tipo "se quitarán permisos...
    Todavía no hay nada asignado". **Es un aviso confuso; es seguro
    confirmar.** Y después de asignar, la página puede seguir mostrando
    que no hay nada asignado hasta que la recargues (F5).
-4. Pulsa **Generar identificador** (generar token). Elige tu **app**,
-   marca **"Nunca"** como caducidad y selecciona los dos permisos:
+4. Pulsa **Generar identificador** (generar token) y elige tu **app**.
+
+   ![Generar identificador: elegir la app](images/t5-meta-generar-token-app.png)
+
+5. Como caducidad, marca **"Nunca"**.
+
+   ![Caducidad del identificador: Nunca](images/t6-meta-token-caducidad-nunca.png)
+
+6. Abre el desplegable de permisos y selecciona los dos:
    `whatsapp_business_messaging` y `whatsapp_business_management`.
-5. **Copia el token: solo se muestra una vez.** Ponlo en
+
+   ![Desplegable de permisos](images/t7-meta-token-permisos-lista.png)
+   ![Los dos permisos seleccionados](images/t8-meta-token-permisos-2.png)
+
+7. **Copia el token: solo se muestra una vez.** Ponlo en
    `access_token` de tu `fiveagent.yml` y reinicia FiveAgent.
 
 Ese token no caduca (salvo que lo revoques). Referencia:
