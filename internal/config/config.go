@@ -27,6 +27,7 @@ type Channel struct {
 	AccessToken   string `yaml:"access_token,omitempty"`
 	PhoneNumberID string `yaml:"phone_number_id,omitempty"`
 	VerifyToken   string `yaml:"verify_token,omitempty"`
+	AppSecret     string `yaml:"app_secret,omitempty"`  // enables X-Hub-Signature-256 checks
 	ListenAddr    string `yaml:"listen_addr,omitempty"` // webhook listen address, default :8080
 }
 
