@@ -20,7 +20,10 @@ any language.
 
 1. Entra en https://developers.facebook.com e inicia sesión.
 2. **Mis aplicaciones** → **Crear app** → **Otro** → **Empresa**, ponle
-   el nombre que quieras.
+   el nombre que quieras. Si ya tienes una, entra en ella desde
+   https://developers.facebook.com/apps:
+
+   ![Mis aplicaciones: entra en tu app](images/2-meta-mis-aplicaciones.png)
 3. En el menú de la izquierda: **Casos de uso** → busca **WhatsApp** →
    **Personalizar**.
 4. Estás en **Configuración de la API**. Apunta:
