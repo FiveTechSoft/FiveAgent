@@ -47,6 +47,11 @@ the phases are milestones.
       enters if real scale one day demands it.
    e. **Consolidation** - merge near-duplicate facts and age out stale
       ones; starts as rules plus a summary pass with the model itself.
+   f. **Episodic memory** - a learnings.md where the agent writes a
+      short self-critique in plain words when a task fails or the user
+      corrects it ("no, the other Taylor"), recalled as data in later
+      turns. User corrections are the evaluation signal, and in a chat
+      bot they come for free.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
