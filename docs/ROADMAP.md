@@ -28,13 +28,16 @@ the phases are milestones.
    beyond the last 20 messages using plain markdown files with git as
    the source of truth: readable, versioned, no extra infrastructure,
    and an LLM reads markdown natively. It grows in stages:
-   a. **Minimal memory** (package ready, not wired into the agent yet) -
-      three files: people.md, preferences.md, workstreams.md, with git
-      auto-commits on every write and keyword/alias recall
-      (internal/memory). Empty folders from day one are debt; the
-      structure grows only when real use demands it.
-   b. **Keyword and alias retrieval** - recall by exact words and
-      curated aliases kept in each memory file.
+   a. **Minimal memory** (working) - three files: people.md,
+      preferences.md, workstreams.md, with a git commit on every write.
+      The model curates them through save_memory / forget_memory tools
+      (duplicates are skipped) and every turn recalls from the files:
+      memories are injected labeled as data, never instructions, and
+      never depend on the conversation history surviving truncation.
+      Empty folders from day one are debt; the structure grows only
+      when real use demands it.
+   b. **Keyword and alias retrieval** (working) - recall by exact words
+      and curated aliases kept in each memory file's header.
    c. **SQLite FTS5 index** - an embedded full-text index as a
       rebuildable cache. The files stay the source of truth; the index
       is disposable. Database speed, zero infrastructure.
@@ -42,6 +45,8 @@ the phases are milestones.
       they hurt; [[id]] links connect related records (a plain-text
       graph, parsed when needed). A graph or vector database only
       enters if real scale one day demands it.
+   e. **Consolidation** - merge near-duplicate facts and age out stale
+      ones; starts as rules plus a summary pass with the model itself.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
