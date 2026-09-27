@@ -54,8 +54,8 @@ func channelStyle(channel string) string {
 // Agent ties the model, memory and tools together.
 type Agent struct {
 	mdl       *model.Client
-	coder     *model.Client      // optional: serves code-heavy requests
-	knowledge *memory.Knowledge  // optional: long-term markdown memory
+	coder     *model.Client     // optional: serves code-heavy requests
+	knowledge *memory.Knowledge // optional: long-term markdown memory
 	store     memory.Store
 	tools     *tools.Registry
 	sysPrompt string
