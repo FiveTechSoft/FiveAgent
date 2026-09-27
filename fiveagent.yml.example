@@ -1,0 +1,16 @@
+model:
+  provider: openai-compatible
+  base_url: http://host.docker.internal:11434/v1   # Ollama default; or https://api.openai.com/v1, https://api.deepseek.com/v1
+  api_key: ""            # empty for local Ollama
+  name: llama3.1         # or gpt-4o-mini, deepseek-chat, ...
+
+channels:
+  telegram:
+    enabled: false
+  whatsapp:
+    enabled: false
+  imessage:
+    enabled: false
+
+memory:
+  postgres: postgres://fiveagent:${DB_PASSWORD}@db:5432/fiveagent
