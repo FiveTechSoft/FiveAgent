@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
@@ -33,17 +34,47 @@ type whatsapp struct {
 	// timeout, defaults to 5 minutes.
 	agentTimeout time.Duration
 	reactions    bool // react 👀/✅/⚠️ to inbound messages
+	// debounce joins rapid bursts from one sender into a single turn.
+	debounce   time.Duration
+	debounceOn bool
+	mu         sync.Mutex
+	pending    map[string]*burst
+}
+
+// queuedMsg is one inbound message waiting in a sender's burst.
+type queuedMsg struct {
+	msgID, text, replyTo string
+}
+
+// burst accumulates one sender's rapid messages until the debounce
+// window closes.
+type burst struct {
+	msgs  []queuedMsg
+	timer *time.Timer
 }
 
 // NewWhatsApp builds the WhatsApp Cloud API adapter.
 func NewWhatsApp(cfg config.Channel, core Handler) Channel {
 	w := &whatsapp{
-		cfg:       cfg,
-		core:      core,
-		mux:       http.NewServeMux(),
-		http:      &http.Client{Timeout: 30 * time.Second},
-		baseURL:   "https://graph.facebook.com/v21.0",
-		reactions: cfg.Reactions != "off", // default: status reactions on
+		cfg:        cfg,
+		core:       core,
+		mux:        http.NewServeMux(),
+		http:       &http.Client{Timeout: 30 * time.Second},
+		baseURL:    "https://graph.facebook.com/v21.0",
+		reactions:  cfg.Reactions != "off", // default: status reactions on
+		debounce:   3 * time.Second,
+		debounceOn: true,
+		pending:    make(map[string]*burst),
+	}
+	switch {
+	case cfg.Debounce == "off":
+		w.debounceOn = false
+	case cfg.Debounce != "":
+		if d, err := time.ParseDuration(cfg.Debounce); err == nil && d > 0 {
+			w.debounce = d
+		} else {
+			log.Printf("whatsapp: invalid debounce %q - using 3s", cfg.Debounce)
+		}
 	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
@@ -206,7 +237,7 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				log.Printf("whatsapp: message from %s (type %s)", m.From, m.Type)
-				go w.process(m.From, m.ID, describe(m), quoteOf(m))
+				w.enqueue(m.From, m.ID, describe(m), quoteOf(m))
 			}
 		}
 	}
@@ -260,11 +291,54 @@ func quoteOf(m inboundMessage) string {
 // quoting the original message. Each phase gets its own fresh context:
 // the agent's deadline must never kill the reply send (a slow model used
 // to mean total silence for the user).
-func (w *whatsapp) process(from, msgID, text, replyTo string) {
+// enqueue feeds an inbound message into the per-sender debounce queue:
+// messages arriving within the debounce window join one burst and are
+// answered together; with debounce off every message is answered on
+// arrival.
+func (w *whatsapp) enqueue(from, msgID, text, replyTo string) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	react := func(emoji string) {
+	if !w.debounceOn {
+		go w.process(from, msgID, text, replyTo)
+		return
+	}
+	w.mu.Lock()
+	b := w.pending[from]
+	if b == nil {
+		b = &burst{}
+		w.pending[from] = b
+	}
+	b.msgs = append(b.msgs, queuedMsg{msgID: msgID, text: text, replyTo: replyTo})
+	if b.timer != nil {
+		b.timer.Stop()
+	}
+	b.timer = time.AfterFunc(w.debounce, func() { w.flush(from) })
+	w.mu.Unlock()
+}
+
+// flush closes one sender's burst and processes it as a single turn.
+func (w *whatsapp) flush(from string) {
+	w.mu.Lock()
+	b := w.pending[from]
+	delete(w.pending, from)
+	w.mu.Unlock()
+	if b == nil || len(b.msgs) == 0 {
+		return
+	}
+	w.processBatch(from, b.msgs)
+}
+
+func (w *whatsapp) process(from, msgID, text, replyTo string) {
+	w.processBatch(from, []queuedMsg{{msgID: msgID, text: text, replyTo: replyTo}})
+}
+
+// processBatch answers one sender turn: a single message or a debounced
+// burst. The burst texts join in arrival order, the reply quotes the
+// last message, and reactions cover every message: 👀 on the first,
+// ✅/⚠️ on all when the turn ends.
+func (w *whatsapp) processBatch(from string, msgs []queuedMsg) {
+	react := func(msgID, emoji string) {
 		if !w.reactions {
 			return
 		}
@@ -275,14 +349,25 @@ func (w *whatsapp) process(from, msgID, text, replyTo string) {
 			log.Printf("whatsapp: react: %v", err)
 		}
 	}
-	react("\U0001F440") // eyes: got it, working on it
-
-	mrCtx, mrCancel := context.WithTimeout(context.Background(), 15*time.Second)
-	// A mark-read failure is logged but never affects the reply.
-	if err := w.markRead(mrCtx, msgID); err != nil {
-		log.Printf("whatsapp: mark read: %v", err)
+	reactAll := func(emoji string) {
+		for _, m := range msgs {
+			react(m.msgID, emoji)
+		}
 	}
-	mrCancel()
+	react(msgs[0].msgID, "\U0001F440") // eyes: got it, working on it
+
+	var texts []string
+	for _, m := range msgs {
+		texts = append(texts, m.text)
+		mrCtx, mrCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		// A mark-read failure is logged but never affects the reply.
+		if err := w.markRead(mrCtx, m.msgID); err != nil {
+			log.Printf("whatsapp: mark read: %v", err)
+		}
+		mrCancel()
+	}
+	text := strings.Join(texts, "\n")
+	replyTo := msgs[len(msgs)-1].replyTo
 
 	budget := w.agentTimeout
 	if budget <= 0 {
@@ -304,13 +389,13 @@ func (w *whatsapp) process(from, msgID, text, replyTo string) {
 	defer sendCancel()
 	if err := w.SendText(sendCtx, from, reply, replyTo); err != nil {
 		log.Printf("whatsapp: send: %v", err)
-		react("⚠️")
+		reactAll("⚠️")
 		return
 	}
 	if agentFailed {
-		react("⚠️") // the reply was a fallback, not a real answer
+		reactAll("⚠️") // the reply was a fallback, not a real answer
 	} else {
-		react("✅")
+		reactAll("✅")
 	}
 }
 
