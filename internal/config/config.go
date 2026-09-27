@@ -17,10 +17,17 @@ type Model struct {
 	Name     string `yaml:"name"`
 }
 
-// Channel is one messaging channel's settings.
+// Channel is one messaging channel's settings. The fields used depend on
+// the adapter: telegram uses bot_token; whatsapp (official Cloud API) uses
+// access_token, phone_number_id, verify_token and listen_addr.
 type Channel struct {
 	Enabled  bool   `yaml:"enabled"`
 	BotToken string `yaml:"bot_token,omitempty"`
+	// WhatsApp Cloud API
+	AccessToken   string `yaml:"access_token,omitempty"`
+	PhoneNumberID string `yaml:"phone_number_id,omitempty"`
+	VerifyToken   string `yaml:"verify_token,omitempty"`
+	ListenAddr    string `yaml:"listen_addr,omitempty"` // webhook listen address, default :8080
 }
 
 // Memory holds the storage settings.
