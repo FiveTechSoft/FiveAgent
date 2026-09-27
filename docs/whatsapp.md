@@ -12,19 +12,23 @@ in any language.
 
 ## Cómo funciona (el dibujo)
 
-```
-tu móvil  -->  Meta (WhatsApp)  -->  túnel cloudflared  -->  tu PC (FiveAgent)
-                                                             |
-                                                             v
-                                                          el modelo
-                                                       (Ollama o DeepSeek)
-                                                             |
-tu móvil  <--  Meta (WhatsApp)  <--  túnel cloudflared  <--  respuesta
+```mermaid
+flowchart LR
+    A["Tu móvil<br>(WhatsApp)"] --> B["Meta<br>(servidores de WhatsApp)"]
+    B --> C["Túnel de Cloudflare"]
+    C --> D{"FiveAgent<br>en tu PC"}
+    D -->|"¿firma de Meta correcta?<br>¿remitente permitido?"| E["Modelo<br>(DeepSeek u Ollama)"]
+    D -->|"si algo no cuadra:<br>se ignora y se apunta en el log"| X[" "]
+    E -->|"respuesta"| D
+    D --> C
+    C --> B
+    B --> A
 ```
 
 Tu móvil escribe al número de prueba. Meta avisa a tu PC a través del
-túnel. FiveAgent piensa la respuesta con el modelo y la devuelve por el
-mismo camino.
+túnel. FiveAgent comprueba que el aviso viene de Meta de verdad (firma)
+y que el remitente tiene permiso, piensa la respuesta con el modelo y
+la devuelve por el mismo camino.
 
 Dos palabras que salen mucho:
 
