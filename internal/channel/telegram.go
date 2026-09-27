@@ -3,6 +3,7 @@ package channel
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -22,6 +23,9 @@ type telegram struct {
 	core    Handler
 	http    *http.Client
 	baseURL string // bot api base, overridable in tests
+	// agentTimeout caps one full agent run; set by Build from the model
+	// timeout, defaults to 5 minutes.
+	agentTimeout time.Duration
 }
 
 // NewTelegram builds the Telegram adapter.
@@ -144,9 +148,9 @@ func (m *tgMessage) describe() string {
 }
 
 // process runs the agent and replies, quoting the original message.
+// Each phase gets its own fresh context: the agent's deadline must
+// never kill the reply send.
 func (t *telegram) process(m *tgMessage) {
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
 	chatID := strconv.FormatInt(m.Chat.ID, 10)
 	log.Printf("telegram: message from chat %s", chatID)
 	if !senderAllowed(t.cfg.AllowedSenders, chatID) {
@@ -157,15 +161,29 @@ func (t *telegram) process(m *tgMessage) {
 	if strings.TrimSpace(text) == "" {
 		return
 	}
-	if err := t.sendChatAction(ctx, chatID); err != nil {
+	taCtx, taCancel := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := t.sendChatAction(taCtx, chatID); err != nil {
 		log.Printf("telegram: typing indicator: %v", err)
 	}
-	reply, err := t.core.Handle(ctx, "telegram", chatID, text)
+	taCancel()
+	budget := t.agentTimeout
+	if budget <= 0 {
+		budget = 5 * time.Minute
+	}
+	agentCtx, agentCancel := context.WithTimeout(context.Background(), budget)
+	reply, err := t.core.Handle(agentCtx, "telegram", chatID, text)
+	agentCancel()
 	if err != nil {
 		log.Printf("telegram: agent: %v", err)
-		reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
+		if errors.Is(err, context.DeadlineExceeded) {
+			reply = "El modelo está tardando demasiado. Inténtalo de nuevo."
+		} else {
+			reply = "Lo siento, algo ha fallado. Inténtalo de nuevo en un momento."
+		}
 	}
-	if err := t.SendText(ctx, chatID, reply, m.MessageID); err != nil {
+	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer sendCancel()
+	if err := t.SendText(sendCtx, chatID, reply, m.MessageID); err != nil {
 		log.Printf("telegram: send: %v", err)
 	}
 }
