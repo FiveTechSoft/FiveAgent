@@ -14,38 +14,55 @@ FiveAgent is a personal assistant that lives in your messaging apps and works fo
 
 ## Quick start
 
+### Prerequisites
+
+One of:
+- **Docker Desktop** (easiest: runs the agent, Postgres and the browser sidecar for you), or
+- **Go 1.24+** (builds a single binary; you run Postgres yourself or use Docker just for it).
+
+### 1. Clone and configure
+
 ```bash
-git clone https://github.com/FiveTechSoft/FiveAgent.git
+git clone https://github.com/FiveTechSoft/FiveAgent
 cd FiveAgent
-cp .env.example .env   # set your model endpoint and keys
-docker compose up -d
 ```
 
-Then link a channel (WhatsApp / Telegram / iMessage) from the setup wizard at `http://localhost:8000/setup`.
-
-Prefer bare metal? FiveAgent is written in Go and builds to a single static binary - no runtime needed:
+Copy the example config and edit it:
 
 ```bash
-go build ./app/fiveagent
+# Windows (cmd or PowerShell)
+copy fiveagent.yml.example fiveagent.yml
+
+# Linux / macOS
+cp fiveagent.yml.example fiveagent.yml
+```
+
+Open `fiveagent.yml` and set the model you want to use:
+
+- `model.base_url` - the OpenAI-compatible endpoint. `http://localhost:11434/v1` for Ollama, `https://api.openai.com/v1` for OpenAI, `https://api.deepseek.com/v1` for DeepSeek.
+- `model.name` - the model, e.g. `llama3.1`, `gpt-4o-mini`, `deepseek-chat`.
+- `model.api_key` - empty for local Ollama; your API key for commercial providers.
+- `channels` - enable WhatsApp / Telegram / iMessage. WhatsApp needs the Meta app fields, see [docs/whatsapp.md](docs/whatsapp.md).
+- `memory.postgres` - where to store memory. The docker compose below already brings Postgres up with these exact values, so with Docker you can leave it as is.
+
+### 2. Run it
+
+With Docker:
+
+```bash
+docker compose up --build
+```
+
+Or with Go (needs a Postgres reachable at the DSN in `fiveagent.yml`):
+
+```bash
+go build -o fiveagent ./app/fiveagent
 ./fiveagent
 ```
 
-## Configuration
+### 3. Link a channel
 
-One file, `fiveagent.yml` (or env vars). Everything important is a config line, never a code change:
-
-```yaml
-model:
-  provider: openai-compatible     # any OpenAI-compatible endpoint
-  base_url: http://localhost:11434/v1   # Ollama, llama.cpp, vLLM, OpenAI, DeepSeek...
-  name: llama3.1                  # the model you choose
-channels:
-  whatsapp: { enabled: true }
-  telegram: { enabled: true, bot_token: ${TELEGRAM_BOT_TOKEN} }
-  imessage: { enabled: false }
-memory:
-  postgres: postgres://fiveagent:fiveagent@db:5432/fiveagent
-```
+WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md). Telegram and iMessage: coming next (see the roadmap in [docs/design.md](docs/design.md)).
 
 ## Architecture
 
