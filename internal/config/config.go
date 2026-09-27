@@ -37,6 +37,10 @@ type Channel struct {
 	// they arrive (e.g. "34600123456"), Telegram chat IDs (e.g. "123456789").
 	// Empty means allow everyone (a warning is logged at startup).
 	AllowedSenders []string `yaml:"allowed_senders,omitempty"`
+	// Reactions: "status" (default) reacts to inbound messages - eyes while
+	// working, check when the reply lands, warning on failure; "off"
+	// disables reactions. WhatsApp only for now.
+	Reactions string `yaml:"reactions,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
