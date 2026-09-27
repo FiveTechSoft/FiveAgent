@@ -18,4 +18,7 @@ channels:
     enabled: false
 
 memory:
+  # Simplest for a first local run: a JSON file next to the binary.
+  # json: fiveagent-memory.json
+  # For docker compose / real deployments use Postgres (set DB_PASSWORD in .env).
   postgres: postgres://fiveagent:${DB_PASSWORD}@db:5432/fiveagent
