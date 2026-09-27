@@ -44,8 +44,23 @@ func main() {
 			log.Printf("sandbox: %s backend", sb.Name())
 		}
 	}
+	var kn *memory.Knowledge
+	if cfg.Memory.Knowledge != "" {
+		var err error
+		kn, err = memory.OpenKnowledge(cfg.Memory.Knowledge)
+		if err != nil {
+			log.Printf("long-term memory disabled: %v", err)
+			kn = nil
+		} else {
+			tl = append(tl, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn})
+			log.Printf("long-term memory: %s", cfg.Memory.Knowledge)
+		}
+	}
 	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
+	if kn != nil {
+		core.WithKnowledge(kn)
+	}
 	if cfg.Coder.Name != "" {
 		core.WithCoder(model.NewOpenAICompat(cfg.Coder))
 		log.Printf("coder model: %s (auto-routed for code requests)", cfg.Coder.Name)
