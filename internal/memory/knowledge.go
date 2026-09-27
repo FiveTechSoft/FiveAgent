@@ -121,23 +121,70 @@ func OpenKnowledge(dir string) (*Knowledge, error) {
 
 // Append adds one bullet to the file with the given id and commits the
 // change. The id is the file name without extension ("people",
-// "preferences", "workstreams").
-func (k *Knowledge) Append(id, entry string) error {
+// "preferences", "workstreams"). It reports false when the note is
+// already stored (same text, ignoring case, spacing and trailing
+// punctuation) and adds nothing.
+func (k *Knowledge) Append(id, entry string) (bool, error) {
 	name := id + ".md"
 	path := filepath.Join(k.dir, name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
+		return false, fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
 	}
 	entry = strings.TrimSpace(entry)
 	if !strings.HasPrefix(entry, "- ") {
 		entry = "- " + entry
 	}
+	for _, ln := range strings.Split(string(raw), "\n") {
+		old := normalizeNote(strings.TrimPrefix(strings.TrimSpace(ln), "- "))
+		cur := normalizeNote(strings.TrimPrefix(entry, "- "))
+		if old != "" && (old == cur || strings.Contains(old, cur)) {
+			return false, nil
+		}
+	}
 	body := strings.TrimRight(string(raw), "\n") + "\n" + entry + "\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
-		return err
+		return false, err
 	}
-	return k.commit("memory: note in "+id, name)
+	return true, k.commit("memory: note in "+id, name)
+}
+
+// Forget removes every bullet containing match (case-insensitive) from
+// the file with the given id and commits the removal. Headings and the
+// YAML header are never touched. It returns how many bullets were
+// removed.
+func (k *Knowledge) Forget(id, match string) (int, error) {
+	name := id + ".md"
+	path := filepath.Join(k.dir, name)
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return 0, fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
+	}
+	match = strings.ToLower(strings.TrimSpace(match))
+	var kept []string
+	removed := 0
+	for _, ln := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(ln), "- ") && strings.Contains(strings.ToLower(ln), match) {
+			removed++
+			continue
+		}
+		kept = append(kept, ln)
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+		return 0, err
+	}
+	return removed, k.commit("memory: forget in "+id, name)
+}
+
+// normalizeNote reduces a note to a comparable form: lowercase, single
+// spaces, no trailing punctuation.
+func normalizeNote(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	s = strings.Join(strings.Fields(s), " ")
+	return strings.TrimRight(s, " .;,")
 }
 
 // Recall returns the memory lines relevant to a query, best files first.
