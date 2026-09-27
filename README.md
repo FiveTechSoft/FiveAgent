@@ -2,14 +2,14 @@
 
 Your personal AI agent. Open source, self-hosted, model-agnostic.
 
-FiveAgent is a personal assistant that lives in your messaging apps and works for you: it remembers what matters, uses tools on your behalf, and answers on WhatsApp, Telegram and iMessage. It runs on your own hardware with Docker, talks to the model **you** choose (local or commercial), and keeps your data in your own database.
+FiveAgent wants to be a personal assistant that lives in your messaging apps and works for you. It runs on your own hardware with Docker, talks to the model **you** choose (local or commercial), and keeps your data in your own database. It's brand new: what works today and what's still missing is written below, plainly.
 
 ## Why FiveAgent
 
 - **Self-host for real.** One `docker compose up`. Postgres and the agent on your machine. No mandatory cloud accounts, no vendor lock-in.
 - **Model freedom.** Any OpenAI-compatible endpoint: local models via Ollama / llama.cpp / vLLM, or commercial APIs (OpenAI, DeepSeek, Anthropic via adapter). Change model by editing one config line.
-- **Chat-first.** First-class channels: WhatsApp, Telegram and iMessage. You talk to it where you already talk.
-- **Your data stays yours.** Memory in your own Postgres (+ pgvector). Secrets encrypted at rest; the agent never sees raw credentials.
+- **Chat-first.** WhatsApp works today (official Cloud API); Telegram and iMessage are on the roadmap. You talk to it where you already talk.
+- **Your data stays yours.** Memory in your own Postgres. Data only leaves your machine where you decide: to the model you configured and to the messaging platforms you connect (e.g. Meta's servers when you use the official WhatsApp API).
 - **Open by design.** MIT license, semantic releases, public roadmap. Community PRs welcome and actually reviewed.
 
 ## Quick start
@@ -83,15 +83,37 @@ Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent
 
 One service, three layers. See [docs/design.md](docs/design.md) for the full design.
 
-- **Channels** - thin adapters (WhatsApp, Telegram, iMessage) that normalize messages into one event format.
-- **Core** - a single Go binary running the agent loop: memory, tools, planning. Provider-agnostic.
-- **Tools** - web search, email, calendar, files, and a sandboxed browser (Playwright in a sidecar container).
+- **Channels** - thin adapters that normalize messages into one event format. WhatsApp is implemented; Telegram and iMessage are planned.
+- **Core** - a single Go binary running the agent loop: conversation memory and model calls. Provider-agnostic.
+- **Tools** - planned: web search, email, calendar, files, and a sandboxed browser (Playwright sidecar container, already in docker compose).
+
+## Works today
+
+- Single Go binary, no runtime. Docker compose brings up the agent, Postgres and a Playwright sidecar.
+- WhatsApp channel via the official Cloud API: receive text messages and reply ([docs/whatsapp.md](docs/whatsapp.md)).
+- Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
+- Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
+- Tool calling: the model can call tools (OpenAI-style function calling). First built-in tool: current date/time.
+
+## Roadmap
+
+Tracked as GitHub issues and milestones, in this order:
+
+1. ~~Tool calling in the agent loop~~ (done)
+2. Telegram channel
+3. CI with tests (GitHub Actions)
+4. First release: v0.0.1
+5. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
+6. Tools: web search, browser, email, calendar
+7. iMessage channel
+
+Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ## Security
 
-- Secrets stored encrypted at rest (AES-256-GCM); tools receive opaque handles.
-- Prompt-injection test suite in CI. External content is data, never instructions.
-- The browser tool runs in an isolated container.
+- Today: your secrets live in `fiveagent.yml` / environment variables on your machine. Keep that file private (it's in .gitignore).
+- The browser sidecar runs in its own container.
+- On the roadmap: secrets encrypted at rest (AES-256-GCM) and a prompt-injection test suite in CI. External content will be treated as data, never as instructions.
 
 ## Status
 
