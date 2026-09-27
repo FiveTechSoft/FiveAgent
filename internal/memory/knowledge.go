@@ -212,6 +212,12 @@ func (k *Knowledge) Recall(query string) ([]FileHit, error) {
 		}
 		var lines []string
 		for _, ln := range strings.Split(f.Body, "\n") {
+			// Facts live in bullets; headings and description lines are
+			// scaffolding and must not score (their common words - "Who
+			// the user knows..." - otherwise pollute recall).
+			if !strings.HasPrefix(strings.TrimSpace(ln), "- ") {
+				continue
+			}
 			low := strings.ToLower(ln)
 			for _, t := range terms {
 				if strings.Contains(low, t) {
