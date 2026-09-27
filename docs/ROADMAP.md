@@ -76,8 +76,17 @@ the phases are milestones.
       memories would be visible to the rest. Decide the scoping model
       (per-sender files vs one shared owner memory) before opening the
       bot to multiple users.
+   j. **Memory privacy** - people.md and preferences.md will hold
+      personal data about real people. Decide early: who can read
+      data/memory, encryption at rest, and a full-person wipe path
+      ("forget everything about me") - forget_memory removes single
+      notes, but erasing a person entirely deserves its own flow.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
+   Today this covers memory content; before the bot opens to multiple
+   users it must also cover the main vector: the inbound messages
+   themselves ("ignore your instructions and..."). Hardened system
+   rules plus adversarial evals ship with any multi-user opening.
 10. **Per-task model routing** (first version working) - an optional
    `coder:` model in fiveagent.yml serves code-heavy requests. Each
    message goes through a local heuristic (two tiers of signals with
