@@ -5,7 +5,6 @@ import (
 	"context"
 	"log"
 
-	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
 
@@ -15,6 +14,12 @@ type Event struct {
 	UserID  string
 	Text    string
 	Reply   func(ctx context.Context, text string) error
+}
+
+// Handler is what channels need from the core: answer one message.
+// *agent.Agent satisfies it; tests can use a fake.
+type Handler interface {
+	Handle(ctx context.Context, channel, userID, text string) (string, error)
 }
 
 // Channel is one messaging adapter.
@@ -35,7 +40,7 @@ func (n *noop) Run(ctx context.Context) error {
 }
 
 // Build returns the adapters enabled in config.
-func Build(cfg *config.Config, core *agent.Agent) []Channel {
+func Build(cfg *config.Config, core Handler) []Channel {
 	var out []Channel
 	for name, ch := range cfg.Channels {
 		if !ch.Enabled {
