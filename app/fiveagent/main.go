@@ -13,6 +13,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
+	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
 
 func main() {
@@ -28,7 +29,8 @@ func main() {
 	}
 	defer store.Close()
 
-	core := agent.New(mdl, store)
+	reg := tools.NewRegistry(tools.Datetime{})
+	core := agent.New(mdl, store, reg)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
