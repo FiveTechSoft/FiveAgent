@@ -12,12 +12,25 @@ import (
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
 
-// Message is one chat message.
+// ToolCall is one function call requested by the model.
+type ToolCall struct {
+	ID       string `json:"id"`
+	Type     string `json:"type"` // "function"
+	Function struct {
+		Name      string `json:"name"`
+		Arguments string `json:"arguments"` // JSON-encoded
+	} `json:"function"`
+}
+
+// Message is one chat message. Content may be empty on tool-call turns.
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role       string     `json:"role"`
+	Content    string     `json:"content"`
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"` // role "tool" messages
 }
 
 // Client is an OpenAI-compatible chat client.
@@ -32,8 +45,9 @@ func NewOpenAICompat(cfg config.Model) *Client {
 }
 
 type chatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
+	Model    string       `json:"model"`
+	Messages []Message    `json:"messages"`
+	Tools    []tools.Spec `json:"tools,omitempty"`
 }
 
 type chatResponse struct {
@@ -42,15 +56,17 @@ type chatResponse struct {
 	} `json:"choices"`
 }
 
-// Chat sends the conversation and returns the assistant reply.
-func (c *Client) Chat(ctx context.Context, msgs []Message) (string, error) {
-	body, err := json.Marshal(chatRequest{Model: c.cfg.Name, Messages: msgs})
+// Chat sends the conversation (and optional tool specs) and returns the
+// assistant message, which may carry content, tool calls, or both.
+func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spec) (Message, error) {
+	var out Message
+	body, err := json.Marshal(chatRequest{Model: c.cfg.Name, Messages: msgs, Tools: toolSpecs})
 	if err != nil {
-		return "", err
+		return out, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.cfg.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return "", err
+		return out, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.cfg.APIKey != "" {
@@ -58,22 +74,22 @@ func (c *Client) Chat(ctx context.Context, msgs []Message) (string, error) {
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return "", err
+		return out, err
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", err
+		return out, err
 	}
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("model: %s: %s", resp.Status, raw)
+		return out, fmt.Errorf("model: %s: %s", resp.Status, raw)
 	}
-	var out chatResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return "", err
+	var parsed chatResponse
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return out, err
 	}
-	if len(out.Choices) == 0 {
-		return "", fmt.Errorf("model: no choices in response")
+	if len(parsed.Choices) == 0 {
+		return out, fmt.Errorf("model: no choices in response")
 	}
-	return out.Choices[0].Message.Content, nil
+	return parsed.Choices[0].Message, nil
 }
