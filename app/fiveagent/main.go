@@ -23,7 +23,12 @@ func main() {
 	}
 
 	mdl := model.NewOpenAICompat(cfg.Model)
-	store, err := memory.Open(cfg.Memory.Postgres)
+	var store memory.Store
+	if cfg.Memory.JSON != "" {
+		store, err = memory.OpenJSON(cfg.Memory.JSON)
+	} else {
+		store, err = memory.OpenPostgres(cfg.Memory.Postgres)
+	}
 	if err != nil {
 		log.Fatalf("memory: %v", err)
 	}

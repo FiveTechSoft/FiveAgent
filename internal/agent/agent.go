@@ -18,12 +18,12 @@ const systemPrompt = "You are FiveAgent, a helpful personal assistant. Be concis
 // Agent ties the model, memory and tools together.
 type Agent struct {
 	mdl   *model.Client
-	store *memory.Store
+	store memory.Store
 	tools *tools.Registry
 }
 
 // New builds the core.
-func New(mdl *model.Client, store *memory.Store, reg *tools.Registry) *Agent {
+func New(mdl *model.Client, store memory.Store, reg *tools.Registry) *Agent {
 	return &Agent{mdl: mdl, store: store, tools: reg}
 }
 

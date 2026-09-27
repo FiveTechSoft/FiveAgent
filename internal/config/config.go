@@ -30,9 +30,11 @@ type Channel struct {
 	ListenAddr    string `yaml:"listen_addr,omitempty"` // webhook listen address, default :8080
 }
 
-// Memory holds the storage settings.
+// Memory holds the storage settings. JSON is a file-backed store for local
+// prototypes; Postgres for real deployments. If JSON is set, it wins.
 type Memory struct {
 	Postgres string `yaml:"postgres"`
+	JSON     string `yaml:"json,omitempty"`
 }
 
 // Config is the root of fiveagent.yml.
