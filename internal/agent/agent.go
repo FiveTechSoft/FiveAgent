@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/url"
+	"regexp"
 	"strings"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
@@ -72,29 +73,72 @@ func (a *Agent) WithCoder(c *model.Client) *Agent {
 }
 
 // looksLikeCode reports whether a message is code-heavy enough to be
-// served by the coder model. It is a cheap heuristic on the user text:
-// code fences, structural symbols and programming keywords in English
-// and Spanish. False positives only cost speed (the coder model is
-// usually the bigger one), so the bar favors precision over recall.
+// served by the coder model. Two tiers of signals on the user text:
+// strong ones (code fences, language names, unambiguous keywords) route
+// on their own; weak ones (words that are also common in normal chat,
+// like "función" or "bug") need at least two distinct matches.
+// Alphabetic signals match on word boundaries, so "bugambilia" or
+// "def cool" do not fire. A false positive costs speed (the coder model
+// is usually the bigger one); a false negative costs code quality.
 func looksLikeCode(s string) bool {
-	if strings.Contains(s, "```") {
+	if strings.Contains(s, codeFence) {
 		return true
 	}
 	low := strings.ToLower(s)
-	for _, sig := range []string{
-		"func ", "def ", "function(", "function (", "class ", "import ",
-		"=>", "console.log", "#include", "const ",
-		"{{", "}}", "; ", "git status", "git commit", "git push", "git pull",
-		"traceback", "stacktrace", "compile", "compiler", "regex",
-		"select ", "from where", "python", "javascript", "typescript", "golang", "c++",
-		"código", "codigo", "función", "algoritmo",
-		"compilar", "depurar", "bug", "sql",
-	} {
+	for _, sig := range codeStrongSub {
 		if strings.Contains(low, sig) {
 			return true
 		}
 	}
+	for _, re := range codeStrongWord {
+		if re.MatchString(low) {
+			return true
+		}
+	}
+	weak := 0
+	for _, re := range codeWeakWord {
+		if re.MatchString(low) {
+			weak++
+			if weak >= 2 {
+				return true
+			}
+		}
+	}
 	return false
+}
+
+const codeFence = "```"
+
+// codeStrongSub are substring signals: symbols and multi-word commands
+// where word boundaries do not apply.
+var codeStrongSub = []string{
+	"=>", "{{", "}}", "#include", "c++",
+	"git status", "git commit", "git push", "git pull",
+}
+
+// codeStrongWord are unambiguous words: one match routes to the coder.
+var codeStrongWord = wordRegexps(
+	"func", "function", "python", "javascript", "typescript", "golang",
+	"java", "sql", "html", "css", "json", "bash", "script",
+	"compila", "compilar", "depurar", "programa", "programar",
+	"console\\.log", "traceback", "stacktrace", "regex",
+	"api", "endpoint", "div",
+)
+
+// codeWeakWord are ambiguous words, common in normal chat too: at least
+// two distinct matches are needed to route.
+var codeWeakWord = wordRegexps(
+	"def", "class", "import", "const", "select", "from", "go",
+	"compile", "compiler", "código", "codigo", "función",
+	"algoritmo", "bug", "error", "método", "bucle", "variable",
+)
+
+func wordRegexps(words ...string) []*regexp.Regexp {
+	res := make([]*regexp.Regexp, len(words))
+	for i, w := range words {
+		res[i] = regexp.MustCompile(`\b` + w + `\b`)
+	}
+	return res
 }
 
 // Handle answers one inbound message, keeping history per channel+user.
