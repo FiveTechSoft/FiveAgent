@@ -105,6 +105,15 @@ the phases are milestones.
       at equal VRAM. Measurable.
    g. **LoRA on real conversations** (long-term) - the end of the
       curve, not the start; a 9b adapter fits in 12GB with Unsloth.
+   h. **Teacher-model distillation** - a big teacher (e.g. DeepSeek)
+      lifts the small model two ways. Artifacts: the teacher writes
+      the perfect few-shots, eval scenarios and flawless tool-call
+      traces that the small model consumes in prompts and tests every
+      turn. Real distillation: the teacher generates training data
+      (conversations, corrections, good tool calls), the evals filter
+      it - a big teacher hallucinates too - and it feeds the LoRA of
+      stage g. The teacher is a data factory, the small model is the
+      distillate, the evals are quality control.
    First candidates: a and b (one afternoon, direct impact), then c.
 
 ## Phase 3 - v0.3: tools
