@@ -13,6 +13,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
+	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
 
@@ -34,7 +35,16 @@ func main() {
 	}
 	defer store.Close()
 
-	reg := tools.NewRegistry(tools.Datetime{})
+	tl := []tools.Tool{tools.Datetime{}}
+	if cfg.Sandbox.Enabled {
+		if sb, err := sandbox.New(cfg.Sandbox); err != nil {
+			log.Printf("sandbox disabled: %v", err)
+		} else {
+			tl = append(tl, tools.RunCommand{SB: sb})
+			log.Printf("sandbox: %s backend", sb.Name())
+		}
+	}
+	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
