@@ -240,8 +240,8 @@ connection". Deja esta ventana abierta siempre que uses el bot.
 > llegan mientras tanto se pierden. Estamos probando como mitigación
 > arrancarlo con `cloudflared tunnel --url http://localhost:8080
 > --protocol http2`; **todavía está en prueba**, actualizaremos esta
-> guía cuando confirmemos que aguanta. Para algo serio, mira la sección
-> "Para producción" al final.
+> guía cuando confirmemos que aguanta. Para algo serio usa la **Parte
+> 5** (túnel fijo con tu dominio), que sí está probada en producción.
 
 ---
 
@@ -342,15 +342,206 @@ curl -X POST "https://graph.facebook.com/v21.0/<WABA_ID>/subscribed_apps" -H "Au
 Debe responder `{"success": true}`. Compruébalo con un GET a la misma
 URL: tu app tiene que aparecer en la lista.
 
-## Para producción (todavía no probado aquí)
+---
 
-Esto aún **no lo hemos probado**; es el camino documentado por Meta y
-Cloudflare, no experiencia propia:
+# Parte 5: producción - túnel fijo con tu dominio (probado)
 
-- Un túnel **nombrado** de Cloudflare (URL fija, no cambia al reiniciar)
-  o un servidor con dirección fija, en vez del túnel rápido.
-- Un token **permanente** de Meta creado con un "usuario del sistema"
-  en Meta Business, en vez del token de 24 horas.
+El túnel rápido del Paso 10 cambia de URL cada vez y a veces se cae.
+Para dejar el bot encendido de verdad usamos un **túnel con nombre** de
+Cloudflare: una URL fija en un subdominio tuyo, gratis con el plan
+gratuito. Todo lo de esta parte está probado en producción.
+
+Necesitas: un dominio tuyo aparcado en Cloudflare (el plan gratis vale)
+y `cloudflared` instalado (Paso 10).
+
+## Paso 14 - Crea un token de Cloudflare limitado a tu dominio
+
+Cloudflare gestiona el túnel y el DNS con un **token de API**. Lo
+creamos con permisos solo para lo necesario y solo sobre tu dominio:
+si alguien te lo roba, no puede tocar nada más.
+
+1. Entra en https://dash.cloudflare.com - es tu panel de Cloudflare.
+
+   ![Panel de Cloudflare](images/c1-cloudflare-dashboard.png)
+
+2. Abre el menú de tu usuario (arriba a la derecha) y pulsa
+   **My Profile**.
+
+   ![Menú de usuario: My Profile](images/c2-cloudflare-menu-profile.png)
+
+3. En el menú de la izquierda pulsa **API Tokens** y luego
+   **Create Token**.
+
+   ![API Tokens: Create Token](images/c3-cloudflare-api-tokens.png)
+
+4. Baja hasta **Custom token** y pulsa **Get started**.
+
+   ![Custom token: Get started](images/c4-cloudflare-create-token.png)
+
+5. Ponle un nombre (nosotros: `FiveAgent tunnel`) y añade dos permisos
+   con **+ Add more**: **Account - Cloudflare Tunnel - Edit** y
+   **Zone - DNS - Edit**.
+
+   ![Permisos del token](images/c5-cloudflare-token-permisos.png)
+
+6. En **Zone Resources** cambia "All zones" por **Specific zone** y
+   elige tu dominio.
+
+   ![Zone Resources: All zones](images/c6-cloudflare-token-zona.png)
+   ![Zone Resources: Specific zone](images/c7-cloudflare-token-zona-especifica.png)
+
+7. Pulsa **Continue to summary**.
+
+   ![Resumen del token](images/c8-cloudflare-token-resumen.png)
+
+8. Pulsa **Create Token** y copia el token: solo se muestra una vez.
+   Guárdalo como una contraseña.
+
+   ![Botón Create Token](images/c9-cloudflare-token-crear.png)
+
+## Paso 15 - Crea el túnel con nombre y su CNAME
+
+1. En el panel de Cloudflare Zero Trust
+   (https://one.dash.cloudflare.com) ve a **Networks - Tunnels** y
+   pulsa **Create a tunnel**. Elige **Cloudflared** y ponle un nombre
+   (ej.: `fiveagent`).
+2. Cloudflare te muestra un comando con el **token del túnel**: es el
+   comando que dejará el túnel corriendo en tu PC (Paso 16).
+3. En **Public Hostname** rellena: **Subdomain** (ej.: `bot`), tu
+   **dominio**, **Path**: `webhook/whatsapp`, **Service**:
+   `http://localhost:8080`. Guarda.
+
+Al guardar el Public Hostname, Cloudflare crea solo el **CNAME**: tu
+subdominio apunta al túnel. Tu URL fija queda
+`https://bot.tudominio.com/webhook/whatsapp`: ponla en Meta como en el
+Paso 11 (esta vez ya no cambia nunca).
+
+> **Caja avanzada (API):** el mismo túnel y el mismo CNAME se pueden
+> crear con `curl` y el token del Paso 14 (permisos Cloudflare Tunnel +
+> DNS). Los endpoints exactos cambian con el tiempo; la referencia es
+> https://developers.cloudflare.com/api/ - busca "Cloudflare Tunnel" y
+> "DNS Records". El CNAME queda `<id-del-túnel>.cfargotunnel.com`.
+
+## Paso 16 - Deja pasar solo /webhook/whatsapp
+
+El túnel solo debe llevar a tu PC el camino del webhook y nada más.
+Con el Public Hostname del Paso 15 (con **Path** `webhook/whatsapp`)
+ya está hecho desde el panel. Si prefieres el archivo de configuración
+de cloudflared (`config.yml`), el filtro son las reglas **ingress**:
+
+```yaml
+ingress:
+  - hostname: bot.tudominio.com
+    path: /webhook/whatsapp
+    service: http://localhost:8080
+  - service: http_status:404
+```
+
+La última línea devuelve 404 a cualquier otra ruta: aunque alguien
+adivine tu subdominio, solo existe `/webhook/whatsapp`.
+
+**Qué deberías ver:** `https://bot.tudominio.com/` da 404 y
+`https://bot.tudominio.com/webhook/whatsapp` responde (con FiveAgent
+encendido).
+
+## Paso 17 - Baja el escudo de Cloudflare solo para ese subdominio
+
+Cloudflare protege tu dominio con un "nivel de seguridad" que a veces
+desafía a los visitantes como si fueran bots... y Meta **es** un bot:
+si el desafío salta, los mensajes no llegan. Hay que bajarlo **solo**
+para el subdominio del bot:
+
+1. En el panel de Cloudflare de tu dominio ve a **Rules -
+   Configuration Rules** y pulsa **Create rule**.
+2. Filtra por **Hostname equals `bot.tudominio.com`**.
+3. Añade el ajuste **Security Level** con el valor
+   **Essentially off**.
+
+Ojo con dos detalles que aprendimos a las malas:
+
+- En el plan gratuito no existe el nivel "Off"; el más bajo es
+  **"Essentially off"**.
+- Un **Page Rule no basta**: con el "Under Attack Mode" activo, el
+  Page Rule no se aplica. La Configuration Rule sí.
+
+## Paso 18 - Token permanente de Meta
+
+El token que te da el panel de Meta (Paso 7) es **temporal: dura hora
+y media aproximadamente**. Para producción crea uno permanente:
+
+1. En **Meta Business Suite - Configuración de empresa - Usuarios -
+   Usuarios del sistema**, crea un usuario del sistema (rol de
+   administrador).
+2. Dale acceso a tu app y genera un token con los permisos
+   `whatsapp_business_messaging` y `whatsapp_business_management`.
+3. Pon ese token en `access_token` de tu `fiveagent.yml`.
+
+Ese token no caduca (salvo que lo revoques). Referencia:
+https://developers.facebook.com/docs/whatsapp/business-management-api/get-started
+
+---
+
+# Parte 6: seguridad - quién puede hablar con tu bot
+
+Con el túnel abierto, tu PC tiene una dirección pública en internet.
+Eso asusta, pero vamos por partes.
+
+## Paso 19 - Entiende qué está expuesto
+
+De todo tu PC, solo es pública **una** dirección:
+`https://bot.tudominio.com/webhook/whatsapp`. Ahí solo "escucha"
+FiveAgent, y solo para recibir avisos de Meta. No hay panel web, no hay
+archivos, no hay nada más que visitar (el Paso 16 devuelve 404 a todo
+lo demás). Quien tenga la URL podría **enviar** avisos falsos a esa
+dirección; los dos pasos siguientes cierran esa puerta.
+
+## Paso 20 - Activa la firma de Meta (app_secret)
+
+Meta firma cada aviso que envía con la **clave secreta de tu app**. Si
+FiveAgent conoce esa clave, rechaza automáticamente cualquier aviso que
+no venga firmado por Meta.
+
+1. En el panel de Meta: **Configuración de la aplicación -
+   Información básica - Clave secreta de la aplicación - Mostrar**
+   (te pedirá tu contraseña de Facebook). Cópiala.
+2. En `fiveagent.yml`, añade la línea `app_secret`:
+
+   ```yaml
+   channels:
+     whatsapp:
+       app_secret: "<la clave secreta que copiaste>"
+   ```
+3. Reinicia FiveAgent.
+
+**Qué deberías ver:** todo sigue funcionando igual, pero en
+`fa_err.log` aparecería `rejected webhook with bad signature` si
+llegara algo sin la firma de Meta. (Probado en tests automáticos: sin
+`app_secret` se acepta todo; con `app_secret`, lo no firmado recibe un
+401.)
+
+## Paso 21 - Limita quién puede hablar (allowed_senders)
+
+Aunque un aviso llegue firmado por Meta, quizá no quieras que
+**cualquiera** que escriba al número gaste tus tokens del modelo. Con
+`allowed_senders` decides quién tiene permiso:
+
+```yaml
+channels:
+  whatsapp:
+    allowed_senders:
+      - "34600123456"     # tu número, con prefijo, sin + ni espacios
+```
+
+- En WhatsApp se usa el número tal como llega (ej.: `34600123456`).
+- En Telegram se usa el **chat id** (un número; el bot te lo muestra en
+  el log cuando le escribes: `telegram: message from chat 123456789`).
+- Si la lista está **vacía**, el bot responde a todo el mundo y verás
+  este aviso al arrancar: `allowed_senders is empty - answering
+  messages from ANY sender`.
+
+**Qué deberías ver:** si escribe alguien que no está en la lista, el
+bot no contesta y en `fa_err.log` aparece
+`ignored message from ... (not in allowed_senders)`.
 
 ## En el futuro
 
@@ -382,5 +573,3 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 ### Lo que falta hoy
 
 - Transcribir notas de voz (necesita un servicio de voz a texto).
-- Sección de "túnel fijo con tu dominio en Cloudflare" con capturas
-  propias: en preparación, se publicará cuando esté probada.
