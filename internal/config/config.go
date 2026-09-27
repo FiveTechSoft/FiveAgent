@@ -15,6 +15,10 @@ type Model struct {
 	BaseURL  string `yaml:"base_url"`
 	APIKey   string `yaml:"api_key"`
 	Name     string `yaml:"name"`
+	// Timeout caps one model call, in seconds. Default: 120, or 600 for
+	// local endpoints (localhost), where large models load into RAM on
+	// first use and easily exceed two minutes.
+	Timeout int `yaml:"timeout,omitempty"`
 }
 
 // Channel is one messaging channel's settings. The fields used depend on
