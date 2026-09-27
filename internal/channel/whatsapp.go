@@ -3,7 +3,10 @@ package channel
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,6 +76,23 @@ func (w *whatsapp) handleWebhook(rw http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// validSignature checks Meta's X-Hub-Signature-256 header (HMAC-SHA256 of
+// the raw body with the app secret).
+func validSignature(secret string, body []byte, header string) bool {
+	sig, ok := strings.CutPrefix(header, "sha256=")
+	if !ok {
+		return false
+	}
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(body)
+	want := mac.Sum(nil)
+	got, err := hex.DecodeString(sig)
+	if err != nil || len(got) != len(want) {
+		return false
+	}
+	return hmac.Equal(got, want)
+}
+
 // verify answers Meta's webhook handshake.
 func (w *whatsapp) verify(rw http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -140,11 +160,17 @@ type mediaRef struct {
 }
 
 // inbound receives notifications. Always 200 fast, process async (Meta
-// retries on non-200).
+// retries on non-200). When app_secret is configured, unsigned or badly
+// signed payloads are rejected with 401 instead.
 func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(io.LimitReader(r.Body, 4<<20))
 	if err != nil {
 		rw.WriteHeader(http.StatusOK)
+		return
+	}
+	if w.cfg.AppSecret != "" && !validSignature(w.cfg.AppSecret, body, r.Header.Get("X-Hub-Signature-256")) {
+		log.Printf("whatsapp: rejected webhook with bad signature")
+		http.Error(rw, "bad signature", http.StatusUnauthorized)
 		return
 	}
 	rw.WriteHeader(http.StatusOK)
