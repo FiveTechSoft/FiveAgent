@@ -23,6 +23,10 @@ both sides of scripted conversations, so the numbers say how the memory
   the people file even when no body word matches.
 - `TestInjectionCostScaling` - the injected block must stay bounded
   with a 50-note store, even when every note matches the query.
+- `TestForgetByAgent` - the model can delete a fact through
+  forget_memory and it stops being injected.
+- `TestHistoryIsolation` - one sender's conversation never leaks into
+  another sender's request.
 
 **Live model evals (manual quality gate).** `TestLiveModelMemory` runs
 the same loop against a real model server, with the model itself
@@ -46,6 +50,8 @@ passes against the target model.
 - recall rate: 10/10 targeted queries
 - alias recall: 1/1
 - injection cost at 50 notes: 726 chars (~181 tokens)
+- forget by agent: 1/1
+- cross-sender history leaks: 0/1
 
 First catch: the precision eval proved the template description lines
 ("Who the user knows...") polluted recall for common words; recall now
