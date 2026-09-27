@@ -13,6 +13,7 @@ channels:
     # access_token: ${WHATSAPP_ACCESS_TOKEN}     # permanent system-user token
     # phone_number_id: "1234567890"              # from the Meta app dashboard
     # verify_token: "pick-a-random-string"       # you choose it; Meta checks it
+    # app_secret: <Meta app secret>              # enables webhook signature checks
     # listen_addr: ":8080"                       # webhook listener
   imessage:
     enabled: false
