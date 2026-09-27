@@ -131,6 +131,7 @@ Tracked as GitHub issues and milestones, in this order:
 6. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
 7. Tools: web search, browser, email, calendar
 8. iMessage channel
+9. Per-task model routing (planned): each request goes to the model best suited to it (chat to Qwen3-30B, code to Qwen2.5-Coder), with a router classifying requests and the models configurable in fiveagent.yml
 
 Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
