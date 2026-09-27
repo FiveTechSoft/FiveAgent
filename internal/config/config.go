@@ -64,6 +64,10 @@ type Config struct {
 	Channels map[string]Channel `yaml:"channels"`
 	Memory   Memory             `yaml:"memory"`
 	Sandbox  Sandbox            `yaml:"sandbox,omitempty"`
+	// Coder is an optional second model for code-heavy requests. When set,
+	// the agent picks it for messages that look like code and keeps
+	// Model for everything else. It inherits model.base_url when omitted.
+	Coder Model `yaml:"coder,omitempty"`
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
@@ -84,6 +88,12 @@ func Load(path string) (*Config, error) {
 	}
 	if c.Model.BaseURL == "" || c.Model.Name == "" {
 		return nil, fmt.Errorf("model.base_url and model.name are required")
+	}
+	if c.Coder.Name != "" && c.Coder.BaseURL == "" {
+		c.Coder.BaseURL = c.Model.BaseURL
+	}
+	if c.Coder.Name != "" && c.Coder.Provider == "" {
+		c.Coder.Provider = c.Model.Provider
 	}
 	return &c, nil
 }

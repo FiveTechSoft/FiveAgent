@@ -46,6 +46,10 @@ func main() {
 	}
 	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
+	if cfg.Coder.Name != "" {
+		core.WithCoder(model.NewOpenAICompat(cfg.Coder))
+		log.Printf("coder model: %s (auto-routed for code requests)", cfg.Coder.Name)
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

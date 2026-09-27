@@ -5,6 +5,12 @@ model:
   name: llama3.1         # or gpt-4o-mini, deepseek-chat, ...
   # timeout: 120         # seconds per model call; local endpoints default to 600
 
+# Optional: a second model for code-heavy requests. When set, the agent
+# auto-routes: messages that look like code go here, everything else to
+# model above. base_url and provider are inherited from model if omitted.
+# coder:
+#   name: qwen3.8:27b    # or deepseek-chat, gpt-4o-mini, ...
+
 # Optional: the agent's persona. Whatever you write (or the built-in default)
 # gets one extra line naming the configured model, so the agent can say
 # plainly what it runs on instead of inventing an identity.

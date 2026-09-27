@@ -53,6 +53,7 @@ func channelStyle(channel string) string {
 // Agent ties the model, memory and tools together.
 type Agent struct {
 	mdl       *model.Client
+	coder     *model.Client // optional: serves code-heavy requests
 	store     memory.Store
 	tools     *tools.Registry
 	sysPrompt string
@@ -61,6 +62,39 @@ type Agent struct {
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
 func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt string) *Agent {
 	return &Agent{mdl: mdl, store: store, tools: reg, sysPrompt: sysPrompt}
+}
+
+// WithCoder sets the optional second model for code-heavy requests and
+// returns the agent for chaining.
+func (a *Agent) WithCoder(c *model.Client) *Agent {
+	a.coder = c
+	return a
+}
+
+// looksLikeCode reports whether a message is code-heavy enough to be
+// served by the coder model. It is a cheap heuristic on the user text:
+// code fences, structural symbols and programming keywords in English
+// and Spanish. False positives only cost speed (the coder model is
+// usually the bigger one), so the bar favors precision over recall.
+func looksLikeCode(s string) bool {
+	if strings.Contains(s, "```") {
+		return true
+	}
+	low := strings.ToLower(s)
+	for _, sig := range []string{
+		"func ", "def ", "function(", "function (", "class ", "import ",
+		"=>", "console.log", "#include", "const ",
+		"{{", "}}", "; ", "git status", "git commit", "git push", "git pull",
+		"traceback", "stacktrace", "compile", "compiler", "regex",
+		"select ", "from where", "python", "javascript", "typescript", "golang", "c++",
+		"código", "codigo", "función", "algoritmo",
+		"compilar", "depurar", "bug", "sql",
+	} {
+		if strings.Contains(low, sig) {
+			return true
+		}
+	}
+	return false
 }
 
 // Handle answers one inbound message, keeping history per channel+user.
@@ -88,8 +122,14 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	}
 
 	var reply string
+	// The agent decides which model serves this request: the coder model
+	// for code-heavy text, the main model otherwise.
+	mdl := a.mdl
+	if a.coder != nil && looksLikeCode(text) {
+		mdl = a.coder
+	}
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := a.mdl.Chat(ctx, msgs, a.tools.Specs())
+		ans, err := mdl.Chat(ctx, msgs, a.tools.Specs())
 		if err != nil {
 			return "", err
 		}
