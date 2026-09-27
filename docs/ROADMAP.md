@@ -57,6 +57,12 @@ the phases are milestones.
       the agent stored it. Before truncating, summarize the outgoing
       messages into a session digest file, also recalled as data in
       later turns.
+   h. **Memory evals** - an evals/ directory of scripted conversations
+      running in CI: store a fact on turn 1, ask for it on turn 30
+      (past truncation), correct a fact and check the old one is gone.
+      Metrics: recall hit rate, false-save rate (noise), injection
+      precision (nothing irrelevant), tokens injected per turn. Each
+      stage above is only marked done when its evals pass.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
 10. **Per-task model routing** (first version working) - an optional
