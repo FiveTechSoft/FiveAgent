@@ -251,3 +251,114 @@ func TestWhatsAppAllowedSendersListed(t *testing.T) {
 	}
 	t.Fatal("listed sender never reached the core")
 }
+
+// slowCore simulates a model that never answers in time: it blocks
+// until the agent context expires and returns the deadline error.
+type slowCore struct{}
+
+func (slowCore) Handle(ctx context.Context, _, _, _ string) (string, error) {
+	<-ctx.Done()
+	return "", ctx.Err()
+}
+
+// Regression test for the production bug "model timeout -> total
+// silence": the send must use a fresh context, and the user must get a
+// short timeout message, not nothing.
+func TestProcessSendsFallbackWhenModelTimesOut(t *testing.T) {
+	var mu sync.Mutex
+	var sent []string
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		mu.Lock()
+		sent = append(sent, string(b))
+		mu.Unlock()
+		rw.Header().Set("Content-Type", "application/json")
+		io.WriteString(rw, `{"messages":[{"id":"wamid.x"}]}`)
+	}))
+	defer srv.Close()
+
+	w := newTestWhatsApp(slowCore{})
+	w.baseURL = srv.URL
+	w.agentTimeout = 50 * time.Millisecond
+	w.process("34600111222", "wamid.inbound", "hola", "")
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(sent) == 0 {
+		t.Fatal("no reply was sent after the model timeout")
+	}
+	joined := strings.Join(sent, "\n")
+	if !strings.Contains(joined, "tardando demasiado") {
+		t.Fatalf("expected the timeout fallback message, got: %s", joined)
+	}
+}
+
+// blockingCore takes a while per message, to prove two senders are
+// handled concurrently and neither message is lost.
+type blockingCore struct {
+	delay time.Duration
+	mu    sync.Mutex
+	seen  []string
+}
+
+func (b *blockingCore) Handle(_ context.Context, _, userID, _ string) (string, error) {
+	time.Sleep(b.delay)
+	b.mu.Lock()
+	b.seen = append(b.seen, userID)
+	b.mu.Unlock()
+	return "respuesta", nil
+}
+
+func TestProcessConcurrentSenders(t *testing.T) {
+	var mu sync.Mutex
+	replies := map[string]int{}
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		var body struct {
+			To string `json:"to"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		// mark-read posts carry no "to"; reply posts do
+		var full map[string]any
+		json.Unmarshal(raw, &full)
+		if to, ok := full["to"].(string); ok {
+			body.To = to
+			mu.Lock()
+			replies[body.To]++
+			mu.Unlock()
+		}
+		rw.Header().Set("Content-Type", "application/json")
+		io.WriteString(rw, `{"messages":[{"id":"wamid.x"}]}`)
+	}))
+	defer srv.Close()
+
+	core := &blockingCore{delay: 300 * time.Millisecond}
+	w := newTestWhatsApp(core)
+	w.baseURL = srv.URL
+	w.agentTimeout = 5 * time.Second
+
+	start := time.Now()
+	var wg sync.WaitGroup
+	for _, sender := range []string{"34623521270", "34722461100"} {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			w.process(s, "wamid."+s, "hola", "")
+		}(sender)
+	}
+	wg.Wait()
+	elapsed := time.Since(start)
+
+	mu.Lock()
+	defer mu.Unlock()
+	for _, s := range []string{"34623521270", "34722461100"} {
+		if replies[s] != 1 {
+			t.Fatalf("sender %s got %d replies, want 1", s, replies[s])
+		}
+	}
+	if len(core.seen) != 2 {
+		t.Fatalf("core saw %d messages, want 2", len(core.seen))
+	}
+	if elapsed > 600*time.Millisecond {
+		t.Fatalf("senders look serialized: %s for two 300ms replies", elapsed)
+	}
+}
