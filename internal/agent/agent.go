@@ -33,7 +33,7 @@ func SystemPrompt(cfg *config.Config) string {
 	if u, err := url.Parse(cfg.Model.BaseURL); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. %s works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them.", p, cfg.Model.Name, host, "FiveAgent")
+	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.", p, cfg.Model.Name, host)
 }
 
 // channelStyle tells the model how the channel renders text, so it does
