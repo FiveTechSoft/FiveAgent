@@ -21,10 +21,16 @@ const maxToolRounds = 5
 // no system_prompt.
 const baseSystemPrompt = "You are FiveAgent, a helpful personal assistant. Be concise and warm."
 
+// honestyRules is appended to every system prompt: a small model in a
+// niche domain confabulates instead of saying "I don't know" (measured
+// in a real session: it invented Harbour syntax and the meaning of FWH,
+// the owner's own product). Abstaining beats inventing, always.
+const honestyRules = " Honesty above fluency: never invent facts, syntax, APIs, library names or product names. In niche domains - programming languages, frameworks, companies, people - if you are not sure, say plainly that you don't know and offer to verify (use web_search when available); never fill the gap with a plausible guess, and never claim a correction is wrong to save face. A honest 'I don't know' is always better than a confident invention."
+
 // SystemPrompt builds the system prompt for the model: the configured
 // persona (or the built-in one) plus one line naming the configured model,
 // so the agent can say plainly what it runs on instead of inventing an
-// identity.
+// identity, plus the honesty rules.
 func SystemPrompt(cfg *config.Config) string {
 	p := strings.TrimSpace(cfg.SystemPrompt)
 	if p == "" {
@@ -34,7 +40,7 @@ func SystemPrompt(cfg *config.Config) string {
 	if u, err := url.Parse(cfg.Model.BaseURL); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.", p, cfg.Model.Name, host)
+	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s", p, cfg.Model.Name, host, honestyRules)
 }
 
 // channelStyle tells the model how the channel renders text, so it does
