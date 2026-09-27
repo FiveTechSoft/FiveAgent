@@ -36,7 +36,7 @@ memory:
 
 # sandbox: per-user isolated execution for the run_command tool.
 #   enabled: false
-#   backend: auto          # auto | bubblewrap (Linux) | jobobject (Windows) | docker
+#   backend: auto          # auto | bubblewrap (Linux) | appcontainer (Windows) | jobobject | docker
 #   root: data/sandbox     # one writable folder per user inside it
 #   timeout: 30            # seconds per command
 #   max_ram_mb: 512        # docker / jobobject only
