@@ -12,6 +12,26 @@ FiveAgent wants to be a personal assistant that lives in your messaging apps and
 - **Your data stays yours.** Memory in your own Postgres. Data only leaves your machine where you decide: to the model you configured and to the messaging platforms you connect (e.g. Meta's servers when you use the official WhatsApp API).
 - **Open by design.** MIT license, semantic releases, public roadmap. Community PRs welcome and actually reviewed.
 
+## Where FiveAgent runs
+
+On a machine you control - your Windows PC or your own server, never on
+someone else's cloud. Three things live there:
+
+- `fiveagent` (`fiveagent.exe` on Windows): the agent itself, listening
+  on `localhost:8080`.
+- `cloudflared`: the only piece that faces the internet. It runs next
+  to the agent on the same machine and forwards Meta's webhooks to
+  `localhost:8080`. On Windows, install the MSI, then
+  `cloudflared service install <tunnel-token>` so it starts with the PC.
+- Ollama (optional, for local models): same machine,
+  `localhost:11434`. It has no auth: never expose it publicly, keep it
+  on localhost.
+
+Moving to another machine one day? Install FiveAgent and cloudflared
+there and start the tunnel with the same token: the public URL and the
+Meta webhook stay the same, because they live at Cloudflare, not on
+your box.
+
 ## Quick start
 
 FiveAgent needs just two things: somewhere to run (Docker or Go) and a model to talk to (one you run yourself, like Ollama, or a paid API like OpenAI or DeepSeek).
