@@ -25,7 +25,9 @@ any language.
 
    ![Mis aplicaciones: entra en tu app](images/2-meta-mis-aplicaciones.png)
 3. En el menú de la izquierda: **Casos de uso** → busca **WhatsApp** →
-   **Personalizar**.
+   **Personalizar**:
+
+   ![Casos de uso: Personalizar WhatsApp](images/3-meta-casos-de-uso.png)
 4. Estás en **Configuración de la API**. Apunta:
    - **Token de acceso temporal**
    - **Identificador del número de teléfono** (phone number id), bajo "De"
