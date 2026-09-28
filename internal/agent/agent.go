@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/FiveTechSoft/FiveAgent/docs"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
@@ -40,7 +41,22 @@ func SystemPrompt(cfg *config.Config) string {
 	if u, err := url.Parse(cfg.Model.BaseURL); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s", p, cfg.Model.Name, host, honestyRules)
+	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s%s", p, cfg.Model.Name, host, honestyRules, domainBlock())
+}
+
+// domainBlock appends the embedded FiveTech domain reference
+// (docs/fivetech-domain.md) to every system prompt. Small models
+// confabulate Harbour/FiveWin facts (measured live: invented syntax and
+// a wrong expansion of FWH), so the verified reference rides along on
+// every turn and is marked as overriding the model's general knowledge
+// for this domain. On-demand domain loading arrives with the skills
+// stage; until then the file is small enough to always inject.
+func domainBlock() string {
+	d := strings.TrimSpace(docs.FiveTechDomain)
+	if d == "" {
+		return ""
+	}
+	return "\n\nFiveTech domain reference (FiveWin, Harbour, FWH and related products). For this domain the reference below is AUTHORITATIVE: it overrides your general knowledge - follow it even when it contradicts what you know, and when a FiveTech question is not covered by it, say you are not sure instead of inventing syntax or product names.\n\n" + d
 }
 
 // channelStyle tells the model how the channel renders text, so it does
