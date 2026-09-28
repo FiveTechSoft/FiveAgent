@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -18,6 +19,19 @@ import (
 )
 
 func main() {
+	// fiveagent doctor: probe this machine's sandbox capabilities and
+	// exit (no config, no model, no channels needed).
+	if len(os.Args) > 1 && os.Args[1] == "doctor" {
+		cfg, err := config.Load("")
+		if err != nil {
+			cfg = &config.Config{} // doctor works without a yml
+		}
+		for _, l := range sandbox.DoctorReport(cfg.Sandbox) {
+			fmt.Println(l)
+		}
+		return
+	}
+
 	cfg, err := config.Load(os.Getenv("FIVEAGENT_CONFIG"))
 	if err != nil {
 		log.Fatalf("config: %v", err)
