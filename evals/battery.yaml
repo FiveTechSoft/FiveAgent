@@ -103,6 +103,7 @@ categories:
   - prompt: 'recuerda: mi comida favorita es el pulpo a la gallega'
     source: setup para recall
     setup: true
+    memory_writes: pulpo
   - prompt: ¿cuál es mi comida favorita?
     must_contain:
     - pulpo
@@ -110,9 +111,13 @@ categories:
   - prompt: 'olvida: mi comida favorita'
     source: 'corrección (1/2): borra el hecho viejo directo, sin tool del modelo'
     setup: true
+  - prompt: ¿cuál es mi comida favorita?
+    abstain_expected: true
+    source: 'M3a olvido efectivo: tras olvida:, abstención honesta (variantes cubiertas por el detector desde el baseline 2026-09-28)'
   - prompt: 'recuerda: mi comida favorita es el lacón con grelos'
     source: 'corrección (2/2): guarda el hecho nuevo directo, sin tool del modelo'
     setup: true
+    memory_writes: lacón
   - prompt: ¿cuál es mi comida favorita?
     must_contain:
     - lacón
@@ -120,6 +125,7 @@ categories:
   - prompt: 'recuerda: el 3 de mayo fui de vacaciones a Cádiz'
     source: 'setup: memoria episódica (fecha + lugar)'
     setup: true
+    memory_writes: cádiz
   - prompt: ¿adónde fui de vacaciones el 3 de mayo?
     must_contain:
     - cádiz
@@ -127,6 +133,7 @@ categories:
   - prompt: 'recuerda: mi hermano se llama Pelayo'
     source: 'setup: memoria relacional'
     setup: true
+    memory_writes: pelayo
   - prompt: ¿cómo se llama mi hermano?
     must_contain:
     - pelayo
@@ -134,6 +141,7 @@ categories:
   - prompt: 'recuerda: el código de la puerta de casa es 4729'
     source: 'setup: memoria numérica'
     setup: true
+    memory_writes: '4729'
   - prompt: ¿cuál es el código de la puerta de casa?
     must_contain:
     - '4729'
@@ -141,9 +149,11 @@ categories:
   - prompt: 'recuerda: mi color favorito es verde musgo'
     source: 'setup: preferencia; primer dato de la pareja'
     setup: true
+    memory_writes: verde
   - prompt: 'recuerda: toco el violonchelo'
     source: 'setup: segundo dato guardado seguido; memory dos-hechos'
     setup: true
+    memory_writes: violonchelo
   - prompt: ¿qué instrumento toco?
     must_contain:
     - violonchelo
