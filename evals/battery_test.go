@@ -97,6 +97,10 @@ func abstains(reply string) bool {
 		// forget_memory setup, but scored NO-ABSTENTION).
 		"no tengo registrado", "no tengo registrada",
 		"no tengo en memoria", "no he guardado",
+		// 2026-09-28 live run 3: "Ya he olvidado esa información...
+		// no tengo registro" was the correct post-forget abstention
+		// and scored NO-ABSTENTION.
+		"he olvidado", "no tengo registro",
 		// "No pude encontrar información..." openers: the tiddlywinks
 		// prompt answered exactly that and scored NO-ABSTENTION. The
 		// "información" word keeps "no he encontrado errores" (a correct
@@ -427,6 +431,7 @@ func TestAbstains(t *testing.T) {
 		"Ahora no tengo registrada en mi memoria cuál es tu comida favorita.",
 		// Detector gaps from the 2026-09-28 baseline (81/95):
 		"No encontré información específica sobre los ganadores de esa liga regional.",
+		"Ya he olvidado esa información... no tengo registro de tu comida favorita.",
 		"¡No tengo esa información! Tampoco guardé ningún dato tuyo en memoria.",
 	}
 	for _, r := range abstentions {
