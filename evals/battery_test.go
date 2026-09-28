@@ -1,6 +1,7 @@
 package evals
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,6 +82,66 @@ func abstains(reply string) bool {
 	return false
 }
 
+// judgeConfig holds the reference ("judge") model settings for
+// TestLiveBattery's comparative mode. Enabled with
+// FIVEAGENT_EVAL_JUDGE=1 alongside FIVEAGENT_EVAL_LIVE=1. Any
+// OpenAI-compatible endpoint works (OpenAI, DeepSeek, a bigger local
+// model, ...). The judge answers each prompt itself and then grades the
+// local model's reply against its own reference answer.
+type judgeConfig struct {
+	client *model.Client
+	name   string
+}
+
+// newJudge builds the judge from env, or nil when judge mode is off.
+func newJudge(t *testing.T) *judgeConfig {
+	t.Helper()
+	if os.Getenv("FIVEAGENT_EVAL_JUDGE") != "1" {
+		return nil
+	}
+	baseURL := os.Getenv("FIVEAGENT_EVAL_JUDGE_BASE_URL")
+	if baseURL == "" {
+		baseURL = "https://api.openai.com/v1"
+	}
+	apiKey := os.Getenv("FIVEAGENT_EVAL_JUDGE_API_KEY")
+	if apiKey == "" {
+		apiKey = os.Getenv("OPENAI_API_KEY")
+	}
+	name := os.Getenv("FIVEAGENT_EVAL_JUDGE_MODEL")
+	if name == "" {
+		name = "gpt-4o-mini"
+	}
+	if apiKey == "" && !strings.Contains(baseURL, "localhost") && !strings.Contains(baseURL, "127.0.0.1") {
+		t.Fatalf("FIVEAGENT_EVAL_JUDGE=1 needs FIVEAGENT_EVAL_JUDGE_API_KEY (or OPENAI_API_KEY) for %s", baseURL)
+	}
+	t.Logf("judge mode: reference model %s at %s", name, baseURL)
+	return &judgeConfig{client: model.NewOpenAICompat(config.Model{Provider: "openai-compatible", BaseURL: baseURL, APIKey: apiKey, Name: name}), name: name}
+}
+
+// referenceAnswer asks the judge model the bare prompt (no tools, no
+// memory): what a strong model answers from its own knowledge.
+func (j *judgeConfig) referenceAnswer(ctx context.Context, prompt string) (string, error) {
+	m, err := j.client.Chat(ctx, []model.Message{{Role: "user", Content: prompt}}, nil)
+	return m.Content, err
+}
+
+// score grades the candidate reply against the reference: 2 correct,
+// 1 partial, 0 wrong or invented. Format: "<digit> - one-line reason".
+func (j *judgeConfig) score(ctx context.Context, prompt, reference, candidate string) (int, string, error) {
+	q := fmt.Sprintf("Eres un evaluador estricto. Pregunta: %q\nRespuesta de referencia: %q\nRespuesta candidata: %q\n"+
+		"Puntua la candidata: 2 = correcta, 1 = parcialmente correcta, 0 = incorrecta o inventada. "+
+		"Responde SOLO con el formato: <digito> - <razon de una linea>", prompt, reference, candidate)
+	m, err := j.client.Chat(ctx, []model.Message{{Role: "user", Content: q}}, nil)
+	if err != nil {
+		return 0, "", err
+	}
+	out := strings.TrimSpace(m.Content)
+	if len(out) > 0 && out[0] >= '0' && out[0] <= '2' {
+		return int(out[0] - '0'), out, nil
+	}
+	return -1, out, nil // unparseable verdict: count separately
+}
+
 // TestLiveBattery runs the full comparative battery against a real
 // model server and prints the per-category report. Env-gated: needs a
 // running model. The gate fails ONLY on hallucinations (invented
@@ -112,6 +173,8 @@ func TestLiveBattery(t *testing.T) {
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
 
+	judge := newJudge(t)
+
 	bf := loadBattery(t)
 	cats := make([]string, 0, len(bf.Categories))
 	for c := range bf.Categories {
@@ -123,6 +186,7 @@ func TestLiveBattery(t *testing.T) {
 	hallucinations := 0
 	for _, cat := range cats {
 		pass, abst, halluc, fail := 0, 0, 0, 0
+		jscore, jcount := 0, 0
 		for _, p := range bf.Categories[cat] {
 			prompt := strings.ReplaceAll(p.Prompt, "{{weekday}}", weekday)
 			mustContain := make([]string, len(p.MustContain))
@@ -135,6 +199,21 @@ func TestLiveBattery(t *testing.T) {
 			}
 			if p.Setup {
 				continue
+			}
+			if judge != nil {
+				ref, err := judge.referenceAnswer(t.Context(), prompt)
+				if err != nil {
+					t.Fatalf("judge reference %q: %v", prompt, err)
+				}
+				sc, verdict, err := judge.score(t.Context(), prompt, ref, reply)
+				if err != nil {
+					t.Fatalf("judge score %q: %v", prompt, err)
+				}
+				if sc >= 0 {
+					jscore += sc
+					jcount++
+				}
+				t.Logf("JUDGE [%s] %q: local=%d/2 (%s)", cat, prompt, sc, verdict)
 			}
 			low := strings.ToLower(reply)
 			bad := ""
@@ -177,6 +256,10 @@ func TestLiveBattery(t *testing.T) {
 		hallucinations += halluc
 		t.Logf("METRIC battery %s: %d pass, %d correct-abstention, %d miss, %d hallucination (of %d)",
 			cat, pass, abst, fail, halluc, len(bf.Categories[cat]))
+		if judge != nil && jcount > 0 {
+			t.Logf("METRIC judge %s: %d/%d points (%.0f%% of reference model %s)",
+				cat, jscore, 2*jcount, 100*float64(jscore)/float64(2*jcount), judge.name)
+		}
 	}
 	fmt.Printf("battery done, hallucinations: %d\n", hallucinations)
 }
