@@ -162,3 +162,27 @@ Known issues found by this run, fixed in the commit that records it:
 
 Source: owner's live-run report, 2026-09-28 (double counting method,
 Go validator and Python counter agreeing).
+
+### 2026-09-28 (run 2) - tree 425a458 (first harness round after the baseline)
+
+Score: **83 pass / 2 correct-abstention / 0 miss / 2 hallucination, of
+96** (85/96; gate: FAIL on the 2 hallucinations). Unit suite the same
+run: 99 PASS / 0 FAIL / 3 SKIP. Memory: **M1 write-through 7/7** (the
+model really writes - the recuerda:/olvida: markers fixed the baseline
+gap), **M3a effective forgetting: PASS**.
+
+The 3 baseline misses (logica, tiddlywinks, tools) are clean. The
+detector and domain fixes landed as predicted (81 -> 83 pass).
+
+Post-run analysis (fixed in the commit recording this row):
+
+1. One of the 2 hallucinations was a RUBRIC false positive, not a model
+   error: the tiddlywinks abstention echoes the question ("No tengo
+   información sobre quién ganó...") and the must_not_contain token
+   "ganó " lives in the prompt. The matcher now tolerates prompt-echoed
+   tokens inside abstentions only; novel tokens still count.
+2. The real residual hallucination: `cVar` in an explanation table
+   (harbour_fivewin) - improved 2 -> 1 versus the baseline. This is the
+   number to beat in the next harness round, without touching weights.
+
+Next-run expectation with the matcher fix: 86/96 with 1 hallucination.
