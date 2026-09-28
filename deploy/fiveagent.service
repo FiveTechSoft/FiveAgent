@@ -1,0 +1,17 @@
+[Unit]
+Description=FiveAgent personal agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust these two paths to where you put the binary and its fiveagent.yml:
+WorkingDirectory=/opt/fiveagent
+ExecStart=/opt/fiveagent/fiveagent
+Restart=on-failure
+RestartSec=5
+# Ollama on the same host: keep models warm
+Environment=OLLAMA_KEEP_ALIVE=-1
+
+[Install]
+WantedBy=multi-user.target
