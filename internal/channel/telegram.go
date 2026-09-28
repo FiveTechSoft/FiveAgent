@@ -43,7 +43,7 @@ func (t *telegram) Name() string { return "telegram" }
 // Run checks the token, then polls getUpdates until ctx is cancelled.
 func (t *telegram) Run(ctx context.Context) error {
 	if len(t.cfg.AllowedSenders) == 0 {
-		log.Printf("telegram: allowed_senders is empty - answering messages from ANY chat; set allowed_senders in fiveagent.yml to restrict")
+		log.Printf("WARNING: telegram allowed_senders is empty - the bot answers ANY chat that finds it; set allowed_senders in fiveagent.yml to restrict")
 	}
 	me, err := t.getMe(ctx)
 	if err != nil {
