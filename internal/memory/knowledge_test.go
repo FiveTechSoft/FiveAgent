@@ -135,6 +135,37 @@ func TestRecallByAlias(t *testing.T) {
 	}
 }
 
+// TestRecallFindsDroppedFile verifies the documented import flow for
+// training with a commercial AI: a markdown file dropped into the
+// knowledge folder while the process is running (exported from
+// ChatPT/Claude/Gemini, saved as ia-comercial.md) is picked up by the
+// next recall without reopening the store.
+func TestRecallFindsDroppedFile(t *testing.T) {
+	k := openTemp(t)
+	const file = "---\naliases: [openai, chatgpt, anthropic, claude]\n---\n" +
+		"# IA comercial\n" +
+		"- OpenAI desarrolla ChatGPT, lanzado al público en 2022.\n"
+	if err := os.WriteFile(filepath.Join(k.dir, "ia-comercial.md"), []byte(file), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := k.Recall("¿qué es ChatGPT y quién lo hizo?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range hits {
+		if h.ID != "ia-comercial" {
+			continue
+		}
+		for _, ln := range h.Lines {
+			if strings.Contains(ln, "ChatGPT") {
+				return
+			}
+		}
+		t.Fatalf("ia-comercial hit lacks the ChatGPT bullet: %v", h.Lines)
+	}
+	t.Fatalf("dropped file ia-comercial.md not recalled; hits: %+v", hits)
+}
+
 func TestRecallNoMatch(t *testing.T) {
 	k := openTemp(t)
 	hits, err := k.Recall("xyzzy quantum")
