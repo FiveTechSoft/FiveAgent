@@ -328,9 +328,17 @@ func (a *appcontainer) Run(ctx context.Context, userKey string, argv []string) (
 	syscall.CloseHandle(stdoutW)
 	syscall.CloseHandle(stderrW)
 
-	outCh := make(chan []byte, 2)
-	go func() { b, _ := readAll(stdoutR); outCh <- b }()
-	go func() { b, _ := readAll(stderrR); outCh <- b }()
+	// Tag each read with its origin: an untagged channel would give the
+	// "stdout" slot to whichever pipe hits EOF first, and cmd's output
+	// would land in Result.Stderr (observed flake: TestAppContainerEcho
+	// ~1 run in 5).
+	type pipeOut struct {
+		isStdout bool
+		b        []byte
+	}
+	outCh := make(chan pipeOut, 2)
+	go func() { b, _ := readAll(stdoutR); outCh <- pipeOut{true, b} }()
+	go func() { b, _ := readAll(stderrR); outCh <- pipeOut{false, b} }()
 
 	timeout := a.timeout
 	if d, ok := ctx.Deadline(); ok {
@@ -349,8 +357,15 @@ func (a *appcontainer) Run(ctx context.Context, userKey string, argv []string) (
 		procWaitForSingleObject.Call(uintptr(pi.Process), 5000)
 	}
 
-	stdout := <-outCh
-	stderr := <-outCh
+	var stdout, stderr []byte
+	for i := 0; i < 2; i++ {
+		o := <-outCh
+		if o.isStdout {
+			stdout = o.b
+		} else {
+			stderr = o.b
+		}
+	}
 
 	exitCode := -1
 	var code uint32
