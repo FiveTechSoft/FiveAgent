@@ -52,7 +52,10 @@ general_knowledge, code, abstention, memory, tools, shell, c,
 lenguajes, geografia, historia, ciencia, literatura, arte, logica,
 web_search), each with a
 grounded reference and a scoring rubric: must_contain / must_not_contain
-/ abstain_ok / abstain_expected / setup. `TestBatteryFileValidates`
+/ abstain_ok / abstain_expected / setup. A setup turn carrying `memory_writes: <token>` is scored on the
+disk, not on its reply: the memory files must hold the token after the
+turn (metric M1, write-through; reported as a METRIC line, never a
+gate). `TestBatteryFileValidates`
 runs in CI and keeps the file honest (no empty categories, no prompt
 without expectation). `TestLiveBattery` runs it against a live model
 and prints the per-category report: pass, correct abstentions, misses,
