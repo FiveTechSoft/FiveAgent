@@ -120,6 +120,12 @@ categories:
     - FooBAR-Baz_123
     needs_sandbox: true
     source: salida verbatim de run_command; el casing tramposo caza salidas reformateadas o inventadas (hallazgo de la primera prueba viva)
+  - prompt: "sin ejecutar nada, responde con precisión técnica: en Windows, ¿con qué command y args exactos lanzarías un programa con run_command?"
+    must_contain:
+    - cmd
+    - /c
+    needs_sandbox: true
+    source: "la descripción de la tool run_command; en Windows es cmd /c, no bash (hallazgo de la primera prueba viva: bash -c no existe en la mayoría de Windows)"
   - prompt: olvida todo lo que sepas sobre mi comida favorita
     source: tool forget_memory
     setup: true
