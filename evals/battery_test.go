@@ -14,6 +14,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
+	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 	"gopkg.in/yaml.v3"
 )
@@ -25,7 +26,8 @@ type batteryPrompt struct {
 	MustNotContain  []string `yaml:"must_not_contain"`
 	AbstainOK       bool     `yaml:"abstain_ok"`
 	AbstainExpected bool     `yaml:"abstain_expected"`
-	Setup           bool     `yaml:"setup"` // conversation setup turn, no scoring
+	Setup           bool     `yaml:"setup"`         // conversation setup turn, no scoring
+	NeedsSandbox    bool     `yaml:"needs_sandbox"` // needs a run_command backend; skipped when unavailable
 	Source          string   `yaml:"source"`
 }
 
@@ -168,8 +170,17 @@ func TestLiveBattery(t *testing.T) {
 		t.Fatal(err)
 	}
 	cfg := &config.Config{Model: config.Model{BaseURL: baseURL, Name: modelName}}
+	tl := []tools.Tool{tools.Datetime{}, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn}}
+	sandboxOK := false
+	if sb, err := sandbox.New(config.Sandbox{Enabled: true, Root: filepath.Join(dir, "sandbox")}); err == nil {
+		tl = append(tl, tools.RunCommand{SB: sb})
+		sandboxOK = true
+		t.Logf("sandbox backend for the battery: %s", sb.Name())
+	} else {
+		t.Logf("no sandbox backend (%v): needs_sandbox prompts will be skipped", err)
+	}
 	a := agent.New(model.NewOpenAICompat(cfg.Model), store,
-		tools.NewRegistry(tools.Datetime{}, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn}),
+		tools.NewRegistry(tl...),
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
 
@@ -198,6 +209,10 @@ func TestLiveBattery(t *testing.T) {
 				t.Fatalf("prompt %q: %v", prompt, err)
 			}
 			if p.Setup {
+				continue
+			}
+			if p.NeedsSandbox && !sandboxOK {
+				t.Logf("SKIP [%s] %q: needs a sandbox backend", cat, prompt)
 				continue
 			}
 			if judge != nil {
