@@ -4,7 +4,9 @@ package agent
 import (
 	"context"
 	"fmt"
+	"log"
 	"net/url"
+	"os"
 	"regexp"
 	"strings"
 
@@ -44,19 +46,36 @@ func SystemPrompt(cfg *config.Config) string {
 	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s%s", p, cfg.Model.Name, host, honestyRules, domainBlock())
 }
 
-// domainBlock appends the embedded FiveTech domain reference
-// (docs/fivetech-domain.md) to every system prompt. Small models
-// confabulate Harbour/FiveWin facts (measured live: invented syntax and
-// a wrong expansion of FWH), so the verified reference rides along on
-// every turn and is marked as overriding the model's general knowledge
-// for this domain. On-demand domain loading arrives with the skills
-// stage; until then the file is small enough to always inject.
+// domainFile is the runtime location of the domain reference, relative
+// to the working directory.
+const domainFile = "docs/fivetech-domain.md"
+
+// domainBlock appends the FiveTech domain reference to every system
+// prompt. Small models confabulate Harbour/FiveWin facts (measured
+// live: invented syntax and a wrong expansion of FWH), so the verified
+// reference rides along on every turn and is marked as overriding the
+// model's general knowledge for this domain. On-demand domain loading
+// arrives with the skills stage; until then the file is small enough
+// to always inject.
 func domainBlock() string {
-	d := strings.TrimSpace(docs.FiveTechDomain)
+	d := strings.TrimSpace(loadDomain())
 	if d == "" {
 		return ""
 	}
 	return "\n\nFiveTech domain reference (FiveWin, Harbour, FWH and related products). For this domain the reference below is AUTHORITATIVE: it overrides your general knowledge - follow it even when it contradicts what you know, and when a FiveTech question is not covered by it, say you are not sure instead of inventing syntax or product names.\n\n" + d
+}
+
+// loadDomain prefers the on-disk domain reference (edit the .md and
+// restart, no rebuild needed) and falls back to the copy embedded at
+// build time from the same file. Single source of truth:
+// docs/fivetech-domain.md.
+func loadDomain() string {
+	if b, err := os.ReadFile(domainFile); err == nil {
+		log.Printf("domain knowledge: %s (file)", domainFile)
+		return string(b)
+	}
+	log.Printf("domain knowledge: %s (embedded fallback)", domainFile)
+	return docs.FiveTechDomain
 }
 
 // channelStyle tells the model how the channel renders text, so it does
