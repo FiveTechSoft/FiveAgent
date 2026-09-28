@@ -101,3 +101,39 @@ coder:
 		t.Errorf("coder.api_key: got %q, want inherited sk-test", cfg.Coder.APIKey)
 	}
 }
+
+func TestSandboxEnabledByDefault(t *testing.T) {
+	dir := t.TempDir()
+	write := func(name, body string) string {
+		p := dir + "/" + name
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	base := "model:\n  provider: openai-compatible\n  base_url: http://x\n  name: m\n"
+
+	c, err := Load(write("a.yml", base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Sandbox.Enabled {
+		t.Error("sandbox must default to enabled when the section is absent")
+	}
+
+	c, err = Load(write("b.yml", base+"sandbox:\n  backend: auto\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.Sandbox.Enabled {
+		t.Error("sandbox must default to enabled when enabled key is absent")
+	}
+
+	c, err = Load(write("c.yml", base+"sandbox:\n  enabled: false\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Sandbox.Enabled {
+		t.Error("explicit enabled: false must win")
+	}
+}
