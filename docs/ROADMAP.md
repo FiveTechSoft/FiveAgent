@@ -155,19 +155,38 @@ evidence that counts.
    everything else to the chat model. The coder inherits base_url,
    provider and api_key from model when omitted. Later: more task
    classes beyond chat/code and fully configurable model sets.
-   a. **Hybrid cloud escalation** (planned, opt-in by design) - local
-      by default; when the error classifier (stage 16) marks a request
-      as beyond the local models, the agent can escalate it to a
-      commercial OpenAI-compatible provider, but ONLY if the user
-      explicitly enabled escalation in fiveagent.yml (off by default:
-      a request leaving the machine is the user's call, never the
-      agent's). Without the opt-in, the answer is the honest local
-      one. The escalated provider keeps the same tools and honesty
-      rules, and the escalation is logged like any other turn.
-      Done when: with escalation disabled, an over-local request gets
-      the honest local answer and a fake provider records zero calls;
-      with it enabled, the same request reaches the provider and its
-      reply is delivered; the battery grows both cases.
+   a. **Hybrid cloud escalation** (decision module implemented and
+      CI-tested; the cloud provider itself is still planned) - top
+      priority, core security piece: it is the single point that
+      decides whether a turn may leave the machine. Local by default.
+      The harness decides, never the model: escalation fires only on
+      measured evidence of local failure - an abstention, a tripped
+      repetition guard, a repair storm (>= 3 rescued tool calls in one
+      turn), or a failed response verification. The model can raise
+      its hand (self-declared uncertainty), but that weak signal alone
+      never escalates. Opt-in by design (off by default): with
+      escalation disabled the decision provably never fires - the
+      tests enumerate the entire decision table (every combination of
+      signals x opt-in) - and no code path to an external provider
+      exists: internal/agent/escalation.go is a pure deterministic
+      function with zero imports and zero I/O, guarded by a test that
+      fails if it ever gains one. Without the opt-in the answer is
+      the honest local one. Done when: (decision layer: done) the
+      seven claims hold in CI - clean turn stays local, abstention /
+      guard / repair storm / failed verification escalate, model
+      uncertainty alone does not, opt-in off never escalates -
+      and (provider, later) with escalation enabled an over-local
+      request reaches the provider and its reply is delivered, with
+      the escalation logged like any other turn.
+   b. **Commercial-to-local learning loop** (planned, high priority,
+      core) - every escalated, opted-in commercial answer is captured
+      through the trajectory logger (12) and distilled into verified
+      few-shot examples kept in a per-domain library, injected when
+      the topic matches. No fine-tuning: the weights stay untouched,
+      the harness gets smarter. Done when: measured before/after on
+      the battery - prompts the local model used to fail pass after
+      their example enters the library, and examples that do not move
+      the number are removed.
 11. **Model tuning** (planned) - get the most out of the local model,
    each step adopted or dropped by evals, never vibes, roughly in
    cost/benefit order:
