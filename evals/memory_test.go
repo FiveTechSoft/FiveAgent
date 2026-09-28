@@ -211,29 +211,40 @@ func historyTurns(t *testing.T, body string) int {
 	return n
 }
 
-// TestRecallSurvivesTruncation: a fact stored on turn 1 must be injected
-// on turn 32, when the conversation that stored it has left the
-// 20-message history window. Metric: recall hit rate past truncation.
+// TestRecallSurvivesTruncation: a fact stored in a middle turn must be
+// injected on a later turn, when the turn that stored it has left the
+// context. Metric: recall hit rate past context loss.
+//
+// Stage 15 replaced the hard 20-message truncation with budgeted
+// pruning, and the pruning protects the head exchange - so a fact on
+// turn 1 would survive verbatim and the test would prove nothing. The
+// fact therefore lives at turn 12 with 1KB filler turns around it: 40
+// turns later the middle (fact included) has been compacted away, and
+// only memory can still answer.
 func TestRecallSurvivesTruncation(t *testing.T) {
 	r := newRig(t)
+	r.turn(t, "hola")
+	for i := 0; i < 10; i++ {
+		r.turn(t, fmt.Sprintf("cuéntame un chiste número %d %s", i, strings.Repeat("ja ", 300)))
+	}
 	r.turn(t, "remember: my cat is named Neko")
-	for i := 0; i < 30; i++ {
-		r.turn(t, fmt.Sprintf("cuéntame un chiste número %d", i))
+	for i := 10; i < 40; i++ {
+		r.turn(t, fmt.Sprintf("cuéntame un chiste número %d %s", i, strings.Repeat("ja ", 300)))
 	}
 	r.turn(t, "what is my cat called")
 	body := r.player.last()
 
-	if turns := historyTurns(t, body); turns > 21 {
-		t.Fatalf("expected truncated history, request carries %d turns", turns)
-	}
 	if strings.Contains(body, "remember: my cat is named Neko") {
-		t.Fatal("turn 1 still in history: truncation did not happen, the eval proves nothing")
+		t.Fatal("the fact turn is still in history: pruning did not happen, the eval proves nothing")
+	}
+	if !strings.Contains(body, "earlier turns") {
+		t.Fatal("no pruning marker in the request: pruning did not happen, the eval proves nothing")
 	}
 	mem := injectedMemory(t, body)
 	if !strings.Contains(mem, "Neko") {
-		t.Fatalf("recall MISS past truncation; injected block: %q", mem)
+		t.Fatalf("recall MISS past compaction; injected block: %q", mem)
 	}
-	t.Logf("METRIC recall past truncation: 1/1 (injected %d chars)", len(mem))
+	t.Logf("METRIC recall past compaction: 1/1 (injected %d chars)", len(mem))
 }
 
 // TestCorrectionSticks: correcting a fact must remove the old value and
