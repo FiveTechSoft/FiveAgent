@@ -1,6 +1,8 @@
 categories:
   harbour_fivewin:
   - prompt: escríbeme un programa en Harbour que pida mi nombre y me salude
+    must_contain:
+    - ACCEPT
     must_not_contain:
     - cVar
     - Input()
@@ -18,12 +20,18 @@ categories:
     abstain_ok: true
     source: 'docs/fivetech-domain.md (draft): FWH = FiveWin for Harbour'
   - prompt: en Harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?
+    must_contain:
+    - ':='
+    - ACCEPT
     must_not_contain:
     - cVar
     - Input()
     abstain_ok: true
     source: 'docs/fivetech-domain.md (draft): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
   - prompt: ¿cómo se crea una ventana en FiveWin?
+    must_contain:
+    - DEFINE WINDOW
+    - ACTIVATE
     must_not_contain:
     - fivegui.ch
     - ObjVw
