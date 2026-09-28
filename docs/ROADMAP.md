@@ -107,6 +107,15 @@ evidence that counts.
       rewrite), and the prefix hash of the system prompt is unchanged
       after the write; the battery grows a "snapshot" case verifying
       both.
+   l. **Idle-time consolidation** (planned) - when the agent is idle,
+      a background pass consolidates memory: merge near-duplicate
+      facts, re-file misplaced ones, age out stale entries, and
+      refresh the session digests. Zero latency cost in the user's
+      turn; the files stay the source of truth.
+      Done when: after a scripted day of conversations, an idle pass
+      merges the seeded duplicates and the next recall returns the
+      merged fact once; the battery grows an "idle-consolidation"
+      case verifying the merge and that no fact was lost.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
    Today this covers memory content; before the bot opens to multiple
@@ -177,12 +186,70 @@ evidence that counts.
     the SAME battery, with the SAME rubric and the same live
     conditions - the battery itself is the judge, and a fine-tune
     that does not move the numbers is reverted, not explained.
-14. **Web search** (implemented, CI-tested against fake servers; pending
+14. **Tool-call repair and repetition guard** (planned) - small
+    models emit almost-right tool calls: "42" as a string where an
+    int goes, "true" as a string, a JSON blob where an array goes, a
+    scalar where a list goes. Repair them before dispatch: a
+    conservative, schema-guided coercion that only applies
+    unambiguous fixes (anything doubtful goes back to the model as an
+    error). Plus a repetition guard: when a reply is dominated by one
+    long repeated fragment, abort the turn with a clear error instead
+    of delivering the echo.
+    Done when: the battery grows cases with mistyped tool arguments
+    that succeed after coercion and a degenerate repetition that is
+    caught before delivery; the run report counts rescued calls.
+15. **Context pruning** (planned) - the context window is the small
+    model's scarcest resource, and raw tool outputs are what floods
+    it (one long directory listing costs more than a day of chat).
+    Prune in order: first truncate old tool outputs, then summarize
+    middle turns with an auxiliary model pass, always protecting the
+    head (system, first exchange) and the recent tail, and never
+    splitting a tool call from its result. Replaces today's hard
+    truncation of the history.
+    Done when: a 60-turn scripted conversation with verbose tool
+    outputs stays inside budget and still recalls the facts from its
+    first turns; the battery grows a "pruning" case measuring both.
+16. **Error recovery classifier** (planned) - one pipeline maps every
+    model-API failure to its recovery: retry, rotate credential,
+    fall back to the other configured model, compress the context, or
+    abort with an honest message - instead of string-matching errors
+    inside the loop. Includes adaptive degradation: an endpoint that
+    answers streams with empty keepalive frames gets switched to
+    non-streaming automatically.
+    Done when: the battery's failure-injection cases (timeout,
+    rate-limit, malformed stream, context overflow) each take their
+    mapped recovery path and the user gets one clear outcome.
+17. **Keyword-triggered context** (planned, with Skills) - skill and
+    domain instructions enter the context only when the message
+    mentions their trigger words, never by default. Sibling of the
+    memory recall-by-alias: the context only pays for what the turn
+    needs.
+    Done when: with several skills installed, an unrelated turn
+    carries zero skill text and a matching turn carries exactly one;
+    the battery grows a "trigger" case measuring injected tokens.
+18. **Subordinate agents** (planned) - the agent splits a big task
+    into small subtasks and runs each in an isolated sub-turn with
+    its own fresh context, then composes the results. The single
+    most effective harness technique for small models: no subtask
+    exceeds what the model can do in one clean turn. Simple first:
+    sequential subordinates, no parallelism (that is stage 34).
+    Done when: a multi-step task that fails as a single turn succeeds
+    decomposed; the battery grows a "subordinate" case comparing both.
+19. **Durable delivery ledger** (planned) - every outbound reply is
+    recorded as a persistent delivery obligation (pending ->
+    attempting -> delivered) so a crash between generating and
+    sending never loses or duplicates a reply; a redelivery after a
+    crash carries a visible "recovered" marker. Attempts are capped
+    and stale entries expire.
+    Done when: a killed-mid-send test redelivers exactly once with
+    the marker; the battery grows a "delivery" case over a crash
+    fixture.
+20. **Web search** (implemented, CI-tested against fake servers; pending
     first live run) - the `web_search` tool with pluggable providers:
     DuckDuckGo by default (no API key, may rate-limit under heavy use),
     Brave via `web_search.api_key` for production. `web_search:` section
     in the yml. A self-hosted SearXNG provider remains a welcome option.
-15. **Workspace tools** (planned) - real filesystem tools for the
+21. **Workspace tools** (planned) - real filesystem tools for the
     agent: read_file, write_file and edit_file with true diffs (the
     model passes old/new text, the tool verifies the exact context and
     returns the applied diff), all scoped to the user's folder. Every
@@ -192,7 +259,7 @@ evidence that counts.
     Done when: the agent creates, edits and fixes a file over WhatsApp
     and returns the exact diff applied; the battery grows a "files"
     case that verifies the edit and the rollback snapshot.
-16. **Cron scheduler** (planned) - scheduled automations in natural
+22. **Cron scheduler** (planned) - scheduled automations in natural
     language, delivered to any channel: daily reports, nightly
     backups, weekly audits, reminders. The scheduler lives in the
     agent process, fires jobs unattended, and delivers the result to
@@ -202,7 +269,7 @@ evidence that counts.
     WhatsApp and the reminder arrives at that time on the same
     channel; the battery grows a "cron" case that creates a job,
     fires it, and verifies the delivery text.
-17. **Browser** (planned) - a headless Playwright browser as a native
+23. **Browser** (planned) - a headless Playwright browser as a native
     tool, OUTSIDE the command sandbox (which stays offline): one isolated
     browser profile per user, downloads land in the user's folder.
     Automation by DOM / accessibility tree, never pixels: the agent gets
@@ -215,7 +282,7 @@ evidence that counts.
     Done when: the battery grows a "web" category that fills a local
     test form end-to-end, and a confirmation-gate eval proves a purchase
     form is never submitted without user approval.
-18. **Links** (planned) - the bot answers with links served by its own
+24. **Links** (planned) - the bot answers with links served by its own
     HTTP server (the same listener as the webhook), not with
     wall-of-text messages:
     a) Reports: the bot generates a long report (battery results,
@@ -236,7 +303,7 @@ evidence that counts.
     expiry or with a wrong signature, (ii) a form submission lands in
     the vault/config and its value appears in no log line, (iii) a
     link minted for one sender is rejected when opened by another.
-19. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
+25. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
     the webhook receives image/audio/video/document with a media id,
     downloads it with an authenticated Graph API call, dispatches by
     type, and the result enters the normal message flow; outbound, the
@@ -264,7 +331,7 @@ evidence that counts.
     known phrase, both scored with must_contain on the agent's reply,
     plus an outbound case where the bot emits audio/image and the
     (fake) Graph server confirms the upload and the send.
-20. **VM GUI** (planned) - a Linux VM with a lightweight desktop (XFCE
+26. **VM GUI** (planned) - a Linux VM with a lightweight desktop (XFCE
     or similar) on the server, QEMU/KVM, powered on demand, not 24/7.
     Real desktop screenshots via QEMU screendump or VNC, taken on
     demand and after each action, never continuous video; delivered
@@ -278,12 +345,12 @@ evidence that counts.
     the accessibility tree, and sends real before/after screenshots
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
-21. **Email + calendar** - read and act on the user's accounts (OAuth).
+27. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
 
-22. **iMessage** - bridge docs + reference implementation (needs a Mac).
-23. **WhatsApp extras** - status reactions (working): 👀 when an
+28. **iMessage** - bridge docs + reference implementation (needs a Mac).
+29. **WhatsApp extras** - status reactions (working): 👀 when an
     inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
     through the same /messages endpoint, replacing the previous
     reaction on the same message, best-effort (a failed reaction never
@@ -293,7 +360,7 @@ evidence that counts.
     full context in arrival order, quoting the last message. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
-24. **Content reactions** (planned) - on top of status reactions, the
+30. **Content reactions** (planned) - on top of status reactions, the
     agent reacts to what a message says, not just its state: a
     celebration, a joke, a thank-you gets a fitting emoji chosen from
     the message content. Cheap to build (a small extra model call or
@@ -302,7 +369,7 @@ evidence that counts.
 
 ## Phase 4b - v0.4b: growing the small model
 
-26. **Skills** (planned) - a `skills/` folder with one SKILL.md per
+32. **Skills** (planned) - a `skills/` folder with one SKILL.md per
     domain: name, one-line trigger, concise procedure written for a
     small model. Only the one-line index enters the system prompt; the
     full skill loads on demand when the request matches (keywords or a
@@ -313,7 +380,7 @@ evidence that counts.
     battery runs the same prompts with and without the matching skill
     and reports the delta per category, and the domain answers pass only
     with the skill loaded.
-27. **FiveAgent as MCP server** (planned) - expose a local,
+33. **FiveAgent as MCP server** (planned) - expose a local,
     token-authenticated MCP endpoint so an external agent (e.g. the
     owner's OpenCode) can execute commands inside the sandbox and read
     files from the user's folder. Documented in docs/. Done when: an
@@ -321,7 +388,7 @@ evidence that counts.
     rejected without token, command runs confined to the sandbox), and
     the doc page gets a reader from zero to first call in minutes.
 
-28. **Multi-agent parallel execution** (future path, for large models;
+34. **Multi-agent parallel execution** (future path, for large models;
     see the single-agent principle below) - a worker pool (goroutines)
     fed by a task queue: N concurrent tasks, each isolated in its own
     context, sharing nothing mutable. Memory stays thread-safe under
@@ -334,7 +401,7 @@ evidence that counts.
 
 ## Phase 5 - setup that does not need a manual
 
-25. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+31. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
