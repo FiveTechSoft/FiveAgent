@@ -243,3 +243,74 @@ func TestHandleForcesFinalAnswerAfterToolRounds(t *testing.T) {
 		t.Errorf("forced no-tools calls = %d, want exactly 1", finalRounds)
 	}
 }
+
+// TestHandleRetriesEmptyForcedAnswer covers the observed qwen3.5 flake:
+// with no tools it can answer with empty content + finish=stop. The agent
+// must retry the forced call instead of giving up.
+func TestHandleRetriesEmptyForcedAnswer(t *testing.T) {
+	var finalRounds int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tools json.RawMessage `json:"tools"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		if len(req.Tools) > 0 {
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[`+
+				`{"id":"c1","type":"function","function":{"name":"current_datetime","arguments":"{}"}}]}}]}`)
+			return
+		}
+		finalRounds++
+		if finalRounds == 1 {
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":""}}]}`)
+			return
+		}
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"respuesta final"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "test-model"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(tools.Datetime{}), SystemPrompt(cfg))
+
+	reply, err := a.Handle(context.Background(), "whatsapp", "u1", "hola")
+	if err != nil {
+		t.Fatalf("an empty forced answer must be retried, not fail: %v", err)
+	}
+	if reply != "respuesta final" {
+		t.Errorf("reply = %q, want %q", reply, "respuesta final")
+	}
+	if finalRounds != 2 {
+		t.Errorf("forced no-tools calls = %d, want 2 (one empty + one retry)", finalRounds)
+	}
+}
+
+// TestHandleFallsBackWhenFinalAnswerEmpty: every forced answer comes back
+// empty. The turn must still end with non-empty words (model's own from a
+// tool-call turn, else the fixed honest line) and no error.
+func TestHandleFallsBackWhenFinalAnswerEmpty(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tools json.RawMessage `json:"tools"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		if len(req.Tools) > 0 {
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"palabras del modelo","tool_calls":[`+
+				`{"id":"c1","type":"function","function":{"name":"current_datetime","arguments":"{}"}}]}}]}`)
+			return
+		}
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":""}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "test-model"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(tools.Datetime{}), SystemPrompt(cfg))
+
+	reply, err := a.Handle(context.Background(), "whatsapp", "u1", "hola")
+	if err != nil {
+		t.Fatalf("empty forced answers must degrade the reply, not error: %v", err)
+	}
+	if reply != "palabras del modelo" {
+		t.Errorf("reply = %q, want the model's own words from the tool turn", reply)
+	}
+}

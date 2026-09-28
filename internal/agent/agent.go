@@ -243,6 +243,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	}
 
 	var reply string
+	var lastContent string // model words from a tool-call turn, as fallback
 	// The agent decides which model serves this request: the coder model
 	// for code-heavy text, the main model otherwise.
 	mdl := a.mdl
@@ -255,8 +256,17 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			return "", err
 		}
 		if len(ans.ToolCalls) == 0 {
-			reply = ans.Content
-			break
+			if r := strings.TrimSpace(ans.Content); r != "" {
+				reply = r
+				break
+			}
+			// Empty reply with no tool calls: appending nothing keeps the
+			// transcript unchanged, so just ask again (sampling varies).
+			log.Printf("agent: empty reply on tool round %d/%d, retrying", round+1, maxToolRounds)
+			continue
+		}
+		if c := strings.TrimSpace(ans.Content); c != "" {
+			lastContent = c
 		}
 		msgs = append(msgs, ans)
 		for _, call := range ans.ToolCalls {
@@ -277,17 +287,27 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		}
 	}
 	if reply == "" {
-		// The model burned every round on tool calls (a failing tool can
-		// loop: search rate-limits, unknown ids). Ask once more with NO
-		// tools so it must answer with what it already gathered, instead
-		// of failing the whole turn.
-		ans, err := mdl.Chat(ctx, msgs, nil)
-		if err != nil {
-			return "", fmt.Errorf("agent: no final answer after %d tool rounds: %w", maxToolRounds, err)
+		// The model burned every round on tool calls. Ask again with NO
+		// tools so it must answer from what it already gathered. The small
+		// model sometimes returns empty content with finish=stop, so retry
+		// a few times, then fall back to its own words from the last
+		// tool-call turn, and only then to a fixed honest line: a flaky
+		// answer must degrade one reply, never fail the whole turn.
+		for attempt := 1; attempt <= 3 && reply == ""; attempt++ {
+			ans, err := mdl.Chat(ctx, msgs, nil)
+			if err != nil {
+				return "", fmt.Errorf("agent: no final answer after %d tool rounds: %w", maxToolRounds, err)
+			}
+			reply = strings.TrimSpace(ans.Content)
+			if reply == "" {
+				log.Printf("agent: empty forced answer, attempt %d/3", attempt)
+			}
 		}
-		reply = strings.TrimSpace(ans.Content)
 		if reply == "" {
-			return "", fmt.Errorf("agent: no final answer after %d tool rounds", maxToolRounds)
+			reply = lastContent
+		}
+		if reply == "" {
+			reply = "Lo siento, no he podido preparar una respuesta esta vez. Prueba a preguntármelo otra vez."
 		}
 	}
 	if err := a.store.Append(ctx, channel, userID, "assistant", reply); err != nil {
