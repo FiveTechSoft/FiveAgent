@@ -163,3 +163,16 @@ func TestHandleIgnoresStoredSystemPrompt(t *testing.T) {
 		t.Fatalf("system message is not the current prompt: %q", sys[0])
 	}
 }
+
+func TestSystemPromptIncludesDomainReference(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Model.Name = "qwen3"
+	cfg.Model.BaseURL = "http://localhost:11434/v1"
+	p := SystemPrompt(cfg)
+	if !strings.Contains(p, "FiveWin for Harbour") {
+		t.Error("system prompt must carry the embedded FiveTech domain reference")
+	}
+	if !strings.Contains(p, "AUTHORITATIVE") {
+		t.Error("system prompt must mark the domain reference as overriding general knowledge")
+	}
+}
