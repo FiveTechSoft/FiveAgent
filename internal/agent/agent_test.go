@@ -205,3 +205,41 @@ func TestDomainFallsBackToEmbedded(t *testing.T) {
 		t.Error("a missing runtime file must fall back to the embedded copy")
 	}
 }
+
+func TestHandleForcesFinalAnswerAfterToolRounds(t *testing.T) {
+	var toolRounds, finalRounds int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tools json.RawMessage `json:"tools"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		if len(req.Tools) > 0 {
+			toolRounds++
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[`+
+				`{"id":"c1","type":"function","function":{"name":"current_datetime","arguments":"{}"}}]}}]}`)
+			return
+		}
+		finalRounds++
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"respuesta final"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "test-model"}}
+	mdl := model.NewOpenAICompat(cfg.Model)
+	a := New(mdl, &fakeStore{}, tools.NewRegistry(tools.Datetime{}), SystemPrompt(cfg))
+
+	reply, err := a.Handle(context.Background(), "whatsapp", "u1", "hola")
+	if err != nil {
+		t.Fatalf("a model that only tool-calls must still get an answer, not an error: %v", err)
+	}
+	if reply != "respuesta final" {
+		t.Errorf("reply = %q, want %q", reply, "respuesta final")
+	}
+	if toolRounds != maxToolRounds {
+		t.Errorf("tool rounds = %d, want %d", toolRounds, maxToolRounds)
+	}
+	if finalRounds != 1 {
+		t.Errorf("forced no-tools calls = %d, want exactly 1", finalRounds)
+	}
+}

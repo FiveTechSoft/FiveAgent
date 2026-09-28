@@ -260,6 +260,11 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		}
 		msgs = append(msgs, ans)
 		for _, call := range ans.ToolCalls {
+			args := call.Function.Arguments
+			if len(args) > 160 {
+				args = args[:160] + "..."
+			}
+			log.Printf("agent tool: %s(%s)", call.Function.Name, args)
 			result, err := a.tools.Execute(ctx, call.Function.Name, []byte(call.Function.Arguments))
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
@@ -272,7 +277,18 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		}
 	}
 	if reply == "" {
-		return "", fmt.Errorf("agent: no final answer after %d tool rounds", maxToolRounds)
+		// The model burned every round on tool calls (a failing tool can
+		// loop: search rate-limits, unknown ids). Ask once more with NO
+		// tools so it must answer with what it already gathered, instead
+		// of failing the whole turn.
+		ans, err := mdl.Chat(ctx, msgs, nil)
+		if err != nil {
+			return "", fmt.Errorf("agent: no final answer after %d tool rounds: %w", maxToolRounds, err)
+		}
+		reply = strings.TrimSpace(ans.Content)
+		if reply == "" {
+			return "", fmt.Errorf("agent: no final answer after %d tool rounds", maxToolRounds)
+		}
 	}
 	if err := a.store.Append(ctx, channel, userID, "assistant", reply); err != nil {
 		return "", err

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -97,6 +98,7 @@ func (w WebSearch) Execute(ctx context.Context, args json.RawMessage) (string, e
 	defer cancel()
 	res, err := w.P.Search(ctx, a.Query, max)
 	if err != nil {
+		log.Printf("websearch: %s query=%q: %v", w.P.Name(), a.Query, err)
 		return "", fmt.Errorf("search failed: %w", err)
 	}
 	if len(res) == 0 {
