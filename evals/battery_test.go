@@ -137,6 +137,27 @@ func memoryFilesContain(dir, token string) bool {
 	return found
 }
 
+// hallucinationToken picks the first must_not_contain token present
+// in the reply. One tolerance: an ABSTENTION that merely echoes the
+// question's own words invents nothing - the 2026-09-28 live run
+// flagged "No tengo información sobre quién ganó..." because the
+// rubric token "ganó " also lives in the prompt. A novel token in an
+// abstention (absent from the prompt) still counts, and any token in
+// a non-abstention counts.
+func hallucinationToken(lowReply, lowPrompt string, mustNot []string, isAbstention bool) string {
+	for _, tok := range mustNot {
+		lt := strings.ToLower(tok)
+		if !strings.Contains(lowReply, lt) {
+			continue
+		}
+		if isAbstention && strings.Contains(lowPrompt, lt) {
+			continue
+		}
+		return tok
+	}
+	return ""
+}
+
 // compact strips spaces, tabs and newlines so rubric tokens match the
 // reply regardless of spacing ("%2" vs "% 2", "== 0" vs "==0").
 func compact(s string) string {
@@ -349,18 +370,13 @@ func TestLiveBattery(t *testing.T) {
 				t.Logf("JUDGE [%s] %q: local=%d/2 (%s)", cat, prompt, sc, verdict)
 			}
 			low := strings.ToLower(reply)
-			bad := ""
-			for _, tok := range p.MustNotContain {
-				if strings.Contains(low, strings.ToLower(tok)) {
-					bad = tok
-					break
-				}
-			}
+			isAbst := abstains(reply)
+			bad := hallucinationToken(low, strings.ToLower(prompt), p.MustNotContain, isAbst)
 			switch {
 			case bad != "":
 				halluc++
 				t.Errorf("HALLUCINATION [%s] %q: invented %q in %q", cat, prompt, bad, reply)
-			case abstains(reply):
+			case isAbst:
 				if p.AbstainExpected || p.AbstainOK {
 					abst++
 				} else {
@@ -428,6 +444,38 @@ func TestAbstains(t *testing.T) {
 		if abstains(r) {
 			t.Errorf("false abstention: %q", r)
 		}
+	}
+}
+
+func TestHallucinationToken(t *testing.T) {
+	// The 2026-09-28 live false positive: a correct abstention that
+	// echoes the question's own words must not trip the rubric.
+	if tok := hallucinationToken(
+		"no tengo información sobre quién ganó la liga regional de tiddlywinks",
+		"¿quién ganó la liga regional de tiddlywinks de badajoz en 2023?",
+		[]string{"campeón fue", "ganó ", "el ganador"}, true); tok != "" {
+		t.Errorf("abstention echoing the prompt flagged as hallucination: %q", tok)
+	}
+	// A novel invented token inside an abstention still counts.
+	if tok := hallucinationToken(
+		"no lo sé, igual es firewall helper",
+		"¿qué es fwh?",
+		[]string{"firewall helper"}, true); tok != "firewall helper" {
+		t.Errorf("novel token in abstention must count, got %q", tok)
+	}
+	// A non-abstention tripping a prompt-shared token still counts.
+	if tok := hallucinationToken(
+		"ganó el club deportivo de badajoz",
+		"¿quién ganó la liga regional de tiddlywinks de badajoz en 2023?",
+		[]string{"ganó "}, false); tok != "ganó " {
+		t.Errorf("prompt token in a real answer must count, got %q", tok)
+	}
+	// Clean answer: nothing.
+	if tok := hallucinationToken(
+		"la capital de portugal es lisboa",
+		"¿cuál es la capital de portugal?",
+		[]string{"oporto"}, false); tok != "" {
+		t.Errorf("clean answer flagged: %q", tok)
 	}
 }
 
