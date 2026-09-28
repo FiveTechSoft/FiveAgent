@@ -137,3 +137,33 @@ func TestSandboxEnabledByDefault(t *testing.T) {
 		t.Error("explicit enabled: false must win")
 	}
 }
+
+func TestLoadExpandsEnv(t *testing.T) {
+	t.Setenv("FIVEAGENT_TEST_SECRET", "s3cret")
+	dir := t.TempDir()
+	write := func(body string) string {
+		p := filepath.Join(dir, "fiveagent.yml")
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	// ${VAR} expands to its value.
+	cfg, err := Load(write("model:\n  base_url: http://x\n  name: m\nmemory:\n  postgres: postgres://u:${FIVEAGENT_TEST_SECRET}@db:5432/fiveagent\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "postgres://u:s3cret@db:5432/fiveagent"; cfg.Memory.Postgres != want {
+		t.Errorf("env not expanded: got %q, want %q", cfg.Memory.Postgres, want)
+	}
+
+	// An unset variable expands to the empty string, silently.
+	cfg, err = Load(write("model:\n  base_url: http://x\n  name: m\nmemory:\n  postgres: postgres://u:$FIVEAGENT_TEST_MISSING@db:5432/fiveagent\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := "postgres://u:@db:5432/fiveagent"; cfg.Memory.Postgres != want {
+		t.Errorf("unset var: got %q, want %q", cfg.Memory.Postgres, want)
+	}
+}
