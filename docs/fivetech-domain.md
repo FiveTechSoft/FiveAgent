@@ -24,8 +24,15 @@ public facts stays marked "pending FiveTech confirmation".
 
 ## Harbour basics (xBase, Clipper-compatible)
 
-- Variables are declared with LOCAL, STATIC or PRIVATE (never `cVar` -
-  that name was a confabulation).
+- Variables are declared with LOCAL, STATIC or PRIVATE, named after
+  their content (cNombre for a name, nEdad for a number). Never use
+  generic placeholder names like `cVar` - that name was a
+  confabulation. The prohibition covers EVERYTHING written about
+  Harbour, not just the code block: explanatory tables, inline
+  examples and comments must not fall back to `cVar` or any other
+  generic token either. A reply whose code says `cNombre` but whose
+  explanation table says `cVar` violates this rule (real failure in
+  the 2026-09-28 battery baseline).
 - Assignment uses `:=`, with inline declaration: `LOCAL cNombre := ""`.
 - Console output: `? "Hola", cNombre` (new line) and `??` (same line).
 - Console input: `ACCEPT "Tu nombre: " TO cNombre`, or the full-screen
