@@ -38,7 +38,23 @@ var (
 	procWaitForSingleObject       = kernel32.NewProc("WaitForSingleObject")
 	procTerminateJobObject        = kernel32.NewProc("TerminateJobObject")
 	procGetExitCodeProcess        = kernel32.NewProc("GetExitCodeProcess")
+	procFormatMessageW            = kernel32.NewProc("FormatMessageW")
 )
+
+const formatMessageFromSystem = 0x00001000
+
+// hrString renders a HRESULT with its system message:
+// "0x80070057 (The parameter is incorrect.)".
+func hrString(hr uint32) string {
+	var buf [256]uint16
+	r, _, _ := procFormatMessageW.Call(
+		formatMessageFromSystem, 0, uintptr(hr), 0,
+		uintptr(unsafe.Pointer(&buf[0])), uintptr(len(buf)), 0)
+	if r == 0 {
+		return fmt.Sprintf("0x%08x", hr)
+	}
+	return fmt.Sprintf("0x%08x (%s)", hr, strings.TrimSpace(syscall.UTF16ToString(buf[:])))
+}
 
 const (
 	procThreadAttributeSecurityCapabilities = 0x00020000 | 9 // PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES
@@ -116,13 +132,12 @@ func (a *appcontainer) createProfile(userKey string) (sid uintptr, name *uint16,
 	if err != nil {
 		return 0, nil, err
 	}
-	r, _, errNo := procCreateAppContainerProfile.Call(
-		uintptr(unsafe.Pointer(name)), uintptr(unsafe.Pointer(name)), 0,
-		uintptr(unsafe.Pointer(&sid)))
-	if r != 0 { // HRESULT: 0 (S_OK) or 0x800700B7 (already exists) are fine
-		if uint32(r) != 0x800700B7 {
-			return 0, nil, fmt.Errorf("sandbox: CreateAppContainerProfile: hr=0x%08x (%v)", uint32(r), errNo)
-		}
+	r, _, _ := procCreateAppContainerProfile.Call(profileArgs(name, &sid)...)
+	if hr := uint32(r); hr != 0 && hr != 0x800700B7 { // S_OK or ERROR_ALREADY_EXISTS are fine
+		// The error lives in the HRESULT return value; GetLastError
+		// is stale for this API and used to print nonsense
+		// ("The operation completed successfully." for 0x80070057).
+		return 0, nil, fmt.Errorf("sandbox: CreateAppContainerProfile: %s", hrString(hr))
 	}
 	if sid == 0 {
 		return 0, nil, fmt.Errorf("sandbox: CreateAppContainerProfile returned no SID")
@@ -138,11 +153,11 @@ func grantFolder(dir string, sid uintptr) error {
 		return err
 	}
 	var oldDACL, secDesc uintptr
-	r, _, errNo := procGetNamedSecurityInfoW.Call(
+	r, _, _ := procGetNamedSecurityInfoW.Call(
 		uintptr(unsafe.Pointer(path)), seFileObject, daclSecurityInformation,
 		0, 0, uintptr(unsafe.Pointer(&oldDACL)), 0, uintptr(unsafe.Pointer(&secDesc)))
 	if r != 0 {
-		return fmt.Errorf("sandbox: GetNamedSecurityInfo: %v", errNo)
+		return fmt.Errorf("sandbox: GetNamedSecurityInfo: error %d", r)
 	}
 	defer procLocalFree.Call(secDesc)
 
@@ -156,18 +171,18 @@ func grantFolder(dir string, sid uintptr) error {
 	ea.trustee.ptstrName = sid
 
 	var newDACL uintptr
-	r, _, errNo = procSetEntriesInAclW.Call(
+	r, _, _ = procSetEntriesInAclW.Call(
 		1, uintptr(unsafe.Pointer(&ea)), oldDACL, uintptr(unsafe.Pointer(&newDACL)))
 	if r != 0 {
-		return fmt.Errorf("sandbox: SetEntriesInAcl: %v", errNo)
+		return fmt.Errorf("sandbox: SetEntriesInAcl: error %d", r)
 	}
 	defer procLocalFree.Call(newDACL)
 
-	r, _, errNo = procSetNamedSecurityInfoW.Call(
+	r, _, _ = procSetNamedSecurityInfoW.Call(
 		uintptr(unsafe.Pointer(path)), seFileObject, daclSecurityInformation,
 		0, 0, newDACL, 0)
 	if r != 0 {
-		return fmt.Errorf("sandbox: SetNamedSecurityInfo: %v", errNo)
+		return fmt.Errorf("sandbox: SetNamedSecurityInfo: error %d", r)
 	}
 	return nil
 }
