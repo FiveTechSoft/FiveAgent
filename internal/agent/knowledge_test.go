@@ -111,3 +111,67 @@ func TestMemoryToolsForget(t *testing.T) {
 		t.Errorf("fact still recalled after forget: %+v", hits)
 	}
 }
+
+// TestHandleRecuerdaPrefixStoresDirectly pins Ruta A: "recuerda:" must be
+// stored even when the model never calls save_memory (registry has no
+// memory tools at all here). Observed live 2026-09-28: the model replied
+// "de acuerdo" without the tool and the fact was lost.
+func TestHandleRecuerdaPrefixStoresDirectly(t *testing.T) {
+	kn := openTestKnowledge(t)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"De acuerdo."}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1",
+		"  recuerda: mi lenguaje favorito para scripts es Python "); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := kn.Recall("¿cuál es mi lenguaje favorito para scripts?")
+	if err != nil || len(hits) == 0 {
+		t.Fatalf("recuerda: prefix was not stored without the tool: hits=%v err=%v", hits, err)
+	}
+	found := false
+	for _, ln := range hits[0].Lines {
+		if strings.Contains(ln, "lenguaje favorito para scripts es Python") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("stored entry not recalled: %v", hits[0].Lines)
+	}
+}
+
+// TestHandleOlvidaPrefixForgetsDirectly: the twin marker must remove the
+// bullet without the model (no memory tools in the registry), so the
+// documented correction flow works even when the model skips tools.
+func TestHandleOlvidaPrefixForgetsDirectly(t *testing.T) {
+	kn := openTestKnowledge(t)
+	if _, err := kn.Append("preferences", "mi comida favorita es el pulpo a la gallega"); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"Borrado."}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1",
+		"  olvida: mi comida favorita "); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := kn.Recall("mi comida favorita")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Errorf("olvida: prefix did not remove the bullet: %+v", hits)
+	}
+}

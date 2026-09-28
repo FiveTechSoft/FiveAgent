@@ -28,9 +28,18 @@ recuerda: mi lenguaje favorito para scripts es Python
 recuerda: prefiero respuestas cortas y en español
 ```
 
-El bot los guarda con la tool `save_memory` en los ficheros estándar
-(`people`, `preferences`, `workstreams`). Ya quedan disponibles para
-turnos siguientes.
+El bot los guarda **directamente** en `preferences` (sin depender de
+que el modelo decida llamar a la tool `save_memory`: el prefijo se
+aplica siempre, incluso si el modelo responde "de acuerdo" sin más).
+Para borrar, el prefijo gemelo `olvida:` quita los bullets que
+contengan el texto indicado (en los ficheros estándar):
+
+```
+olvida: mi lenguaje favorito para scripts es Python
+```
+
+Ambos quedan commitados al instante en el repo de `data/memory/` y
+disponibles en el siguiente turno.
 
 ## Ruta B — entrenar con tu IA comercial
 
@@ -110,7 +119,7 @@ Reglas:
 30. ¿Qué es un prompt de inyección y qué es un jailbreak?
 
 ⚠ = dato volátil: la plantilla manda a fecharlo; si caduca, edita el
-bullet o borra el histórico con `olvida ...` (solo ficheros estándar) o
+bullet o bórralo con el prefijo `olvida: ...` (solo ficheros estándar) o
 a mano en `data/memory/`.
 
 ## Verificación

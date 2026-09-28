@@ -135,6 +135,32 @@ func TestRecallByAlias(t *testing.T) {
 	}
 }
 
+// TestRecallExactFavoriteFoodQuery is the regression probe for the
+// 2026-09-28 live battery MISS: the stored correction line must be
+// recalled by the exact later question (once the line is on disk).
+func TestRecallExactFavoriteFoodQuery(t *testing.T) {
+	k := openTemp(t)
+	if _, err := k.Append("preferences", "mi comida favorita es el lacón con grelos, no el pulpo"); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := k.Recall("volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) == 0 || hits[0].ID != "preferences" {
+		t.Fatalf("hits = %+v, want preferences hit", hits)
+	}
+	found := false
+	for _, ln := range hits[0].Lines {
+		if strings.Contains(ln, "lacón con grelos") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("favorite-food line not in hit lines: %v", hits[0].Lines)
+	}
+}
+
 // TestRecallFindsDroppedFile verifies the documented import flow for
 // training with a commercial AI: a markdown file dropped into the
 // knowledge folder while the process is running (exported from

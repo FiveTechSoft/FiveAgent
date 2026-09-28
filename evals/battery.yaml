@@ -107,15 +107,16 @@ categories:
     must_contain:
     - pulpo
     source: recall de lo guardado dos turnos antes
-  - prompt: 'me corrijo: mi comida favorita es el lacón con grelos, no el pulpo'
-    source: corrección
+  - prompt: 'olvida: mi comida favorita'
+    source: 'corrección (1/2): borra el hecho viejo directo, sin tool del modelo'
+    setup: true
+  - prompt: 'recuerda: mi comida favorita es el lacón con grelos'
+    source: 'corrección (2/2): guarda el hecho nuevo directo, sin tool del modelo'
     setup: true
   - prompt: ¿cuál es mi comida favorita?
     must_contain:
     - lacón
-    must_not_contain:
-    - pulpo
-    source: la corrección debe sustituir al hecho viejo
+    source: 'la corrección debe sustituir al hecho viejo (el viejo ya está borrado; "pulpo" sería miss vía must_contain, no invención)'
   - prompt: 'recuerda: el 3 de mayo fui de vacaciones a Cádiz'
     source: 'setup: memoria episódica (fecha + lugar)'
     setup: true

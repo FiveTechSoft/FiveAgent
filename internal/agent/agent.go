@@ -20,6 +20,18 @@ import (
 // maxToolRounds caps model-tool round trips per user message.
 const maxToolRounds = 5
 
+// rememberPrefix is the documented Ruta A marker (docs/memory-training.md):
+// a message starting with it is stored in long-term memory directly.
+const rememberPrefix = "recuerda:"
+
+// forgetPrefix is the twin marker: "olvida: ..." removes matching bullets
+// from the standard memory files directly.
+const forgetPrefix = "olvida:"
+
+// standardMemoryFiles mirrors the save_memory/forget_memory tool enum
+// (internal/tools/memory.go): the only files user commands touch.
+var standardMemoryFiles = []string{"people", "preferences", "workstreams"}
+
 // baseSystemPrompt is the built-in persona, used when fiveagent.yml sets
 // no system_prompt.
 const baseSystemPrompt = "You are FiveAgent, a helpful personal assistant. Be concise and warm."
@@ -217,6 +229,31 @@ func wordRegexps(words ...string) []*regexp.Regexp {
 func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (string, error) {
 	// Tools (e.g. the sandbox) scope their work per channel+user.
 	ctx = tools.WithRequestInfo(ctx, channel, userID)
+	// Ruta A (docs/memory-training.md): a message starting with
+	// "recuerda:" is stored directly, without asking the model to call
+	// save_memory. The small model sometimes replies "de acuerdo" and
+	// never calls the tool, and the fact is lost (observed live in the
+	// 2026-09-28 battery: 4 of 7 memory setups never reached disk).
+	// "olvida:" is the twin: it removes matching bullets directly.
+	text = strings.TrimSpace(text)
+	if a.knowledge != nil && len(text) > 0 {
+		switch {
+		case len(text) >= len(rememberPrefix) && strings.EqualFold(text[:len(rememberPrefix)], rememberPrefix):
+			if entry := strings.TrimSpace(text[len(rememberPrefix):]); entry != "" {
+				if _, err := a.knowledge.Append("preferences", entry); err != nil {
+					log.Printf("memory: recuerda: store failed: %v", err)
+				}
+			}
+		case len(text) >= len(forgetPrefix) && strings.EqualFold(text[:len(forgetPrefix)], forgetPrefix):
+			if match := strings.TrimSpace(text[len(forgetPrefix):]); match != "" {
+				for _, id := range standardMemoryFiles {
+					if _, err := a.knowledge.Forget(id, match); err != nil {
+						log.Printf("memory: olvida: %s: %v", id, err)
+					}
+				}
+			}
+		}
+	}
 	if err := a.store.Append(ctx, channel, userID, "user", text); err != nil {
 		return "", err
 	}

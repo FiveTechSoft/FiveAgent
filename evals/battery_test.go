@@ -90,6 +90,12 @@ func abstains(reply string) bool {
 		"no puedo saber", "no lo conozco", "no tengo constancia",
 		"no puedo verificar", "no puedo comprobar",
 		"no tengo forma de verificar", "no tengo forma de comprobar",
+		// Memory-domain abstentions (real false negatives in the
+		// 2026-09-28 live run: "ahora no tengo registrada en mi memoria
+		// cuál es tu comida favorita" was the correct answer after a
+		// forget_memory setup, but scored NO-ABSTENTION).
+		"no tengo registrado", "no tengo registrada",
+		"no tengo en memoria", "no he guardado",
 	} {
 		if strings.Contains(low, m) {
 			return true
