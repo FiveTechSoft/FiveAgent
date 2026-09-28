@@ -31,17 +31,28 @@ func (f *fakeCore) Handle(_ context.Context, _ string, userID, text string) (str
 	return "ok reply", nil
 }
 
-func newTestWhatsApp(core Handler) *whatsapp {
+// newTestWhatsApp builds an adapter pointed at a discard-all fake Graph
+// API: no test may ever touch graph.facebook.com (network calls made the
+// debounce tests flaky and leaked tokens into access logs).
+func newTestWhatsApp(t *testing.T, core Handler) *whatsapp {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.Header().Set("Content-Type", "application/json")
+		rw.Write([]byte(`{"messages":[{"id":"wamid.fake"}]}`))
+	}))
+	t.Cleanup(srv.Close)
 	cfg := config.Channel{
 		VerifyToken:   "secret-token",
 		PhoneNumberID: "123",
 		AccessToken:   "token",
 	}
-	return NewWhatsApp(cfg, core).(*whatsapp)
+	w := NewWhatsApp(cfg, core).(*whatsapp)
+	w.baseURL = srv.URL
+	return w
 }
 
 func TestWebhookVerify(t *testing.T) {
-	w := newTestWhatsApp(&fakeCore{})
+	w := newTestWhatsApp(t, &fakeCore{})
 	req := httptest.NewRequest(http.MethodGet,
 		"/webhook/whatsapp?hub.mode=subscribe&hub.verify_token=secret-token&hub.challenge=abc123", nil)
 	rec := httptest.NewRecorder()
@@ -61,7 +72,7 @@ func TestWebhookVerify(t *testing.T) {
 
 func TestInboundText(t *testing.T) {
 	fc := &fakeCore{}
-	w := newTestWhatsApp(fc)
+	w := newTestWhatsApp(t, fc)
 	w.debounce = 10 * time.Millisecond // webhook path test, not a debounce test
 	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
@@ -124,7 +135,7 @@ func TestSendText(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := newTestWhatsApp(&fakeCore{})
+	w := newTestWhatsApp(t, &fakeCore{})
 	w.baseURL = srv.URL
 	if err := w.SendText(context.Background(), "34600123456", "hello", "wamid.orig"); err != nil {
 		t.Fatal(err)
@@ -150,7 +161,7 @@ func TestSendTemplate(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := newTestWhatsApp(&fakeCore{})
+	w := newTestWhatsApp(t, &fakeCore{})
 	w.baseURL = srv.URL
 	if err := w.SendTemplate(context.Background(), "34600123456", "hello_world", "en_US", []string{"Olin"}); err != nil {
 		t.Fatal(err)
@@ -167,7 +178,7 @@ func TestGraphError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := newTestWhatsApp(&fakeCore{})
+	w := newTestWhatsApp(t, &fakeCore{})
 	w.baseURL = srv.URL
 	err := w.SendText(context.Background(), "1", "hi", "")
 	if err == nil || !strings.Contains(err.Error(), "token expired") {
@@ -183,7 +194,7 @@ func TestSignatureVerification(t *testing.T) {
 	good := "sha256=" + hex.EncodeToString(mac.Sum(nil))
 
 	fc := &fakeCore{}
-	w := newTestWhatsApp(fc)
+	w := newTestWhatsApp(t, fc)
 	w.cfg.AppSecret = secret
 
 	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", bytes.NewReader(body))
@@ -279,7 +290,7 @@ func TestProcessSendsFallbackWhenModelTimesOut(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	w := newTestWhatsApp(slowCore{})
+	w := newTestWhatsApp(t, slowCore{})
 	w.baseURL = srv.URL
 	w.agentTimeout = 50 * time.Millisecond
 	w.process("34600111222", "wamid.inbound", "hola", "")
@@ -335,7 +346,7 @@ func TestProcessConcurrentSenders(t *testing.T) {
 	defer srv.Close()
 
 	core := &blockingCore{delay: 300 * time.Millisecond}
-	w := newTestWhatsApp(core)
+	w := newTestWhatsApp(t, core)
 	w.baseURL = srv.URL
 	w.agentTimeout = 5 * time.Second
 
@@ -405,7 +416,7 @@ func TestProcessReactions(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
 	defer srv.Close()
 
-	w := newTestWhatsApp(quickCore{})
+	w := newTestWhatsApp(t, quickCore{})
 	w.baseURL = srv.URL
 	w.process("34600111222", "wamid.inbound", "hola", "")
 
@@ -425,7 +436,7 @@ func TestProcessReactionOnAgentFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
 	defer srv.Close()
 
-	w := newTestWhatsApp(slowCore{})
+	w := newTestWhatsApp(t, slowCore{})
 	w.baseURL = srv.URL
 	w.agentTimeout = 50 * time.Millisecond
 	w.process("34600111222", "wamid.inbound", "hola", "")
@@ -445,7 +456,7 @@ func TestProcessReactionsOff(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
 	defer srv.Close()
 
-	w := newTestWhatsApp(quickCore{})
+	w := newTestWhatsApp(t, quickCore{})
 	w.baseURL = srv.URL
 	w.reactions = false
 	w.process("34600111222", "wamid.inbound", "hola", "")
@@ -487,7 +498,7 @@ func TestDebounceBurst(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(cap.handler))
 	defer srv.Close()
 	core := &turnCapture{}
-	w := newTestWhatsApp(core)
+	w := newTestWhatsApp(t, core)
 	w.baseURL = srv.URL
 	w.debounce = 100 * time.Millisecond
 
@@ -524,7 +535,7 @@ func TestDebounceBurst(t *testing.T) {
 // independent turns.
 func TestDebounceSeparateTurns(t *testing.T) {
 	core := &turnCapture{}
-	w := newTestWhatsApp(core)
+	w := newTestWhatsApp(t, core)
 	w.debounce = 80 * time.Millisecond
 	w.reactions = false
 
@@ -543,7 +554,7 @@ func TestDebounceSeparateTurns(t *testing.T) {
 // arrival (the old parallel behavior).
 func TestDebounceOff(t *testing.T) {
 	core := &turnCapture{}
-	w := newTestWhatsApp(core)
+	w := newTestWhatsApp(t, core)
 	w.debounceOn = false
 	w.reactions = false
 
@@ -566,7 +577,7 @@ func TestDebounceOff(t *testing.T) {
 // a full model run and a reply).
 func TestInboundReactionIgnored(t *testing.T) {
 	fc := &fakeCore{}
-	w := newTestWhatsApp(fc)
+	w := newTestWhatsApp(t, fc)
 	w.debounce = 10 * time.Millisecond
 	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.r1","type":"reaction","reaction":{"message_id":"wamid.out1","emoji":"\ud83d\udc4d"}}]}}]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
