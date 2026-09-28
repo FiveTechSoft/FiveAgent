@@ -96,6 +96,12 @@ func abstains(reply string) bool {
 		// forget_memory setup, but scored NO-ABSTENTION).
 		"no tengo registrado", "no tengo registrada",
 		"no tengo en memoria", "no he guardado",
+		// "No pude encontrar información..." openers: the tiddlywinks
+		// prompt answered exactly that and scored NO-ABSTENTION. The
+		// "información" word keeps "no he encontrado errores" (a correct
+		// answer) out of the detector.
+		"no pude encontrar información", "no he encontrado información",
+		"no he podido encontrar información", "no encuentro información",
 	} {
 		if strings.Contains(low, m) {
 			return true
@@ -356,6 +362,9 @@ func TestAbstains(t *testing.T) {
 		"No puedo verificar eso desde aquí.",
 		"No estoy seguro de la sintaxis exacta.",
 		"Eso no lo conozco, lo siento.",
+		// Live false negatives fixed on 2026-09-28:
+		"No pude encontrar información específica sobre esa liga regional.",
+		"Ahora no tengo registrada en mi memoria cuál es tu comida favorita.",
 	}
 	for _, r := range abstentions {
 		if !abstains(r) {
@@ -366,6 +375,7 @@ func TestAbstains(t *testing.T) {
 		"Puedes ejecutarlo con cmd /c; hay que verificar si bash está instalado primero.",
 		"Deberías verificar la documentación oficial de Harbour.",
 		"FWH es FiveWin for Harbour, el framework de FiveTech.",
+		"No he encontrado errores: el programa compila y funciona correctamente.",
 	}
 	for _, r := range notAbstentions {
 		if abstains(r) {
