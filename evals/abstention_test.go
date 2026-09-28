@@ -24,7 +24,7 @@ func TestAbstentionPrompt(t *testing.T) {
 		cfg.Model.BaseURL = "http://localhost:11434/v1"
 		cfg.Model.Name = "eval"
 		p := agent.SystemPrompt(cfg)
-		for _, marker := range []string{"never invent", "I don't know", "verify"} {
+		for _, marker := range []string{"never invent", "I don't know", "verify", "verbatim"} {
 			if !strings.Contains(p, marker) {
 				t.Errorf("system prompt (custom %q) lost the abstention marker %q", custom, marker)
 			}
