@@ -47,8 +47,10 @@ FIVEAGENT_EVAL_LIVE=1 FIVEAGENT_EVAL_MODEL=qwen3.5:9b go test ./evals/ -run Live
 
 ## The comparative battery
 
-`battery.yaml` holds 24 prompts in 6 categories (harbour_fivewin,
-general_knowledge, code, abstention, memory, tools), each with a
+`battery.yaml` holds 95 prompts in 16 categories (harbour_fivewin,
+general_knowledge, code, abstention, memory, tools, shell, c,
+lenguajes, geografia, historia, ciencia, literatura, arte, logica,
+web_search), each with a
 grounded reference and a scoring rubric: must_contain / must_not_contain
 / abstain_ok / abstain_expected / setup. `TestBatteryFileValidates`
 runs in CI and keeps the file honest (no empty categories, no prompt
@@ -112,3 +114,48 @@ matching bullets: 726 chars at 50 notes.
 Third catch: the concurrency eval proved parallel senders lost facts
 silently (5-7 of 8 saves landed, no error). Knowledge now serializes
 reads and writes with one mutex: 8/8, race-detector clean.
+
+## Live baselines
+
+Official before/after comparison points. Each entry is a full live run
+(`FIVEAGENT_EVAL_LIVE=1 go test ./evals/ -run Battery -v`) on the
+owner's machine, reported verbatim.
+
+### 2026-09-28 - tree d36a1b1 (first official baseline)
+
+Score: **81 pass / 0 correct-abstention / 3 miss / 2 hallucination, of
+95** (gate: FAIL on the 2 hallucinations). Unit suite the same day:
+99 PASS / 0 FAIL / 3 SKIP (env-gated live tests). Run time 1270 s.
+
+| Category | pass/total | Notes |
+|---|---|---|
+| abstention | 3/4 | 1 NO-ABSTENTION (detector gap, fixed after this run) |
+| arte | 4/4 | |
+| c | 6/6 | |
+| ciencia | 5/5 | |
+| code | 4/4 | |
+| general_knowledge | 4/4 | |
+| geografia | 5/5 | |
+| harbour_fivewin | 2/4 | 2 HALLUCINATION (`cVar` in explanation tables) |
+| historia | 5/5 | |
+| lenguajes | 8/8 | |
+| literatura | 3/3 | |
+| logica | 10/11 | 1 MISS (riddle answered "mapa/piano", rubric wants "teclado") |
+| memory | 7/15 | 8 forget/recall setups not scored |
+| shell | 8/8 | |
+| tools | 6/8 | 1 NO-ABSTENTION (detector gap, fixed after this run), 1 setup |
+| web_search | 1/1 | |
+
+Known issues found by this run, fixed in the commit that records it:
+
+1. `abstains()` missed two real abstention phrasings ("no encontré
+   información", "no tengo esa información") - detector gap, not model
+   error. Both added with the "información" guard so "no he encontrado
+   errores" stays a non-abstention.
+2. `cVar` hallucinations: the model wrote correct code (`cNombre`) but
+   fell back to `cVar` in the explanation tables. The domain doc now
+   states the generic-token prohibition covers tables, inline examples
+   and comments, not just code blocks.
+
+Source: owner's live-run report, 2026-09-28 (double counting method,
+Go validator and Python counter agreeing).
