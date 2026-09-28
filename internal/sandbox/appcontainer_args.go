@@ -1,6 +1,12 @@
 package sandbox
 
-import "unsafe"
+import (
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
+	"regexp"
+	"unsafe"
+)
 
 // createAppContainerProfileArgc is the exact argument count of the Win32
 // CreateAppContainerProfile call: app container name, display name,
@@ -23,4 +29,25 @@ func profileArgs(name *uint16, sidOut *uintptr) []uintptr {
 		0,                               // dwCapabilityCount: zero
 		uintptr(unsafe.Pointer(sidOut)), // ppSidAppContainerSid
 	}
+}
+
+// profileNameFor derives the AppContainer profile name for a user key:
+// a short prefix plus a hex digest, so any user key (phone numbers,
+// paths, unicode) lands inside the documented name rules.
+func profileNameFor(userKey string) string {
+	h := sha1.Sum([]byte(userKey))
+	return "FiveAgent-" + hex.EncodeToString(h[:])[:16]
+}
+
+// profileNameRule documents the CreateAppContainerProfile name rules:
+// max 64 chars, letters/digits/dot/underscore/hyphen only - anything
+// else makes the API return E_INVALIDARG.
+var profileNameRule = regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`)
+
+// validProfileName checks a profile name against the documented rules.
+func validProfileName(name string) error {
+	if !profileNameRule.MatchString(name) {
+		return fmt.Errorf("invalid profile name %q: max 64 chars, only A-Z a-z 0-9 . _ -", name)
+	}
+	return nil
 }
