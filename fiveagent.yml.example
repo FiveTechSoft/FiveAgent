@@ -29,9 +29,12 @@ channels:
     # access_token: ${WHATSAPP_ACCESS_TOKEN}     # permanent system-user token
     # phone_number_id: "1234567890"              # from the Meta app dashboard
     # verify_token: "pick-a-random-string"       # you choose it; Meta checks it
-    # app_secret: <Meta app secret>              # enables webhook signature checks
+    # app_secret: ${FIVEAGENT_META_APP_SECRET}   # Meta app secret: verifies webhook
+    #                                            # signatures (HMAC). Without it the bot
+    #                                            # logs a loud WARNING and runs UNVERIFIED.
     # allowed_senders: ["34600000000"]           # solo estos números reciben respuesta;
-    # con prefijo de país, sin el "+", separados por comas. Vacío = contesta a cualquiera.
+    # con prefijo de país, sin el "+", separados por comas. Vacío = contesta a cualquiera
+    # (WARNING ruidoso al arrancar - no pongas tu número real en el repo).
     # listen_addr: ":8080"                       # webhook listener
     # reactions: "off"                           # default: eyes while working, check when
     #                                            # the reply lands, warning on failure
