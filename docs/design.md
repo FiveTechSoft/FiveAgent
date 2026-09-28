@@ -45,21 +45,25 @@ Postgres + pgvector. Conversation history, long-term facts, and embeddings for r
 
 ### Secrets
 
-Encrypted at rest with AES-256-GCM using a master key from the environment. Tools receive opaque identifiers, never raw secrets.
+Today: secrets live in fiveagent.yml (keep it chmod 600) or in environment
+variables - config.Load expands ${VAR} at load time, so tokens can stay out
+of the file. Planned (issue #6): encryption at rest with AES-256-GCM using
+a master key from the environment; tools receive opaque identifiers, never
+raw secrets.
 
 ## Safety
 
-- External content (web pages, emails, messages from others) is treated as untrusted data, never as instructions. Prompt-injection regression tests run in CI.
-- The browser sidecar has no access to the internal network by default.
+- External content (web pages, emails, messages from others) is treated as untrusted data, never as instructions. Prompt-injection regression tests: planned (issue #7).
+- The agent's shell commands run in a per-user sandbox (on by default): bubblewrap on Linux, AppContainer on Windows with an explicit Job Objects degradation warning, Docker as fallback. Run `fiveagent doctor` to see what a machine supports.
 
 ## Roadmap (v0)
 
 - [x] Repo skeleton + docker compose (agent + Postgres + browser sidecar)
-- [ ] Model layer with Ollama and OpenAI configs
-- [ ] Telegram channel
-- [ ] WhatsApp channel
-- [ ] Memory (history + recall)
-- [ ] Web search tool
-- [ ] Browser tool
+- [x] Model layer with Ollama and OpenAI-compatible configs
+- [x] Telegram channel (Bot API, long polling; unit-tested, pending first live run)
+- [x] WhatsApp channel (Cloud API; verified in a real install)
+- [x] Memory (conversation history + recall; JSON and Postgres stores, long-term markdown notes)
+- [x] Web search tool (DuckDuckGo/Brave; unit-tested, pending first live run)
+- [ ] Browser tool (Playwright sidecar is in docker compose but not wired to the agent yet)
 - [ ] iMessage bridge (docs + reference implementation)
 - [ ] v0.1.0 release with changelog
