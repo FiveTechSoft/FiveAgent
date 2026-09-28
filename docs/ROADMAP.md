@@ -265,17 +265,30 @@ evidence that counts.
     Done when: the battery grows cases with mistyped tool arguments
     that succeed after coercion and a degenerate repetition that is
     caught before delivery; the run report counts rescued calls.
-15. **Context pruning** (planned) - the context window is the small
-    model's scarcest resource, and raw tool outputs are what floods
-    it (one long directory listing costs more than a day of chat).
-    Prune in order: first truncate old tool outputs, then summarize
-    middle turns with an auxiliary model pass, always protecting the
-    head (system, first exchange) and the recent tail, and never
-    splitting a tool call from its result. Replaces today's hard
-    truncation of the history.
-    Done when: a 60-turn scripted conversation with verbose tool
-    outputs stays inside budget and still recalls the facts from its
-    first turns; the battery grows a "pruning" case measuring both.
+15. **Context pruning** (implemented, CI-tested) - the context
+    window is the small model's scarcest resource, and raw tool
+    outputs are what floods it (one long directory listing costs more
+    than a day of chat). internal/agent/prune.go prunes the history in
+    order: first old tool outputs outside the tail are truncated to a
+    keep-prefix, then the middle turns are compacted into one message
+    - a summary from an auxiliary model pass (the chat model itself,
+    one extra call only when over budget), falling back to an explicit
+    "N earlier turns omitted" marker when no summarizer is available
+    or it fails. The head (first exchange) and the recent tail always
+    survive byte-identical; messages are grouped into blocks so a cut
+    can never split a tool call from its result; the store keeps the
+    full conversation (pruning rewrites only the in-memory copy). The
+    old hard truncation (last 20 messages) is gone: the agent reads
+    up to 200 and prunes to a 24k-char budget.
+    Done when: (met) a 61-turn scripted conversation with verbose
+    turns and tool calls stays inside budget and still recalls its
+    turn-1 fact verbatim (evals/prune_test.go, CI); the memory metric
+    "recall past truncation" now exercises a fact compacted out of the
+    middle (evals/memory_test.go); 7 unit tests cover the ordering,
+    the head/tail protection, the pair invariant, the summarizer
+    fallback and the unprunable case. Scope note: pruning applies to
+    the stored history; growth inside a single turn's tool rounds is
+    bounded by maxToolRounds.
 16. **Error recovery classifier** (planned) - one pipeline maps every
     model-API failure to its recovery: retry, rotate credential,
     fall back to the other configured model, compress the context, or
