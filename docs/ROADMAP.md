@@ -3,6 +3,15 @@
 Ordered, one thing at a time, simple first. Each item is a GitHub issue;
 the phases are milestones.
 
+One rule governs everything below: nothing counts as working until it
+has been measured. Every stage ships with its own battery of
+benchmarks and is "done" only when those benchmarks pass - never on
+intention, never on vibes. A claim without a run, a test or a
+benchmark behind it is marked "pending live verification" or stays
+out of the docs. When something changes (a model, a tool, a prompt),
+the same battery re-runs and the before/after comparison is the only
+evidence that counts.
+
 ## Phase 1 - v0.1: a talking agent
 
 1. **Tool calling** (done) - the model can call tools through the OpenAI function-calling
@@ -164,7 +173,10 @@ the phases are milestones.
     foundation.
     Done when: a dataset of rubric-passing trajectories exists and a
     fine-tuned local model scores measurably higher on the battery
-    than its base model; the battery itself is the judge.
+    than its base model. The verdict is a before/after benchmark on
+    the SAME battery, with the SAME rubric and the same live
+    conditions - the battery itself is the judge, and a fine-tune
+    that does not move the numbers is reverted, not explained.
 14. **Web search** (implemented, CI-tested against fake servers; pending
     first live run) - the `web_search` tool with pluggable providers:
     DuckDuckGo by default (no API key, may rate-limit under heavy use),
