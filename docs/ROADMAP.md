@@ -116,6 +116,32 @@ evidence that counts.
       merges the seeded duplicates and the next recall returns the
       merged fact once; the battery grows an "idle-consolidation"
       case verifying the merge and that no fact was lost.
+   m. **Memory effectiveness metrics** (designed 2026-09-28, partially
+      implemented) - memory quality as numbers, not anecdotes. Six
+      metrics: M1 write-through rate (every recuerda: setup must leave
+      the fact in the memory files on disk, checked by the battery's
+      memory_writes field; the 2026-09-28 baseline showed 4/7 setups
+      never reached disk even when the reply claimed they did -
+      implemented), M2 recall at three depths (immediate, deferred past
+      the 20-message history window, and after a full session restart;
+      the deferred and restart depths need runner support), M3
+      effective forgetting (after olvida:: honest abstention -
+      implemented - plus the fact gone from disk and never resurfacing
+      in open questions like "what do you know about me?"), M4
+      cross-user non-contamination (one sender's facts never surface
+      for another; defined but DISABLED until 7i decides the scoping
+      model - we do not measure what the design does not yet require),
+      M5 frozen-snapshot stability (a mid-session write must not
+      rewrite the system prompt prefix; the hard gate of 7k), M6
+      memory anti-hallucination (a never-stored fact yields
+      abstention, not invention). Evolution is measured, not told:
+      every live run dumps its metrics to a JSON artifact under
+      evals/out/ (stage 12's trajectory logger becomes their natural
+      transport), a historical scorecard in evals/README.md tracks the
+      numbers run over run, and a memory metric that drops versus the
+      last scorecard with the same model blocks the "done" of the
+      stage that caused it until the drop is explained. Hallucinations
+      stay the hard gate of every run.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
    Today this covers memory content; before the bot opens to multiple
