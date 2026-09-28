@@ -100,6 +100,14 @@ func TestAppContainerTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !r.TimedOut {
+		// On some AppContainer hosts PowerShell cannot even start a
+		// sleep (Start-Sleep throws UnauthorizedAccessException before
+		// the first second). That is a host limitation, not a timeout
+		// regression: skip, like appContainerOrSkip does when the
+		// profile cannot be created.
+		if r.ExitCode != 0 && strings.Contains(r.Stderr, "UnauthorizedAccessException") {
+			t.Skipf("powershell sleep blocked by this AppContainer host: %+v", r)
+		}
 		t.Fatalf("expected timeout, got %+v", r)
 	}
 }
