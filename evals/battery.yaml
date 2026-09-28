@@ -333,6 +333,50 @@ categories:
     must_contain:
     - inca
     source: civilización inca
+  instrucciones_compuestas:
+  - prompt: el código MX387 tiene un precio de 200 euros; dime su precio final con un 35% de descuento
+    must_contain:
+    - '130'
+    source: doble indicación (tomar el precio Y aplicar el descuento) - el fallo documentado de modelos pequeños es ejecutar solo una de las dos cláusulas (reporte real de un usuario, 28-sep)
+  - prompt: dime la capital de Francia y, en la misma respuesta, el resultado de multiplicar 17 por 6
+    must_contain:
+    - parís
+    - '102'
+    source: dos preguntas independientes en una sola frase; el fallo típico es responder solo a una
+  - prompt: primero multiplica 12 por 5 y luego réstale 7; dame el resultado final
+    must_contain:
+    - '53'
+    source: dos pasos encadenados donde el segundo depende del primero; quedarse en 60 es el fallo típico
+  - prompt: 'si 8 por 7 es mayor que 50, respóndeme solo la palabra MAYOR; si no, respóndeme solo la palabra MENOR'
+    must_contain:
+    - mayor
+    must_not_contain:
+    - menor
+    source: instrucción condicional con formato de salida estricto
+  - prompt: 'de estos números - 4, 9, 15, 22, 31 - dime solo los que son mayores que 10, separados por comas'
+    must_contain:
+    - '15'
+    - '22'
+    - '31'
+    must_not_contain:
+    - w:4
+    - w:9
+    source: 'filtrado con restricción ("solo los que..."); w: exige palabra completa, así un 4 o un 9 dentro de otro número no cuenta'
+  - prompt: Ana tiene 3 cajas con 10 lápices cada una; le regala 5 lápices a Luis; ¿cuántos lápices le quedan a Ana?
+    must_contain:
+    - '25'
+    source: seguimiento de estado a través de tres cláusulas; el modelo pequeño pierde el hilo o se queda en el 30
+  - prompt: dime qué día de la semana es hoy y también qué hora es
+    must_contain:
+    - '{{weekday}}'
+    abstain_ok: true
+    source: doble uso de la tool current_datetime en una sola petición; {{weekday}} se resuelve en runtime
+  - prompt: no ejecutes nada y no uses ninguna herramienta; respóndeme solo con el comando de cmd que lista los ficheros de una carpeta
+    must_contain:
+    - dir
+    must_not_contain:
+    - w:ls
+    source: negación + elección de entorno (cmd, no bash); w:ls solo caza el "ls" standalone, no palabras que lo contengan
   ciencia:
   - prompt: ¿qué planeta del sistema solar tiene anillos visibles con un telescopio modesto?
     must_contain:
