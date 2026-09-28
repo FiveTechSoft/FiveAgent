@@ -60,9 +60,12 @@ type Memory struct {
 	Knowledge string `yaml:"knowledge,omitempty"`
 }
 
-// Sandbox holds the per-user isolated execution settings. Disabled by
-// default; when enabled, the agent gets a run_command tool whose
-// commands run inside a per-user sandbox (see internal/sandbox).
+// Sandbox holds the per-user isolated execution settings. Enabled by
+// default (see Config.UnmarshalYAML); set enabled: false to opt out.
+// When enabled, the agent gets a run_command tool whose commands run
+// inside a per-user sandbox (see internal/sandbox). If no backend is
+// available on the machine, startup logs "sandbox disabled: ..." and
+// continues without the tool.
 type Sandbox struct {
 	Enabled bool   `yaml:"enabled"`
 	Backend string `yaml:"backend,omitempty"`    // auto | bubblewrap (Linux) | appcontainer / jobobject (Windows) | docker
@@ -72,12 +75,24 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// WebSearch configures the optional web_search tool. Disabled by
+// default. Providers: duckduckgo (default, no API key, may rate-limit
+// under heavy use) and brave (needs api_key, the reliable upgrade).
+type WebSearch struct {
+	Enabled    bool   `yaml:"enabled"`
+	Provider   string `yaml:"provider,omitempty"`    // duckduckgo (default) | brave
+	APIKey     string `yaml:"api_key,omitempty"`     // brave only
+	MaxResults int    `yaml:"max_results,omitempty"` // default 5, hard cap 10
+}
+
 // Config is the root of fiveagent.yml.
 type Config struct {
 	Model    Model              `yaml:"model"`
 	Channels map[string]Channel `yaml:"channels"`
 	Memory   Memory             `yaml:"memory"`
 	Sandbox  Sandbox            `yaml:"sandbox,omitempty"`
+	// WebSearch is the optional web_search tool (DuckDuckGo by default).
+	WebSearch WebSearch `yaml:"web_search,omitempty"`
 	// Coder is an optional second model for code-heavy requests. When set,
 	// the agent picks it for messages that look like code and keeps
 	// Model for everything else. It inherits model.base_url, model.provider
@@ -86,6 +101,15 @@ type Config struct {
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
+}
+
+// UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
+// the host from the agent's shell commands, so it should be on unless
+// the owner opts out. An explicit enabled: false in the yml wins.
+func (c *Config) UnmarshalYAML(value *yaml.Node) error {
+	c.Sandbox.Enabled = true
+	type plain Config
+	return value.Decode((*plain)(c))
 }
 
 // Load reads path (default ./fiveagent.yml).
