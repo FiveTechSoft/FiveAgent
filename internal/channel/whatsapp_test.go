@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -591,5 +592,36 @@ func TestInboundReactionIgnored(t *testing.T) {
 	defer fc.mu.Unlock()
 	if fc.text != "" {
 		t.Fatalf("reaction reached the agent as a turn: %q", fc.text)
+	}
+}
+
+func TestSecurityWarnings(t *testing.T) {
+	capture := func(w *whatsapp) string {
+		var buf bytes.Buffer
+		old := log.Writer()
+		log.SetOutput(&buf)
+		defer log.SetOutput(old)
+		w.logSecurityWarnings()
+		return buf.String()
+	}
+
+	// Unrestricted senders + no app_secret: both loud WARNINGs.
+	w := newTestWhatsApp(t, &fakeCore{})
+	w.cfg.AllowedSenders = nil
+	w.cfg.AppSecret = ""
+	out := capture(w)
+	if !strings.Contains(out, "WARNING") || !strings.Contains(out, "allowed_senders is empty") {
+		t.Errorf("missing allowed_senders WARNING: %q", out)
+	}
+	if !strings.Contains(out, "UNVERIFIED") {
+		t.Errorf("missing app_secret UNVERIFIED WARNING: %q", out)
+	}
+
+	// Locked down: no WARNING at all.
+	w = newTestWhatsApp(t, &fakeCore{})
+	w.cfg.AllowedSenders = []string{"34600000000"}
+	w.cfg.AppSecret = "s"
+	if out := capture(w); strings.Contains(out, "WARNING") {
+		t.Errorf("unexpected WARNING when locked down: %q", out)
 	}
 }

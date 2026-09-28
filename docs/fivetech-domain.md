@@ -1,10 +1,11 @@
-# FiveTech domain seed
+# FiveTech domain reference
 
-Correct starter facts about the FiveTech ecosystem, written after a real
+Verified facts about the FiveTech ecosystem, written after a real
 session where the small model invented Harbour syntax and the meaning of
-FWH. Feed these into the long-term memory (copy the bullets into
-data/memory/preferences.md or a new domain file, or let the bot save
-them) so they get recalled instead of confabulated.
+FWH. This file is embedded into the binary (embed.go, same folder) and
+injected into the system prompt on every turn, with an instruction that
+it overrides the model's general knowledge for the FiveTech domain. Keep
+it short and factual: every token is spent on every turn.
 
 Status: verified against public sources on 2026-09-28. Sources: the
 official FiveWin for Harbour documentation (fivetechsoft.github.io/FWH_docs),
