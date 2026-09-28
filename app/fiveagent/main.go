@@ -56,6 +56,25 @@ func main() {
 			log.Printf("long-term memory: %s", cfg.Memory.Knowledge)
 		}
 	}
+	if cfg.WebSearch.Enabled {
+		var p tools.SearchProvider
+		switch cfg.WebSearch.Provider {
+		case "", "duckduckgo":
+			p = tools.DuckDuckGo{}
+		case "brave":
+			if cfg.WebSearch.APIKey == "" {
+				log.Printf("web search disabled: brave provider needs web_search.api_key")
+			} else {
+				p = tools.Brave{APIKey: cfg.WebSearch.APIKey}
+			}
+		default:
+			log.Printf("web search disabled: unknown provider %q (duckduckgo or brave)", cfg.WebSearch.Provider)
+		}
+		if p != nil {
+			tl = append(tl, tools.WebSearch{P: p, MaxResults: cfg.WebSearch.MaxResults})
+			log.Printf("web search: %s provider", p.Name())
+		}
+	}
 	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
 	if kn != nil {
