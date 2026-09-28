@@ -47,6 +47,8 @@ memory:
   # Simplest for a first local run: a JSON file next to the binary.
   # json: fiveagent-memory.json
   # For docker compose / real deployments use Postgres (set DB_PASSWORD in .env).
+  # ${VAR} values in this file are expanded from the environment at load
+  # time - this is how to keep secrets out of the yml.
   postgres: postgres://fiveagent:${DB_PASSWORD}@db:5432/fiveagent
 
 # sandbox: per-user isolated execution for the run_command tool. ON by
