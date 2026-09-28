@@ -65,7 +65,7 @@ type Memory struct {
 // commands run inside a per-user sandbox (see internal/sandbox).
 type Sandbox struct {
 	Enabled bool   `yaml:"enabled"`
-	Backend string `yaml:"backend,omitempty"`    // auto | bubblewrap | jobobject | docker
+	Backend string `yaml:"backend,omitempty"`    // auto | bubblewrap (Linux) | appcontainer / jobobject (Windows) | docker
 	Root    string `yaml:"root,omitempty"`       // default data/sandbox
 	Timeout int    `yaml:"timeout,omitempty"`    // seconds per command, default 30
 	MaxRAM  int    `yaml:"max_ram_mb,omitempty"` // docker / jobobject only, default 512
