@@ -171,12 +171,28 @@ the phases are milestones.
     expiry or with a wrong signature, (ii) a form submission lands in
     the vault/config and its value appears in no log line, (iii) a
     link minted for one sender is rejected when opened by another.
-15. **Email + calendar** - read and act on the user's accounts (OAuth).
+15. **Media** (planned) - inbound WhatsApp media pipeline: the webhook
+    receives image/audio/video/document with a media id, downloads it
+    with an authenticated Graph API call, dispatches by type, and the
+    result enters the normal message flow. In phases:
+    a) Voice notes: opus audio -> local Whisper transcription
+       (whisper.cpp / faster-whisper) -> treated as a text message.
+    b) Images: download -> vision model (a VL variant configurable in
+       the yml; document that text-only qwen models cannot see and a VL
+       that fits in 12GB is needed) -> description into the context.
+    c) Video (last): key frames + transcribed audio -> summary.
+    Security by design: media is only fetched and processed from
+    allowed senders; no media content (or transcript) lands in logs in
+    the clear.
+    Done when: the battery grows a "media" category with a test image
+    of known content and a voice note with a known phrase, both scored
+    with must_contain on the agent's reply.
+16. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
 
-16. **iMessage** - bridge docs + reference implementation (needs a Mac).
-17. **WhatsApp extras** - status reactions (working): 👀 when an
+17. **iMessage** - bridge docs + reference implementation (needs a Mac).
+18. **WhatsApp extras** - status reactions (working): 👀 when an
     inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
     through the same /messages endpoint, replacing the previous
     reaction on the same message, best-effort (a failed reaction never
@@ -186,7 +202,7 @@ the phases are milestones.
     full context in arrival order, quoting the last message. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
-18. **Content reactions** (planned) - on top of status reactions, the
+19. **Content reactions** (planned) - on top of status reactions, the
     agent reacts to what a message says, not just its state: a
     celebration, a joke, a thank-you gets a fitting emoji chosen from
     the message content. Cheap to build (a small extra model call or
@@ -195,7 +211,7 @@ the phases are milestones.
 
 ## Phase 4b - v0.4b: growing the small model
 
-20. **Skills** (planned) - a `skills/` folder with one SKILL.md per
+21. **Skills** (planned) - a `skills/` folder with one SKILL.md per
     domain: name, one-line trigger, concise procedure written for a
     small model. Only the one-line index enters the system prompt; the
     full skill loads on demand when the request matches (keywords or a
@@ -206,7 +222,7 @@ the phases are milestones.
     battery runs the same prompts with and without the matching skill
     and reports the delta per category, and the domain answers pass only
     with the skill loaded.
-21. **FiveAgent as MCP server** (planned) - expose a local,
+22. **FiveAgent as MCP server** (planned) - expose a local,
     token-authenticated MCP endpoint so an external agent (e.g. the
     owner's OpenCode) can execute commands inside the sandbox and read
     files from the user's folder. Documented in docs/. Done when: an
@@ -214,7 +230,7 @@ the phases are milestones.
     rejected without token, command runs confined to the sandbox), and
     the doc page gets a reader from zero to first call in minutes.
 
-22. **Multi-agent parallel execution** (future path, for large models;
+23. **Multi-agent parallel execution** (future path, for large models;
     see the single-agent principle below) - a worker pool (goroutines)
     fed by a task queue: N concurrent tasks, each isolated in its own
     context, sharing nothing mutable. Memory stays thread-safe under
@@ -227,7 +243,7 @@ the phases are milestones.
 
 ## Phase 5 - setup that does not need a manual
 
-19. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+20. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
