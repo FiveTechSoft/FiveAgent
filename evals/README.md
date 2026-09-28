@@ -45,6 +45,22 @@ it does not run in CI:
 FIVEAGENT_EVAL_LIVE=1 FIVEAGENT_EVAL_MODEL=qwen3.5:9b go test ./evals/ -run Live -v
 ```
 
+## The comparative battery
+
+`battery.yaml` holds 24 prompts in 6 categories (harbour_fivewin,
+general_knowledge, code, abstention, memory, tools), each with a
+grounded reference and a scoring rubric: must_contain / must_not_contain
+/ abstain_ok / abstain_expected / setup. `TestBatteryFileValidates`
+runs in CI and keeps the file honest (no empty categories, no prompt
+without expectation). `TestLiveBattery` runs it against a live model
+and prints the per-category report: pass, correct abstentions, misses,
+hallucinations. The live gate fails ONLY on hallucinations (invented
+tokens); the rest is metrics.
+
+```
+FIVEAGENT_EVAL_LIVE=1 go test ./evals/ -run Battery -v
+```
+
 A roadmap stage is only "done" when its CI evals pass and the live gate
 passes against the target model.
 
