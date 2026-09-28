@@ -155,6 +155,19 @@ evidence that counts.
    everything else to the chat model. The coder inherits base_url,
    provider and api_key from model when omitted. Later: more task
    classes beyond chat/code and fully configurable model sets.
+   a. **Hybrid cloud escalation** (planned, opt-in by design) - local
+      by default; when the error classifier (stage 16) marks a request
+      as beyond the local models, the agent can escalate it to a
+      commercial OpenAI-compatible provider, but ONLY if the user
+      explicitly enabled escalation in fiveagent.yml (off by default:
+      a request leaving the machine is the user's call, never the
+      agent's). Without the opt-in, the answer is the honest local
+      one. The escalated provider keeps the same tools and honesty
+      rules, and the escalation is logged like any other turn.
+      Done when: with escalation disabled, an over-local request gets
+      the honest local answer and a fake provider records zero calls;
+      with it enabled, the same request reaches the provider and its
+      reply is delivered; the battery grows both cases.
 11. **Model tuning** (planned) - get the most out of the local model,
    each step adopted or dropped by evals, never vibes, roughly in
    cost/benefit order:
