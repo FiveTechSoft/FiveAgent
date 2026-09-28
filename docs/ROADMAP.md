@@ -212,7 +212,8 @@ evidence that counts.
     the SAME battery, with the SAME rubric and the same live
     conditions - the battery itself is the judge, and a fine-tune
     that does not move the numbers is reverted, not explained.
-14. **Tool-call repair and repetition guard** (planned) - small
+14. **Tool-call repair and repetition guard** (implemented, CI-tested;
+    live-rescue counts accrue in real traffic) - small
     models emit almost-right tool calls: "42" as a string where an
     int goes, "true" as a string, a JSON blob where an array goes, a
     scalar where a list goes. Repair them before dispatch: a
