@@ -107,6 +107,45 @@ categories:
     must_not_contain:
     - pulpo
     source: la corrección debe sustituir al hecho viejo
+  - prompt: 'recuerda: el 3 de mayo fui de vacaciones a Cádiz'
+    source: 'setup: memoria episódica (fecha + lugar)'
+    setup: true
+  - prompt: ¿adónde fui de vacaciones el 3 de mayo?
+    must_contain:
+    - cádiz
+    source: recall episódico; el bullet comparte "fui/vacaciones/mayo" con la query
+  - prompt: 'recuerda: mi hermano se llama Pelayo'
+    source: 'setup: memoria relacional'
+    setup: true
+  - prompt: ¿cómo se llama mi hermano?
+    must_contain:
+    - pelayo
+    source: recall relacional
+  - prompt: 'recuerda: el código de la puerta de casa es 4729'
+    source: 'setup: memoria numérica'
+    setup: true
+  - prompt: ¿cuál es el código de la puerta de casa?
+    must_contain:
+    - '4729'
+    source: recall numérico
+  - prompt: 'recuerda: mi color favorito es verde musgo'
+    source: 'setup: preferencia; primer dato de la pareja'
+    setup: true
+  - prompt: 'recuerda: toco el violonchelo'
+    source: 'setup: segundo dato guardado seguido; memory dos-hechos'
+    setup: true
+  - prompt: ¿qué instrumento toco?
+    must_contain:
+    - violonchelo
+    source: recall de uno de dos hechos guardados consecutivos
+  - prompt: ¿cuál es mi color favorito?
+    must_contain:
+    - verde
+    source: recall del otro hecho de la pareja; se exige "verde" (no solo "musgo") por robustez
+  - prompt: 'volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?'
+    must_contain:
+    - lacón
+    source: retención diferida tras ~40 turnos de otros temas; "pulpo" aquí lo captura el test anterior (evita falso positivo de alucinación si el modelo explica la corrección)
   tools:
   - prompt: ¿qué día de la semana es hoy?
     must_contain:
@@ -135,3 +174,232 @@ categories:
     - pulpo
     - lacón
     source: tras forget no debe quedar el hecho
+  shell:
+  - prompt: ¿qué comando de cmd muestra la configuración de red e IP en Windows?
+    must_contain:
+    - ipconfig
+    source: cmd elemental; sin alternativa plausible
+  - prompt: ¿qué comando de cmd comprueba si un host responde y con qué latencia?
+    must_contain:
+    - ping
+    source: diagnóstico de red elemental
+  - prompt: ¿qué comando de cmd mata un proceso por su nombre?
+    must_contain:
+    - taskkill
+    source: gestión de procesos Windows
+  - prompt: ¿qué comando de cmd lista los procesos con su PID?
+    must_contain:
+    - tasklist
+    source: gestión de procesos Windows; "de cmd" fuerza tasklist frente a Get-Process
+  - prompt: ¿qué comando de bash busca texto dentro de ficheros?
+    must_contain:
+    - grep
+    source: bash elemental
+  - prompt: ¿qué comando de bash copia un fichero a otra carpeta?
+    must_contain:
+    - cp
+    source: bash elemental
+  - prompt: ¿qué extensión tienen los scripts de PowerShell?
+    must_contain:
+    - .ps1
+    source: Windows scripting
+  - prompt: ¿qué significa 2>&1 al final de una orden en bash?
+    must_contain:
+    - error
+    source: redirección de stderr a stdout; se acepta cualquier explicación que mencione los errores
+  c:
+  - prompt: ¿qué cabecera de C hay que incluir para usar printf?
+    must_contain:
+    - stdio
+    source: C elemental
+  - prompt: ¿qué flag de gcc activa todas las advertencias?
+    must_contain:
+    - '-Wall'
+    source: compilación C
+  - prompt: ¿qué flag de gcc convierte las advertencias en errores?
+    must_contain:
+    - '-Werror'
+    source: compilación C
+  - prompt: ¿qué estructura de C agrupa campos de tipos distintos bajo un solo nombre?
+    must_contain:
+    - struct
+    source: C elemental
+  - prompt: ¿qué función de C asigna memoria dinámica e inicializa todo a cero?
+    must_contain:
+    - calloc
+    source: C elemental; calloc inicializa, malloc no
+  - prompt: ¿qué valor devuelve malloc si no hay memoria suficiente?
+    must_contain:
+    - 'NULL'
+    source: C elemental; NULL en cualquier formato casa por minúsculas
+  lenguajes:
+  - prompt: ¿qué palabra clave lanza una excepción en Python?
+    must_contain:
+    - raise
+    source: Python elemental
+  - prompt: ¿qué decorador de Python convierte un método en método de clase?
+    must_contain:
+    - classmethod
+    source: Python intermedio
+  - prompt: ¿qué método de JavaScript convierte un objeto en texto JSON?
+    must_contain:
+    - stringify
+    source: JS elemental; JSON.stringify
+  - prompt: ¿qué palabra clave declara una variable con ámbito de bloque en JavaScript?
+    must_contain:
+    - let
+    source: ES6; let/const frente a var
+  - prompt: ¿qué comando de Go formatea el código automáticamente?
+    must_contain:
+    - gofmt
+    source: go tooling
+  - prompt: ¿qué operador de Go asigna con tipo inferido en una sola línea?
+    must_contain:
+    - ':='
+    source: Go elemental
+  - prompt: ¿qué palabra clave SQL elimina una tabla de forma definitiva?
+    must_contain:
+    - drop
+    source: SQL DDL
+  - prompt: ¿Qué atributo lleva el enlace en la etiqueta <a> de HTML?
+    must_contain:
+    - href
+    source: HTML elemental
+  geografia:
+  - prompt: ¿en qué país está la torre Eiffel?
+    must_contain:
+    - francia
+    source: geografía elemental
+  - prompt: ¿cuál es la capital de Japón?
+    must_contain:
+    - tokio
+    source: geografía elemental
+  - prompt: ¿qué río es el más largo de África?
+    must_contain:
+    - nilo
+    source: geografía elemental
+  - prompt: ¿qué país del sur de Europa tiene forma de bota?
+    must_contain:
+    - italia
+    source: geografía elemental
+  - prompt: ¿qué océano baña la costa de Galicia?
+    must_contain:
+    - atlántico
+    source: geografía elemental; Galicia solo toca el Atlántico
+  historia:
+  - prompt: ¿en qué año cayó el muro de Berlín?
+    must_contain:
+    - '1989'
+    source: historia contemporánea
+  - prompt: ¿quién pintó la Mona Lisa?
+    must_contain:
+    - leonardo
+    source: historia del arte; Leonardo da Vinci
+  - prompt: ¿en qué año llegó Cristóbal Colón a América?
+    must_contain:
+    - '1492'
+    source: historia elemental
+  - prompt: ¿qué civilización construyó el Coliseo de Roma?
+    must_contain:
+    - rom
+    source: civilización/Imperio romano; "rom" casa romano/romana/roma
+  - prompt: ¿qué civilización construyó Machu Picchu?
+    must_contain:
+    - inca
+    source: civilización inca
+  ciencia:
+  - prompt: ¿qué planeta del sistema solar tiene anillos visibles con un telescopio modesto?
+    must_contain:
+    - saturno
+    source: astronomía elemental
+  - prompt: ¿cuál es el metal más abundante en la corteza terrestre?
+    must_contain:
+    - aluminio
+    source: geología/química elemental
+  - prompt: ¿qué hormona regula el nivel de azúcar en la sangre?
+    must_contain:
+    - insulina
+    source: biología elemental
+  - prompt: ¿qué elemento químico tiene el símbolo Fe?
+    must_contain:
+    - hierro
+    source: tabla periódica
+  - prompt: ¿qué gas absorben las plantas para hacer fotosíntesis?
+    must_contain:
+    - carbono
+    source: dióxido de carbono; "carbono" casa sin acento y con la fórmula CO2
+  literatura:
+  - prompt: ¿quién escribió La casa de Bernarda Alba?
+    must_contain:
+    - lorca
+    source: literatura española
+  - prompt: ¿quién escribió 1984?
+    must_contain:
+    - orwell
+    source: literatura universal
+  - prompt: ¿qué obra de Shakespeare empieza con el monólogo Ser o no ser?
+    must_contain:
+    - hamlet
+    source: literatura universal
+  arte:
+  - prompt: ¿En qué museo se exhibe la Mona Lisa?
+    must_contain:
+    - louvre
+    source: arte; Museo del Louvre
+  - prompt: ¿Qué movimiento artístico fundaron Picasso y Braque a principios del siglo XX?
+    must_contain:
+    - cubismo
+    source: arte moderno
+  - prompt: ¿Qué pintor neerlandés famoso pintó Los girasoles?
+    must_contain:
+    - gogh
+    source: arte moderno; Vincent van Gogh
+  - prompt: ¿Quién esculpió el David que está en Florencia?
+    must_contain:
+    - miguel
+    source: Renacimiento; Miguel Ángel
+  logica:
+  - prompt: Ana es mayor que Beto y Beto es mayor que Carla. ¿Quién es la menor?
+    must_contain:
+    - carla
+    source: 'lógica deductiva tipo ARC/MMLU'
+  - prompt: ¿Cuántos años bisiestos hay en un periodo de 400 años del calendario gregoriano?
+    must_contain:
+    - '97'
+    source: 'regla 4/100/400: clásico de benchmark de años bisiestos'
+  - prompt: ¿Qué número sigue la serie 2, 6, 18, 54, ...?
+    must_contain:
+    - '162'
+    source: serie geométrica x3 (tipo Raven/GSM)
+  - prompt: ¿Qué número sigue la serie 1, 4, 9, 16, ...?
+    must_contain:
+    - '25'
+    source: cuadrados perfectos
+  - prompt: ¿Cuánto es 2 elevado a 8?
+    must_contain:
+    - '256'
+    source: aritmética mental
+  - prompt: Un tren sale a las 14:30 y tarda 2 horas y 45 minutos. ¿A qué hora llega?
+    must_contain:
+    - '17:15'
+    source: 'aritmética de horarios estilo GSM8K'
+  - prompt: Si un libro cuesta 12 euros y compro 7 libros, ¿cuánto pago en total?
+    must_contain:
+    - '84'
+    source: aritmética estilo GSM8K
+  - prompt: María tiene 3 bolsas con 15 naranjas cada una y regala 7 naranjas. ¿Cuántas naranjas le quedan?
+    must_contain:
+    - '38'
+    source: aritmética estilo GSM8K
+  - prompt: Si hoy es miércoles, ¿qué día de la semana será dentro de 100 días?
+    must_contain:
+    - viernes
+    source: 'módulo 7: 100 = 14*7 + 2'
+  - prompt: ¿Qué cosa sube pero nunca baja?
+    must_contain:
+    - edad
+    source: adivinanza clásica estilo CommonsenseQA
+  - prompt: ¿Qué tiene llaves pero no puede abrir ninguna puerta?
+    must_contain:
+    - teclado
+    source: adivinanza clásica estilo CommonsenseQA
