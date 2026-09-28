@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 	"time"
 
@@ -37,7 +38,20 @@ func (r RunCommand) Description() string {
 	if r.SB.Name() == "jobobject" {
 		limits = "runs in the user's own folder with a RAM cap and a timeout; filesystem and network isolation are not enforced yet on Windows"
 	}
-	return fmt.Sprintf("Run a command inside the user's sandbox (%s backend): %s. Good for calculations, small scripts and file tasks. Files persist between calls.", r.SB.Name(), limits)
+	return fmt.Sprintf("Run a command inside the user's sandbox (%s backend): %s. Good for calculations, small scripts and file tasks. Files persist between calls. %s", r.SB.Name(), limits, shellGuidance(runtime.GOOS))
+}
+
+// shellGuidance tells the model how to invoke shell syntax on each OS:
+// the tool receives a program + arguments and runs them WITHOUT a
+// shell, so builtins (dir, echo, pipes, redirects) need the OS shell
+// explicitly. On Windows that is cmd /c - bash is missing on most
+// Windows machines (first live-test finding: the model ran bash -c and
+// the command failed).
+func shellGuidance(goos string) string {
+	if goos == "windows" {
+		return "The command runs directly, without a shell. On Windows use command \"cmd\" with args [\"/c\", \"...\"] (e.g. args [\"/c\", \"dir\"]); bash does not exist on most Windows machines - use it only when the user explicitly asks and it exists."
+	}
+	return "The command runs directly, without a shell: for shell syntax use command \"sh\" with args [\"-c\", \"...\"] (on Windows it would be cmd /c instead)."
 }
 
 // Parameters implements Tool.
@@ -99,6 +113,12 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 			sb.WriteString("\n")
 		}
 		sb.WriteString("(killed: timeout)")
+	}
+	if res.ExitCode != 0 && !res.TimedOut {
+		if sb.Len() > 0 {
+			sb.WriteString("\n")
+		}
+		fmt.Fprintf(&sb, "(exit code %d)", res.ExitCode)
 	}
 	out := sb.String()
 	const maxForModel = 4000
