@@ -153,8 +153,13 @@ evidence that counts.
    message goes through a local heuristic (two tiers of signals with
    word boundaries, no model call): code goes to the coder model,
    everything else to the chat model. The coder inherits base_url,
-   provider and api_key from model when omitted. Later: more task
-   classes beyond chat/code and fully configurable model sets.
+   provider and api_key from model when omitted. Instruction shape is
+   itself a routing signal: compound requests (look up X and apply Y,
+   do A then B, answer under a negated constraint) are where small
+   models silently drop clauses, so detecting them should route to
+   the larger model - the battery's instrucciones_compuestas category
+   measures exactly this failure. Later: more task classes beyond
+   chat/code and fully configurable model sets.
    a. **Hybrid cloud escalation** (decision module implemented and
       CI-tested; the cloud provider itself is still planned) - top
       priority, core security piece: it is the single point that
