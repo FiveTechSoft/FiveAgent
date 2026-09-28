@@ -2,10 +2,12 @@ services:
   agent:
     build: .
     ports:
-      - "8000:8000"
+      - "8080:8080" # WhatsApp webhook listens on :8080 by default
     environment:
       - FIVEAGENT_CONFIG=/config/fiveagent.yml
-      - FIVEAGENT_MASTER_KEY=${FIVEAGENT_MASTER_KEY}
+      # Expands ${DB_PASSWORD} inside fiveagent.yml (config.Load expands
+      # ${VAR} from the environment); must match the db service below.
+      - DB_PASSWORD=${DB_PASSWORD:-fiveagent}
     volumes:
       - ./fiveagent.yml:/config/fiveagent.yml:ro
       - fiveagent-workspace:/workspace
