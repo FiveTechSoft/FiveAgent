@@ -74,14 +74,43 @@ func TestBatteryFileValidates(t *testing.T) {
 var spanishWeekdays = []string{"domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"}
 
 // abstains reports whether the reply is an honest "I don't know".
+// Match abstention INTENT phrases, not loose substrings: a bare
+// "verificar" also matches correct advice like "hay que verificar si
+// bash está instalado", which is not an abstention (real false positive
+// in the 2026-09-28 live run).
 func abstains(reply string) bool {
 	low := strings.ToLower(reply)
-	for _, m := range []string{"no lo sé", "no sé", "no estoy seguro", "no tengo información", "no puedo saber", "verificar", "no lo conozco", "no tengo constancia"} {
+	for _, m := range []string{
+		"no lo sé", "no sé", "no estoy seguro", "no tengo información",
+		"no puedo saber", "no lo conozco", "no tengo constancia",
+		"no puedo verificar", "no puedo comprobar",
+		"no tengo forma de verificar", "no tengo forma de comprobar",
+	} {
 		if strings.Contains(low, m) {
 			return true
 		}
 	}
 	return false
+}
+
+// compact strips spaces, tabs and newlines so rubric tokens match the
+// reply regardless of spacing ("%2" vs "% 2", "== 0" vs "==0").
+func compact(s string) string {
+	return strings.NewReplacer(" ", "", "\t", "", "\n", "").Replace(s)
+}
+
+// containsAllCompact reports whether reply contains every token, with
+// whitespace ignored on both sides. Real false negative in the
+// 2026-09-28 live run: rubric said "%2", the model answered "x % 2 == 0"
+// - correct Python, marked MISS.
+func containsAllCompact(reply string, toks []string) bool {
+	r := compact(reply)
+	for _, tok := range toks {
+		if !strings.Contains(r, compact(tok)) {
+			return false
+		}
+	}
+	return true
 }
 
 // judgeConfig holds the reference ("judge") model settings for
@@ -253,14 +282,7 @@ func TestLiveBattery(t *testing.T) {
 				fail++
 				t.Logf("NO-ABSTENTION [%s] %q: should abstain, answered %q", cat, prompt, reply)
 			default:
-				ok := true
-				for _, m := range mustContain {
-					if !strings.Contains(low, m) {
-						ok = false
-						break
-					}
-				}
-				if ok {
+				if containsAllCompact(low, mustContain) {
 					pass++
 				} else {
 					fail++
@@ -277,4 +299,41 @@ func TestLiveBattery(t *testing.T) {
 		}
 	}
 	fmt.Printf("battery done, hallucinations: %d\n", hallucinations)
+}
+
+func TestAbstains(t *testing.T) {
+	abstentions := []string{
+		"No lo sé, no tengo información sobre FWH.",
+		"No puedo verificar eso desde aquí.",
+		"No estoy seguro de la sintaxis exacta.",
+		"Eso no lo conozco, lo siento.",
+	}
+	for _, r := range abstentions {
+		if !abstains(r) {
+			t.Errorf("abstention not detected: %q", r)
+		}
+	}
+	notAbstentions := []string{
+		"Puedes ejecutarlo con cmd /c; hay que verificar si bash está instalado primero.",
+		"Deberías verificar la documentación oficial de Harbour.",
+		"FWH es FiveWin for Harbour, el framework de FiveTech.",
+	}
+	for _, r := range notAbstentions {
+		if abstains(r) {
+			t.Errorf("false abstention: %q", r)
+		}
+	}
+}
+
+func TestContainsAllCompact(t *testing.T) {
+	reply := strings.ToLower("[x for x in numeros if x % 2 == 0]")
+	if !containsAllCompact(reply, []string{"%2", "== 0"}) {
+		t.Error("spaced answer must match unspaced rubric tokens")
+	}
+	if !containsAllCompact(strings.ToLower("x%2==0"), []string{"% 2", "== 0"}) {
+		t.Error("unspaced answer must match spaced rubric tokens")
+	}
+	if containsAllCompact(reply, []string{"%3"}) {
+		t.Error("wrong operator must not match")
+	}
 }
