@@ -30,8 +30,8 @@ type batteryPrompt struct {
 	MustNotContain  []string `yaml:"must_not_contain"`
 	AbstainOK       bool     `yaml:"abstain_ok"`
 	AbstainExpected bool     `yaml:"abstain_expected"`
-	Setup           bool     `yaml:"setup"`         // conversation setup turn, no scoring
-	NeedsSandbox    bool     `yaml:"needs_sandbox"` // needs a run_command backend; skipped when unavailable
+	Setup           bool     `yaml:"setup"`          // conversation setup turn, no scoring
+	NeedsSandbox    bool     `yaml:"needs_sandbox"`  // needs a run_command backend; skipped when unavailable
 	AuditContains   string   `yaml:"audit_contains"` // after the turn, the audit log must hold a run_command line with this token
 	Source          string   `yaml:"source"`
 }
@@ -102,6 +102,13 @@ func abstains(reply string) bool {
 		// answer) out of the detector.
 		"no pude encontrar información", "no he encontrado información",
 		"no he podido encontrar información", "no encuentro información",
+		// 2026-09-28 live run, two more detector gaps: "No encontré
+		// información específica sobre..." (tiddlywinks) and
+		// "¡No tengo esa información!" (memory after olvida:). Both
+		// keep the "información" guard so "no he encontrado errores"
+		// and "no tengo ese dato guardado, pero sí otros" style
+		// answers stay out.
+		"no encontré información", "no tengo esa información",
 	} {
 		if strings.Contains(low, m) {
 			return true
@@ -365,6 +372,9 @@ func TestAbstains(t *testing.T) {
 		// Live false negatives fixed on 2026-09-28:
 		"No pude encontrar información específica sobre esa liga regional.",
 		"Ahora no tengo registrada en mi memoria cuál es tu comida favorita.",
+		// Detector gaps from the 2026-09-28 baseline (81/95):
+		"No encontré información específica sobre los ganadores de esa liga regional.",
+		"¡No tengo esa información! Tampoco guardé ningún dato tuyo en memoria.",
 	}
 	for _, r := range abstentions {
 		if !abstains(r) {
