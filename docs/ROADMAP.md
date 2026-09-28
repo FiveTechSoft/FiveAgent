@@ -193,6 +193,17 @@ the phases are milestones.
     rejected without token, command runs confined to the sandbox), and
     the doc page gets a reader from zero to first call in minutes.
 
+21. **Multi-agent parallel execution** (future path, for large models;
+    see the single-agent principle below) - a worker pool (goroutines)
+    fed by a task queue: N concurrent tasks, each isolated in its own
+    context, sharing nothing mutable. Memory stays thread-safe under
+    concurrency (the knowledge mutex pattern from stage h). A
+    coordinator collects worker results and synthesizes one answer.
+    Done when: `go test -race` stays green across the pool, and an
+    acceptance test launches several subtasks in parallel and verifies
+    the coordinator aggregates every result correctly (no lost, no
+    duplicated work).
+
 ## Phase 5 - setup that does not need a manual
 
 18. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
