@@ -61,6 +61,27 @@ tokens); the rest is metrics.
 FIVEAGENT_EVAL_LIVE=1 go test ./evals/ -run Battery -v
 ```
 
+**Judge mode (comparative).** With `FIVEAGENT_EVAL_JUDGE=1` each battery
+prompt is also answered by a reference model (any OpenAI-compatible
+endpoint - a big hosted model or a bigger local one), and the judge
+grades the local reply against its own reference answer: 2 correct,
+1 partial, 0 wrong or invented. The report adds a per-category judge
+line: points and percentage of the reference. Judge scores are metrics,
+not gate failures: the mechanical hallucination gate stays the only
+hard fail.
+
+```
+FIVEAGENT_EVAL_LIVE=1 FIVEAGENT_EVAL_JUDGE=1 \
+  FIVEAGENT_EVAL_JUDGE_MODEL=gpt-4o-mini \
+  FIVEAGENT_EVAL_JUDGE_API_KEY=sk-... \
+  go test ./evals/ -run Battery -v
+```
+
+Judge env: `FIVEAGENT_EVAL_JUDGE_BASE_URL` (default
+https://api.openai.com/v1), `FIVEAGENT_EVAL_JUDGE_API_KEY` (falls back
+to OPENAI_API_KEY), `FIVEAGENT_EVAL_JUDGE_MODEL` (default gpt-4o-mini).
+A local judge (e.g. a 27b on Ollama) needs no API key.
+
 A roadmap stage is only "done" when its CI evals pass and the live gate
 passes against the target model.
 
