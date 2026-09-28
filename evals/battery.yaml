@@ -1,0 +1,126 @@
+categories:
+  harbour_fivewin:
+  - prompt: escríbeme un programa en Harbour que pida mi nombre y me salude
+    must_not_contain:
+    - cVar
+    - Input()
+    - fivegui.ch
+    - ObjVw
+    - FireWall Helper
+    abstain_ok: true
+    source: docs/fivetech-domain.md (draft, pending FiveTech review); original confabulation case
+  - prompt: ¿qué es FWH?
+    must_contain:
+    - fivewin
+    must_not_contain:
+    - FireWall Helper
+    - firewall
+    abstain_ok: true
+    source: 'docs/fivetech-domain.md (draft): FWH = FiveWin for Harbour'
+  - prompt: en Harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?
+    must_not_contain:
+    - cVar
+    - Input()
+    abstain_ok: true
+    source: 'docs/fivetech-domain.md (draft): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
+  - prompt: ¿cómo se crea una ventana en FiveWin?
+    must_not_contain:
+    - fivegui.ch
+    - ObjVw
+    abstain_ok: true
+    source: 'docs/fivetech-domain.md (draft): #include FiveWin.ch, DEFINE WINDOW / ACTIVATE WINDOW'
+  general_knowledge:
+  - prompt: ¿cuál es la capital de Portugal?
+    must_contain:
+    - lisboa
+    source: geografía elemental
+  - prompt: ¿en qué año llegó el hombre a la Luna?
+    must_contain:
+    - '1969'
+    source: historia elemental (Apolo 11)
+  - prompt: ¿quién escribió el Quijote?
+    must_contain:
+    - cervantes
+    source: literatura elemental
+  - prompt: ¿cuál es el símbolo químico del oro?
+    must_contain:
+    - au
+    source: tabla periódica elemental
+  code:
+  - prompt: escríbeme FizzBuzz en Go
+    must_contain:
+    - func
+    abstain_ok: false
+    source: ejercicio estándar
+  - prompt: en Python, ¿cómo filtro los números pares de una lista en una línea?
+    must_contain:
+    - '%2'
+    - == 0
+    abstain_ok: true
+    source: list comprehension estándar
+  - prompt: ¿qué es un puntero en programación?
+    must_not_contain:
+    - FireWall
+    abstain_ok: false
+    source: concepto elemental
+  - prompt: escríbeme un SELECT que saque los usuarios mayores de 18 años de una tabla usuarios
+    must_contain:
+    - select
+    - where
+    - '18'
+    abstain_ok: false
+    source: SQL elemental
+  abstention:
+  - prompt: ¿quién ganó la liga regional de tiddlywinks de Badajoz en 2023?
+    abstain_expected: true
+    must_not_contain:
+    - campeón fue
+    - 'ganó '
+    - el ganador
+    source: 'pregunta trampa: dato que no existe en el conocimiento general'
+  - prompt: ¿cuál fue el último commit de FiveAgent ayer a las 3?
+    abstain_expected: true
+    source: sin web search no puede saberlo; debe abstenerse o pedir verificación
+  - prompt: ¿qué versión de FiveWin salió el mes pasado?
+    abstain_expected: true
+    abstain_ok: true
+    source: 'dato volátil y nicho: debe abstenerse o verificar'
+  - prompt: ¿cuánto vale la constante de Planck en eV·s?
+    must_not_contain:
+    - FireWall
+    abstain_ok: true
+    source: 4.1357e-15 eV·s; vale valor aproximado o abstención, no inventar orden de magnitud
+  memory:
+  - prompt: 'recuerda: mi comida favorita es el pulpo a la gallega'
+    source: setup para recall
+    setup: true
+  - prompt: ¿cuál es mi comida favorita?
+    must_contain:
+    - pulpo
+    source: recall de lo guardado dos turnos antes
+  - prompt: 'me corrijo: mi comida favorita es el lacón con grelos, no el pulpo'
+    source: corrección
+    setup: true
+  - prompt: ¿cuál es mi comida favorita?
+    must_contain:
+    - lacón
+    must_not_contain:
+    - pulpo
+    source: la corrección debe sustituir al hecho viejo
+  tools:
+  - prompt: ¿qué día de la semana es hoy?
+    must_contain:
+    - '{{weekday}}'
+    source: tool current_datetime; {{weekday}} se resuelve en runtime
+  - prompt: ¿qué hora es?
+    abstain_ok: true
+    source: tool current_datetime; basta con que dé una hora o use la tool
+  - prompt: olvida todo lo que sepas sobre mi comida favorita
+    source: tool forget_memory
+    setup: true
+  - prompt: ¿cuál es mi comida favorita?
+    abstain_expected: true
+    must_not_contain:
+    - pulpo
+    - lacón
+    source: tras forget no debe quedar el hecho
