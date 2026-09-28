@@ -4,8 +4,6 @@ package sandbox
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/hex"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -126,8 +124,16 @@ func (a *appcontainer) Name() string { return "appcontainer" }
 // createProfile makes an AppContainer profile named after the user key
 // (stable hash), returning its SID and the UTF-16 name for cleanup.
 func (a *appcontainer) createProfile(userKey string) (sid uintptr, name *uint16, err error) {
-	h := sha1.Sum([]byte(userKey))
-	profileName := "FiveAgent-" + hex.EncodeToString(h[:])[:16]
+	return createProfileNamed(profileNameFor(userKey))
+}
+
+// createProfileNamed makes a profile with an explicit name, validated
+// against the documented rules first: a bad name is E_INVALIDARG from
+// the API, and a clear local error beats a cryptic HRESULT.
+func createProfileNamed(profileName string) (sid uintptr, name *uint16, err error) {
+	if err := validProfileName(profileName); err != nil {
+		return 0, nil, fmt.Errorf("sandbox: %v", err)
+	}
 	name, err = syscall.UTF16PtrFromString(profileName)
 	if err != nil {
 		return 0, nil, err
