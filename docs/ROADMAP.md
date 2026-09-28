@@ -158,8 +158,11 @@ evidence that counts.
    do A then B, answer under a negated constraint) are where small
    models silently drop clauses, so detecting them should route to
    the larger model - the battery's instrucciones_compuestas category
-   measures exactly this failure. Later: more task classes beyond
-   chat/code and fully configurable model sets.
+   measures exactly this failure. The 2026-09-28 live run 3 added a
+   second shape: fuzzy riddles and lateral-logic prompts (the 9B
+   answers montana/piano where the rubric wants edad/teclado) - same
+   treatment. Later: more task classes beyond chat/code and fully
+   configurable model sets.
    a. **Hybrid cloud escalation** (decision module implemented and
       CI-tested; the cloud provider itself is still planned) - top
       priority, core security piece: it is the single point that
