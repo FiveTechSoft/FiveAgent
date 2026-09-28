@@ -90,9 +90,10 @@ categories:
     abstain_expected: true
     source: sin web search no puede saberlo; debe abstenerse o pedir verificación
   - prompt: ¿qué versión de FiveWin salió el mes pasado?
-    abstain_expected: true
     abstain_ok: true
-    source: 'dato volátil y nicho: debe abstenerse o verificar'
+    must_not_contain:
+    - FireWall Helper
+    source: 'con web_search disponible, verificar es tan válido como abstenerse; el gate y el juez cazan la invención'
   - prompt: ¿cuánto vale la constante de Planck en eV·s?
     must_not_contain:
     - FireWall
@@ -134,6 +135,12 @@ categories:
     - /c
     needs_sandbox: true
     source: "la descripción de la tool run_command; en Windows es cmd /c, no bash (hallazgo de la primera prueba viva: bash -c no existe en la mayoría de Windows)"
+  - prompt: ejecuta el comando echo con el texto auditoria-cinco
+    must_contain:
+    - auditoria-cinco
+    needs_sandbox: true
+    audit_contains: echo
+    source: una ejecución real deja línea "run_command audit" en el log; si el modelo no llamó a la tool, no hay línea
   - prompt: olvida todo lo que sepas sobre mi comida favorita
     source: tool forget_memory
     setup: true
@@ -143,3 +150,11 @@ categories:
     - pulpo
     - lacón
     source: tras forget no debe quedar el hecho
+  web_search:
+  - prompt: usa la herramienta web_search para encontrar la documentación oficial de FiveWin for Harbour y dime su URL
+    must_contain:
+    - fivetechsoft.github.io
+    must_not_contain:
+    - FireWall Helper
+    abstain_ok: true
+    source: respuesta groundeada en resultados reales de búsqueda, no inventada; abstain_ok porque DuckDuckGo puede rate-limit
