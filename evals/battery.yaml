@@ -115,6 +115,11 @@ categories:
   - prompt: ¿qué hora es?
     abstain_ok: true
     source: tool current_datetime; basta con que dé una hora o use la tool
+  - prompt: ejecuta el comando echo con el texto exacto FooBAR-Baz_123 y muéstrame su salida tal cual
+    must_contain:
+    - FooBAR-Baz_123
+    needs_sandbox: true
+    source: salida verbatim de run_command; el casing tramposo caza salidas reformateadas o inventadas (hallazgo de la primera prueba viva)
   - prompt: olvida todo lo que sepas sobre mi comida favorita
     source: tool forget_memory
     setup: true
