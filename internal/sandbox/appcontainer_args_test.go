@@ -81,7 +81,7 @@ func TestProfileNameForAlwaysValid(t *testing.T) {
 		"probe",
 		"whatsapp/34600123456",
 		"telegram/123456789",
-		`C:\Users\Antonio Linares\FiveAgent`,
+		`C:\Users\Test User\FiveAgent`,
 		"usuario-con-ñ-y-acentos",
 		"",
 	}
