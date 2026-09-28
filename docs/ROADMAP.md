@@ -137,7 +137,17 @@ the phases are milestones.
     DuckDuckGo by default (no API key, may rate-limit under heavy use),
     Brave via `web_search.api_key` for production. `web_search:` section
     in the yml. A self-hosted SearXNG provider remains a welcome option.
-13. **Browser** (planned) - a headless Playwright browser as a native
+13. **Workspace tools** (planned) - real filesystem tools for the
+    agent: read_file, write_file and edit_file with true diffs (the
+    model passes old/new text, the tool verifies the exact context and
+    returns the applied diff), all scoped to the user's folder. Every
+    write takes an automatic snapshot with go-git (already a
+    dependency), so every edit is undoable and auditable - no more
+    destructive shell redirects. Base for the later git tool.
+    Done when: the agent creates, edits and fixes a file over WhatsApp
+    and returns the exact diff applied; the battery grows a "files"
+    case that verifies the edit and the rollback snapshot.
+14. **Browser** (planned) - a headless Playwright browser as a native
     tool, OUTSIDE the command sandbox (which stays offline): one isolated
     browser profile per user, downloads land in the user's folder.
     Automation by DOM / accessibility tree, never pixels: the agent gets
@@ -150,7 +160,7 @@ the phases are milestones.
     Done when: the battery grows a "web" category that fills a local
     test form end-to-end, and a confirmation-gate eval proves a purchase
     form is never submitted without user approval.
-14. **Links** (planned) - the bot answers with links served by its own
+15. **Links** (planned) - the bot answers with links served by its own
     HTTP server (the same listener as the webhook), not with
     wall-of-text messages:
     a) Reports: the bot generates a long report (battery results,
@@ -171,7 +181,7 @@ the phases are milestones.
     expiry or with a wrong signature, (ii) a form submission lands in
     the vault/config and its value appears in no log line, (iii) a
     link minted for one sender is rejected when opened by another.
-15. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
+16. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
     the webhook receives image/audio/video/document with a media id,
     downloads it with an authenticated Graph API call, dispatches by
     type, and the result enters the normal message flow; outbound, the
@@ -199,7 +209,7 @@ the phases are milestones.
     known phrase, both scored with must_contain on the agent's reply,
     plus an outbound case where the bot emits audio/image and the
     (fake) Graph server confirms the upload and the send.
-16. **VM GUI** (planned) - a Linux VM with a lightweight desktop (XFCE
+17. **VM GUI** (planned) - a Linux VM with a lightweight desktop (XFCE
     or similar) on the server, QEMU/KVM, powered on demand, not 24/7.
     Real desktop screenshots via QEMU screendump or VNC, taken on
     demand and after each action, never continuous video; delivered
@@ -213,12 +223,12 @@ the phases are milestones.
     the accessibility tree, and sends real before/after screenshots
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
-17. **Email + calendar** - read and act on the user's accounts (OAuth).
+18. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
 
-18. **iMessage** - bridge docs + reference implementation (needs a Mac).
-19. **WhatsApp extras** - status reactions (working): 👀 when an
+19. **iMessage** - bridge docs + reference implementation (needs a Mac).
+20. **WhatsApp extras** - status reactions (working): 👀 when an
     inbound message checks out, ✅ when the reply lands, ⚠️ on failure,
     through the same /messages endpoint, replacing the previous
     reaction on the same message, best-effort (a failed reaction never
@@ -228,7 +238,7 @@ the phases are milestones.
     full context in arrival order, quoting the last message. Then
     templates, media, groups. Telegram reactions (setMessageReaction)
     follow the same pattern later.
-20. **Content reactions** (planned) - on top of status reactions, the
+21. **Content reactions** (planned) - on top of status reactions, the
     agent reacts to what a message says, not just its state: a
     celebration, a joke, a thank-you gets a fitting emoji chosen from
     the message content. Cheap to build (a small extra model call or
@@ -237,7 +247,7 @@ the phases are milestones.
 
 ## Phase 4b - v0.4b: growing the small model
 
-22. **Skills** (planned) - a `skills/` folder with one SKILL.md per
+23. **Skills** (planned) - a `skills/` folder with one SKILL.md per
     domain: name, one-line trigger, concise procedure written for a
     small model. Only the one-line index enters the system prompt; the
     full skill loads on demand when the request matches (keywords or a
@@ -248,7 +258,7 @@ the phases are milestones.
     battery runs the same prompts with and without the matching skill
     and reports the delta per category, and the domain answers pass only
     with the skill loaded.
-23. **FiveAgent as MCP server** (planned) - expose a local,
+24. **FiveAgent as MCP server** (planned) - expose a local,
     token-authenticated MCP endpoint so an external agent (e.g. the
     owner's OpenCode) can execute commands inside the sandbox and read
     files from the user's folder. Documented in docs/. Done when: an
@@ -256,7 +266,7 @@ the phases are milestones.
     rejected without token, command runs confined to the sandbox), and
     the doc page gets a reader from zero to first call in minutes.
 
-24. **Multi-agent parallel execution** (future path, for large models;
+25. **Multi-agent parallel execution** (future path, for large models;
     see the single-agent principle below) - a worker pool (goroutines)
     fed by a task queue: N concurrent tasks, each isolated in its own
     context, sharing nothing mutable. Memory stays thread-safe under
@@ -269,7 +279,7 @@ the phases are milestones.
 
 ## Phase 5 - setup that does not need a manual
 
-21. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
+22. **WhatsApp setup wizard** - a `fiveagent setup whatsapp` command that
     does the Meta configuration through the Graph API for you: check the
     token, register the webhook callback, subscribe the app to the
     `messages` field and to the WhatsApp Business Account
