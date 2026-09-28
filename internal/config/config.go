@@ -112,7 +112,10 @@ func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	return value.Decode((*plain)(c))
 }
 
-// Load reads path (default ./fiveagent.yml).
+// Load reads path (default ./fiveagent.yml). Environment variables in the
+// file, ${VAR} or $VAR, are expanded before parsing, so secrets can stay
+// out of the yml (access_token: ${WHATSAPP_ACCESS_TOKEN}). An unset
+// variable expands to the empty string.
 func Load(path string) (*Config, error) {
 	if path == "" {
 		path = "fiveagent.yml"
@@ -121,6 +124,7 @@ func Load(path string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
+	b = []byte(os.ExpandEnv(string(b)))
 	var c Config
 	if err := yaml.Unmarshal(b, &c); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
