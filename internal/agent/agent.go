@@ -112,6 +112,7 @@ type Agent struct {
 	store     memory.Store
 	tools     *tools.Registry
 	sysPrompt string
+	pruner    PruneConfig // context pruning (stage 15); zero value takes the defaults
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
@@ -131,6 +132,38 @@ func (a *Agent) WithCoder(c *model.Client) *Agent {
 func (a *Agent) WithKnowledge(k *memory.Knowledge) *Agent {
 	a.knowledge = k
 	return a
+}
+
+// WithPruning sets the context-pruning configuration (stage 15) and
+// returns the agent for chaining. Without it the defaults apply.
+func (a *Agent) WithPruning(cfg PruneConfig) *Agent {
+	a.pruner = cfg
+	return a
+}
+
+// summarizeTurns is the default auxiliary pass for the pruner's step 2:
+// the chat model condenses the middle turns into a short brief of
+// facts, decisions and pending items. Costs one model call, only when
+// the conversation no longer fits the budget after tool-output
+// truncation.
+func (a *Agent) summarizeTurns(ctx context.Context, turns []model.Message) (string, error) {
+	var b strings.Builder
+	for _, m := range turns {
+		c := m.Content
+		if len(c) > 500 {
+			c = cutRunes(c, 500) + "…"
+		}
+		fmt.Fprintf(&b, "%s: %s"+"\n", m.Role, c)
+	}
+	msgs := []model.Message{
+		{Role: "system", Content: "Eres un compresor de conversaciones. Condensa los turnos siguientes en un resumen breve y fiel: hechos, decisiones y asuntos pendientes. No inventes nada que no esté en los turnos."},
+		{Role: "user", Content: b.String()},
+	}
+	ans, err := a.mdl.Chat(ctx, msgs, nil)
+	if err != nil {
+		return "", err
+	}
+	return ans.Content, nil
 }
 
 // recallNote builds the memory block injected next to the system prompt.
@@ -257,9 +290,31 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	if err := a.store.Append(ctx, channel, userID, "user", text); err != nil {
 		return "", err
 	}
-	history, err := a.store.Recent(ctx, channel, userID, 20)
+	// Stage 15: fetch a deep history and prune it to the context
+	// budget instead of hard-truncating to the last 20 messages. Short
+	// conversations pass through untouched; long ones lose old tool
+	// outputs first, then middle turns, never the head or the tail.
+	history, err := a.store.Recent(ctx, channel, userID, 200)
 	if err != nil {
 		return "", err
+	}
+	var hmsgs []model.Message
+	for _, h := range history {
+		// Never replay a stored system message: the prompt comes from
+		// the current code/config, so upgrades take effect at once and
+		// an old prompt lingering in memory cannot override it.
+		if h[0] == "system" {
+			continue
+		}
+		hmsgs = append(hmsgs, model.Message{Role: h[0], Content: h[1]})
+	}
+	pruner := a.pruner
+	if pruner.Summarize == nil {
+		pruner.Summarize = a.summarizeTurns
+	}
+	hmsgs, pruneNotes := pruner.Prune(ctx, hmsgs)
+	for _, n := range pruneNotes {
+		log.Printf("agent: context pruning: %s", n)
 	}
 	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel)}}
 	if a.knowledge != nil {
@@ -269,15 +324,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			}
 		}
 	}
-	for _, h := range history {
-		// Never replay a stored system message: the prompt comes from
-		// the current code/config, so upgrades take effect at once and
-		// an old prompt lingering in memory cannot override it.
-		if h[0] == "system" {
-			continue
-		}
-		msgs = append(msgs, model.Message{Role: h[0], Content: h[1]})
-	}
+	msgs = append(msgs, hmsgs...)
 
 	var reply string
 	var lastContent string // model words from a tool-call turn, as fallback
