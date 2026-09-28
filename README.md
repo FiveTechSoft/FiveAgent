@@ -117,7 +117,7 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 - WhatsApp channel via the official Cloud API, verified end-to-end in a live install ([guía en español paso a paso](docs/whatsapp.md)). Telegram channel via long polling (no public URL needed).
 - Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
 - Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
-- Tool calling: the model can call tools (OpenAI-style function calling). Built-in tools: current date/time and `run_command`, which executes commands inside a per-user sandbox (bubblewrap backend on Linux, tested: no network, only the user's folder writable; Docker and Windows Job Objects backends included, pending live verification).
+- Tool calling: the model can call tools (OpenAI-style function calling). Built-in tools: current date/time, web_search (DuckDuckGo by default, Brave optional), memory save/forget, and `run_command`, which executes commands inside a per-user sandbox. Backends: bubblewrap on Linux (CI-tested: no network, only the user's folder writable), AppContainer on Windows (CI-tested, pending live verification on a real PC), Docker fallback. If AppContainer is unavailable the sandbox degrades to Job Objects - RAM cap and timeout only, NO network or filesystem isolation - with a loud WARNING in the log. Run `fiveagent doctor` to see what your machine supports.
 
 ## Roadmap
 
