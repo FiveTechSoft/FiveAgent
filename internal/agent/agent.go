@@ -281,6 +281,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 
 	var reply string
 	var lastContent string // model words from a tool-call turn, as fallback
+	rescued := 0           // tool calls whose mistyped arguments were repaired (stage 14)
 	// The agent decides which model serves this request: the coder model
 	// for code-heavy text, the main model otherwise.
 	mdl := a.mdl
@@ -312,7 +313,15 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 				args = args[:160] + "..."
 			}
 			log.Printf("agent tool: %s(%s)", call.Function.Name, args)
-			result, err := a.tools.Execute(ctx, call.Function.Name, []byte(call.Function.Arguments))
+			rawArgs := []byte(call.Function.Arguments)
+			if schema, ok := a.tools.Schema(call.Function.Name); ok {
+				if fixed, repairs, rerr := tools.RepairArgs(schema, rawArgs); rerr == nil && len(repairs) > 0 {
+					rescued++
+					log.Printf("agent tool repair %s: %s", call.Function.Name, strings.Join(repairs, "; "))
+					rawArgs = fixed
+				}
+			}
+			result, err := a.tools.Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
 			}
@@ -346,6 +355,18 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		if reply == "" {
 			reply = "Lo siento, no he podido preparar una respuesta esta vez. Prueba a preguntármelo otra vez."
 		}
+	}
+	if rescued > 0 {
+		log.Printf("agent: tool-call repair rescued %d call(s) this turn", rescued)
+	}
+	// Repetition guard: a reply dominated by one long repeated fragment
+	// is a degenerate echo, not an answer. Abort with a clear error; the
+	// channels turn it into their standard Spanish fallback line, and
+	// nothing degenerate is ever delivered or stored (stage 14).
+	if frag, share := repeatedFragment(reply); frag != "" {
+		log.Printf("agent: repetition guard aborted a reply dominated by a %d-byte fragment (%.0f%% of %d bytes)",
+			len(frag), share*100, len(reply))
+		return "", fmt.Errorf("agent: reply suppressed by the repetition guard")
 	}
 	if err := a.store.Append(ctx, channel, userID, "assistant", reply); err != nil {
 		return "", err
