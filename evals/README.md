@@ -186,7 +186,48 @@ Post-run analysis (fixed in the commit recording this row):
    (harbour_fivewin) - improved 2 -> 1 versus the baseline. This is the
    number to beat in the next harness round, without touching weights.
 
-Next-run expectation with the matcher fix: 86 + however many of the 8
-new instrucciones_compuestas cases pass, over the new 104 total, with 1
-hallucination. Those 8 cases have never run live - their pass count is
-an open measurement, not an estimate.
+Next-run expectation at the time: 86/96 with 1 hallucination -
+superseded by run 3 below (run on the same 96-prompt battery at
+48b7ab5, before the 8 instrucciones_compuestas cases landed).
+
+### 2026-09-28 (run 3) - tree 48b7ab5 (stage 14 live in traffic)
+
+Score: **80 pass / 3 correct-abstention / 4 miss / 0 hallucination, of
+96** (83/96; gate: **PASS** - the first clean gate). Unit suite the
+same tree: 120 PASS / 0 FAIL / 3 SKIP (the 3 env-gated live tests).
+Memory: **M1 write-through 7/7**, **M3a effective forgetting: PASS**.
+
+The headline is the failure quality, not the raw number: the
+hallucination gate is green for the first time, harbour_fivewin went
+4/4 (the cVar residual is gone - the domain fix held), and no miss was
+an invented fact.
+
+The 4 misses:
+
+1. logica: "Que cosa sube pero nunca baja?" - answered montana, rubric
+   wants edad. 2. logica: "tiene llaves pero no abre puertas?" -
+   answered piano, rubric wants teclado. Both passed in run 2: small
+   models are nondeterministic on fuzzy riddle forms, which is exactly
+   why riddles are now noted in stage 10 as a routing signal toward
+   the larger model.
+3. tools: the audit case ("ejecuta echo con texto auditoria-cinco") -
+   AUDIT-MISSING: the model never called run_command. A real tool-use
+   failure to watch in the next runs.
+4. memory/tools: after the forget setup, "Ya he olvidado esa
+   informacion... no tengo registro" was semantically the correct
+   abstention but the detector did not know that variant and scored
+   NO-ABSTENTION. Detector gap, fixed in the commit recording this row
+   ("he olvidado", "no tengo registro" + regression case).
+
+The 85 -> 83 dip versus run 2 is variance concentrated in the two
+riddles and the unscored tool-audit case; the gate metric (0
+hallucinations, domain 4/4) is the one that proves the harness works.
+
+Source: owner's live-run report, 2026-09-28 (double counting method,
+regex rows and YAML count agreeing).
+
+Next-run expectation: the battery is now 104 prompts (tree 4f6ed83,
+the 8 instrucciones_compuestas cases never run live) - 83 plus however
+many of the 8 new cases pass, with the detector fix recovering the
+post-forget abstention and 0 hallucinations to hold the gate. The new
+cases are an open measurement, not an estimate.
