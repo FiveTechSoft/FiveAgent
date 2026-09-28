@@ -67,6 +67,20 @@ func (r *Registry) Specs() []Spec {
 	return out
 }
 
+// Schema returns the parameters JSON Schema of the named tool, so the
+// agent loop can repair mistyped arguments before dispatch (stage 14).
+func (r *Registry) Schema(name string) (json.RawMessage, bool) {
+	t, ok := r.byName[name]
+	if !ok {
+		return nil, false
+	}
+	p := t.Parameters()
+	if len(p) == 0 {
+		p = json.RawMessage(`{"type":"object","properties":{}}`)
+	}
+	return p, true
+}
+
 // Execute runs the named tool. Unknown tool names return an error the
 // agent loop feeds back to the model as the tool result.
 func (r *Registry) Execute(ctx context.Context, name string, args json.RawMessage) (string, error) {
