@@ -95,9 +95,7 @@ func (w *whatsapp) Run(ctx context.Context) error {
 		defer cancel()
 		_ = srv.Shutdown(shutCtx)
 	}()
-	if len(w.cfg.AllowedSenders) == 0 {
-		log.Printf("whatsapp: allowed_senders is empty - answering messages from ANY sender; set allowed_senders in fiveagent.yml to restrict")
-	}
+	w.logSecurityWarnings()
 	log.Printf("whatsapp webhook listening on %s/webhook/whatsapp", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
@@ -113,6 +111,18 @@ func (w *whatsapp) handleWebhook(rw http.ResponseWriter, r *http.Request) {
 		w.inbound(rw, r)
 	default:
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// logSecurityWarnings surfaces exposure loudly at startup, never
+// silently: an open sender list and a missing app_secret are the two
+// ways this webhook answers the whole internet.
+func (w *whatsapp) logSecurityWarnings() {
+	if len(w.cfg.AllowedSenders) == 0 {
+		log.Printf("WARNING: whatsapp allowed_senders is empty - the bot answers ANYONE who reaches the webhook; set allowed_senders in fiveagent.yml to restrict")
+	}
+	if w.cfg.AppSecret == "" {
+		log.Printf("WARNING: whatsapp app_secret is not set - the webhook runs UNVERIFIED: anyone who reaches the URL can post fake messages; set app_secret in fiveagent.yml (env expansion works: app_secret: ${FIVEAGENT_META_APP_SECRET})")
 	}
 }
 
