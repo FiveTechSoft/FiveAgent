@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -174,5 +176,32 @@ func TestSystemPromptIncludesDomainReference(t *testing.T) {
 	}
 	if !strings.Contains(p, "AUTHORITATIVE") {
 		t.Error("system prompt must mark the domain reference as overriding general knowledge")
+	}
+}
+
+func TestDomainPrefersRuntimeFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "docs", "fivetech-domain.md"), []byte("MARKER-DOMAIN-RUNTIME"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	cfg := &config.Config{}
+	cfg.Model.Name = "m"
+	cfg.Model.BaseURL = "http://x"
+	if p := SystemPrompt(cfg); !strings.Contains(p, "MARKER-DOMAIN-RUNTIME") {
+		t.Error("the runtime file must win over the embedded copy")
+	}
+}
+
+func TestDomainFallsBackToEmbedded(t *testing.T) {
+	t.Chdir(t.TempDir()) // no docs/ here
+	cfg := &config.Config{}
+	cfg.Model.Name = "m"
+	cfg.Model.BaseURL = "http://x"
+	if p := SystemPrompt(cfg); !strings.Contains(p, "FiveWin for Harbour") {
+		t.Error("a missing runtime file must fall back to the embedded copy")
 	}
 }
