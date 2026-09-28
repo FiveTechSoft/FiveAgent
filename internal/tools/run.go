@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 )
@@ -73,10 +75,15 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if strings.TrimSpace(a.Command) == "" {
 		return "", fmt.Errorf("run_command: empty command")
 	}
+	start := time.Now()
 	res, err := r.SB.Run(ctx, userKey, append([]string{a.Command}, a.Args...))
 	if err != nil {
+		// The audit trail distinguishes a real execution from a model
+		// that claims it ran something (first-live-test finding).
+		log.Printf("run_command audit user=%s cmd=%q args=%q error=%v", userKey, a.Command, a.Args, err)
 		return "", err
 	}
+	log.Printf("run_command audit user=%s cmd=%q args=%q exit=%d dur=%s stderr=%.160q", userKey, a.Command, a.Args, res.ExitCode, time.Since(start).Round(time.Millisecond), res.Stderr)
 	var sb strings.Builder
 	if res.Stdout != "" {
 		sb.WriteString(res.Stdout)
