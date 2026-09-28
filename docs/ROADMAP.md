@@ -132,8 +132,24 @@ the phases are milestones.
 
 ## Phase 3 - v0.3: tools
 
-12. **Web search** - pluggable backend, with a self-hosted SearXNG option.
-13. **Browser** - drive the Playwright sidecar (already in docker compose).
+12. **Web search** (implemented, CI-tested against fake servers; pending
+    first live run) - the `web_search` tool with pluggable providers:
+    DuckDuckGo by default (no API key, may rate-limit under heavy use),
+    Brave via `web_search.api_key` for production. `web_search:` section
+    in the yml. A self-hosted SearXNG provider remains a welcome option.
+13. **Browser** (planned) - a headless Playwright browser as a native
+    tool, OUTSIDE the command sandbox (which stays offline): one isolated
+    browser profile per user, downloads land in the user's folder.
+    Automation by DOM / accessibility tree, never pixels: the agent gets
+    the page as a numbered list of elements and acts by id ("fill #3",
+    "click #7") - small models fail at vision-coordinate clicking but
+    handle structured DOM well. Safety by design: user confirmation
+    before submitting forms that spend money or send data, credentials
+    live in a local vault and never enter prompts or logs, optional
+    per-skill domain allowlist, and every click/fill is audit-logged.
+    Done when: the battery grows a "web" category that fills a local
+    test form end-to-end, and a confirmation-gate eval proves a purchase
+    form is never submitted without user approval.
 14. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
@@ -155,6 +171,27 @@ the phases are milestones.
     the message content. Cheap to build (a small extra model call or
     simple rules on top of the existing React()); whether rules are
     enough or the model chooses is decided by evals, not taste.
+
+## Phase 4b - v0.4b: growing the small model
+
+19. **Skills** (planned) - a `skills/` folder with one SKILL.md per
+    domain: name, one-line trigger, concise procedure written for a
+    small model. Only the one-line index enters the system prompt; the
+    full skill loads on demand when the request matches (keywords or a
+    cheap classifier), with optional tools associated to the skill.
+    docs/fivetech-domain.md migrates to this format as the first skill.
+    This is how the small model "learns from the big ones": expertise is
+    written down once instead of re-derived per session. Done when: the
+    battery runs the same prompts with and without the matching skill
+    and reports the delta per category, and the domain answers pass only
+    with the skill loaded.
+20. **FiveAgent as MCP server** (planned) - expose a local,
+    token-authenticated MCP endpoint so an external agent (e.g. the
+    owner's OpenCode) can execute commands inside the sandbox and read
+    files from the user's folder. Documented in docs/. Done when: an
+    integration test drives the endpoint with a fake client (auth
+    rejected without token, command runs confined to the sandbox), and
+    the doc page gets a reader from zero to first call in minutes.
 
 ## Phase 5 - setup that does not need a manual
 
