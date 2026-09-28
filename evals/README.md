@@ -47,9 +47,10 @@ FIVEAGENT_EVAL_LIVE=1 FIVEAGENT_EVAL_MODEL=qwen3.5:9b go test ./evals/ -run Live
 
 ## The comparative battery
 
-`battery.yaml` holds 95 prompts in 16 categories (harbour_fivewin,
+`battery.yaml` holds 104 prompts in 17 categories (harbour_fivewin,
 general_knowledge, code, abstention, memory, tools, shell, c,
-lenguajes, geografia, historia, ciencia, literatura, arte, logica,
+lenguajes, geografia, historia, instrucciones_compuestas, ciencia,
+literatura, arte, logica,
 web_search), each with a
 grounded reference and a scoring rubric: must_contain / must_not_contain
 / abstain_ok / abstain_expected / setup. A setup turn carrying `memory_writes: <token>` is scored on the
@@ -185,4 +186,7 @@ Post-run analysis (fixed in the commit recording this row):
    (harbour_fivewin) - improved 2 -> 1 versus the baseline. This is the
    number to beat in the next harness round, without touching weights.
 
-Next-run expectation with the matcher fix: 86/96 with 1 hallucination.
+Next-run expectation with the matcher fix: 86 + however many of the 8
+new instrucciones_compuestas cases pass, over the new 104 total, with 1
+hallucination. Those 8 cases have never run live - their pass count is
+an open measurement, not an estimate.
