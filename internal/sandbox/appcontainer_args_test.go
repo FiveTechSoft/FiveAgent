@@ -6,6 +6,13 @@ import (
 	"unsafe"
 )
 
+// escapeSinkName and escapeSinkSid pin TestProfileArgsShape's fixtures
+// on the heap (see the test for why).
+var (
+	escapeSinkName *uint16
+	escapeSinkSid  *uintptr
+)
+
 // TestProfileArgsShape locks the CreateAppContainerProfile call shape:
 // exactly six arguments, a non-empty description, nil capabilities,
 // zero capability count, and the SID-out pointer last. Regression test
@@ -13,13 +20,30 @@ import (
 // (SID pointer read as capabilities), and later passed a NULL/empty
 // description, which Windows 11 also rejects with 0x80070057.
 func TestProfileArgsShape(t *testing.T) {
-	var sid uintptr
-	var name uint16
-	args := profileArgs(&name, &sid)
+	// Force the fixtures to escape to the heap: converting an
+	// unsafe.Pointer to uintptr does NOT make its referent escape, so
+	// stack-allocated fixtures can MOVE between the uintptr conversion
+	// inside profileArgs and the comparisons below (Go stacks grow and
+	// shrink on GC). A moved stack made this test fail intermittently
+	// (CI ubuntu/windows jobs, and locally with -count>=20) while the
+	// production call was correct. Boxing in a heap struct keeps the
+	// addresses stable for the whole test.
+	box := &struct {
+		name uint16
+		sid  uintptr
+	}{}
+	// Pin the fixture pointers in package-level sinks: escape analysis
+	// does not count unsafe.Pointer -> uintptr conversions as escaping,
+	// so even a heap-looking local can stay on the goroutine stack and
+	// MOVE between the conversion inside profileArgs and the checks
+	// below (reproduced locally with -count>=20 and on CI runners).
+	escapeSinkName = &box.name
+	escapeSinkSid = &box.sid
+	args := profileArgs(escapeSinkName, escapeSinkSid)
 	if len(args) != createAppContainerProfileArgc {
 		t.Fatalf("len(args) = %d, want %d (name, display, description, capabilities, count, sidOut)", len(args), createAppContainerProfileArgc)
 	}
-	if args[0] != uintptr(unsafe.Pointer(&name)) || args[1] != uintptr(unsafe.Pointer(&name)) {
+	if args[0] != uintptr(unsafe.Pointer(escapeSinkName)) || args[1] != uintptr(unsafe.Pointer(escapeSinkName)) {
 		t.Error("args[0] and args[1] must both point at the profile name")
 	}
 	if args[2] != uintptr(unsafe.Pointer(profileDescription)) {
@@ -31,7 +55,7 @@ func TestProfileArgsShape(t *testing.T) {
 	if args[3] != 0 || args[4] != 0 {
 		t.Errorf("args[3]=%#x args[4]=%#x, want 0, 0 (no capabilities, zero count)", args[3], args[4])
 	}
-	if args[5] != uintptr(unsafe.Pointer(&sid)) {
+	if args[5] != uintptr(unsafe.Pointer(escapeSinkSid)) {
 		t.Error("args[5] must be the SID-out pointer")
 	}
 }
