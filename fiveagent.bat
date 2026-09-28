@@ -28,11 +28,11 @@ if errorlevel 1 (
 
 if not exist data mkdir data
 
-start "FiveAgent" /b cmd /c "fiveagent.exe > fa_out.log 2> fa_err.log"
+start "FiveAgent" /b cmd /c "fiveagent.exe > fiveagent.log 2>&1"
 timeout /t 3 >nul
 
-echo === fa_err.log ===
-type fa_err.log 2>nul
+echo === fiveagent.log ===
+type fiveagent.log 2>nul
 echo.
 echo FiveAgent started. Tunnel (if needed): cloudflared tunnel --url http://localhost:8080
 pause
