@@ -2,15 +2,16 @@ package sandbox
 
 import (
 	"testing"
+	"unicode/utf16"
 	"unsafe"
 )
 
 // TestProfileArgsShape locks the CreateAppContainerProfile call shape:
-// exactly six arguments, nil description/capabilities, zero capability
-// count, and the SID-out pointer last. Regression test for the live
-// E_INVALIDARG failure (the call used to pass 4 arguments, so the API
-// read the SID pointer as the capabilities array and stack garbage as
-// the count).
+// exactly six arguments, a non-empty description, nil capabilities,
+// zero capability count, and the SID-out pointer last. Regression test
+// for the live E_INVALIDARG failure: the call used to pass 4 arguments
+// (SID pointer read as capabilities), and later passed a NULL/empty
+// description, which Windows 11 also rejects with 0x80070057.
 func TestProfileArgsShape(t *testing.T) {
 	var sid uintptr
 	var name uint16
@@ -21,14 +22,34 @@ func TestProfileArgsShape(t *testing.T) {
 	if args[0] != uintptr(unsafe.Pointer(&name)) || args[1] != uintptr(unsafe.Pointer(&name)) {
 		t.Error("args[0] and args[1] must both point at the profile name")
 	}
-	for i := 2; i <= 4; i++ {
-		if args[i] != 0 {
-			t.Errorf("args[%d] = %#x, want 0 (no description, no capabilities, zero count)", i, args[i])
-		}
+	if args[2] != uintptr(unsafe.Pointer(profileDescription)) {
+		t.Errorf("args[2] = %#x, want the profileDescription pointer", args[2])
+	}
+	if desc := utf16ToString(profileDescription); desc == "" {
+		t.Error("profileDescription decodes to an empty string, want non-empty")
+	}
+	if args[3] != 0 || args[4] != 0 {
+		t.Errorf("args[3]=%#x args[4]=%#x, want 0, 0 (no capabilities, zero count)", args[3], args[4])
 	}
 	if args[5] != uintptr(unsafe.Pointer(&sid)) {
 		t.Error("args[5] must be the SID-out pointer")
 	}
+}
+
+// utf16ToString decodes a NUL-terminated UTF-16 string.
+func utf16ToString(p *uint16) string {
+	if p == nil {
+		return ""
+	}
+	var u []uint16
+	for q := unsafe.Pointer(p); ; q = unsafe.Pointer(uintptr(q) + 2) {
+		v := *(*uint16)(q)
+		if v == 0 {
+			break
+		}
+		u = append(u, v)
+	}
+	return string(utf16.Decode(u))
 }
 
 func TestProfileNameForAlwaysValid(t *testing.T) {

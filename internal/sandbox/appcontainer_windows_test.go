@@ -91,8 +91,11 @@ func TestAppContainerNoNetwork(t *testing.T) {
 
 func TestAppContainerTimeout(t *testing.T) {
 	sb := appContainerOrSkip(t, 1*time.Second, 512)
+	// A plain sleep: ping cannot be used here (an AppContainer with no
+	// capabilities cannot open even a loopback ICMP socket, so ping
+	// exits instantly and never reaches the timeout).
 	r, err := sb.Run(context.Background(), "u1",
-		[]string{"cmd", "/c", "ping", "-n", "30", "127.0.0.1"})
+		[]string{"powershell", "-NoProfile", "-Command", "Start-Sleep 30"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,15 +106,19 @@ func TestAppContainerTimeout(t *testing.T) {
 
 func TestAppContainerRAMCap(t *testing.T) {
 	// 256 MiB cap: PowerShell alone fits, but allocating a 600 MB array
-	// must fail inside the Job Object.
+	// must fail inside the Job Object. $ErrorActionPreference='Stop'
+	// turns the OOM into a terminating error (non-zero exit). Checking
+	// for an output marker is NOT reliable: PowerShell errors echo the
+	// whole script line, so the marker word appears in the error text
+	// even when the allocation failed.
 	sb := appContainerOrSkip(t, 30*time.Second, 256)
 	r, err := sb.Run(context.Background(), "u1",
 		[]string{"powershell", "-NoProfile", "-Command",
-			"$x = New-Object byte[] 600MB; $x[0] = 1; echo ALLOCATED"})
+			"$ErrorActionPreference='Stop'; $x = New-Object byte[] 600MB; $x[0] = 1"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(r.Stdout, "ALLOCATED") {
-		t.Fatalf("RAM cap not enforced: %+v", r)
+	if r.ExitCode == 0 {
+		t.Fatalf("RAM cap not enforced: 600MB allocation succeeded (exit 0): %+v", r)
 	}
 }
