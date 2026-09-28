@@ -171,22 +171,34 @@ the phases are milestones.
     expiry or with a wrong signature, (ii) a form submission lands in
     the vault/config and its value appears in no log line, (iii) a
     link minted for one sender is rejected when opened by another.
-15. **Media** (planned) - inbound WhatsApp media pipeline: the webhook
-    receives image/audio/video/document with a media id, downloads it
-    with an authenticated Graph API call, dispatches by type, and the
-    result enters the normal message flow. In phases:
+15. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
+    the webhook receives image/audio/video/document with a media id,
+    downloads it with an authenticated Graph API call, dispatches by
+    type, and the result enters the normal message flow; outbound, the
+    bot synthesizes voice and images and sends them as native WhatsApp
+    media (upload + send via Graph API).
+    Inbound phases:
     a) Voice notes: opus audio -> local Whisper transcription
        (whisper.cpp / faster-whisper) -> treated as a text message.
     b) Images: download -> vision model (a VL variant configurable in
        the yml; document that text-only qwen models cannot see and a VL
        that fits in 12GB is needed) -> description into the context.
     c) Video (last): key frames + transcribed audio -> summary.
+    Outbound phases:
+    d) Voice: local TTS (Piper/Kokoro, Spanish) -> the reply goes out
+       as a WhatsApp voice note; enabled per user on request
+       ("respóndeme por voz").
+    e) Images: first code-made artifacts - browser/sandbox screenshots,
+       battery report charts, diagrams; AI image generation (local SD)
+       is an optional final phase.
     Security by design: media is only fetched and processed from
     allowed senders; no media content (or transcript) lands in logs in
     the clear.
-    Done when: the battery grows a "media" category with a test image
-    of known content and a voice note with a known phrase, both scored
-    with must_contain on the agent's reply.
+    Done when: the battery grows a "media" category that proves the
+    round trip - a test image of known content and a voice note with a
+    known phrase, both scored with must_contain on the agent's reply,
+    plus an outbound case where the bot emits audio/image and the
+    (fake) Graph server confirms the upload and the send.
 16. **Email + calendar** - read and act on the user's accounts (OAuth).
 
 ## Phase 4 - v0.4: more channels
