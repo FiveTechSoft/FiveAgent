@@ -1,8 +1,11 @@
 package evals
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -28,6 +31,7 @@ type batteryPrompt struct {
 	AbstainExpected bool     `yaml:"abstain_expected"`
 	Setup           bool     `yaml:"setup"`         // conversation setup turn, no scoring
 	NeedsSandbox    bool     `yaml:"needs_sandbox"` // needs a run_command backend; skipped when unavailable
+	AuditContains   string   `yaml:"audit_contains"` // after the turn, the audit log must hold a run_command line with this token
 	Source          string   `yaml:"source"`
 }
 
@@ -208,10 +212,20 @@ func TestLiveBattery(t *testing.T) {
 	} else {
 		t.Logf("no sandbox backend (%v): needs_sandbox prompts will be skipped", err)
 	}
+	// web_search (DuckDuckGo, no key) rides along in the live battery:
+	// grounded answers beat both guessing and needless abstention.
+	tl = append(tl, tools.WebSearch{P: tools.DuckDuckGo{}})
+
 	a := agent.New(model.NewOpenAICompat(cfg.Model), store,
 		tools.NewRegistry(tl...),
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
+
+	// Capture the run_command audit lines so audit_contains cases can
+	// prove the execution left its line; keep them on stderr too.
+	var auditBuf bytes.Buffer
+	log.SetOutput(io.MultiWriter(os.Stderr, &auditBuf))
+	defer log.SetOutput(os.Stderr)
 
 	judge := newJudge(t)
 
@@ -233,6 +247,7 @@ func TestLiveBattery(t *testing.T) {
 			for i, m := range p.MustContain {
 				mustContain[i] = strings.ToLower(strings.ReplaceAll(m, "{{weekday}}", weekday))
 			}
+			auditStart := auditBuf.Len()
 			reply, err := a.Handle(t.Context(), "whatsapp", "battery", prompt)
 			if err != nil {
 				t.Fatalf("prompt %q: %v", prompt, err)
@@ -282,9 +297,16 @@ func TestLiveBattery(t *testing.T) {
 				fail++
 				t.Logf("NO-ABSTENTION [%s] %q: should abstain, answered %q", cat, prompt, reply)
 			default:
-				if containsAllCompact(low, mustContain) {
+				delta := auditBuf.String()[auditStart:]
+				auditMiss := p.AuditContains != "" &&
+					!(strings.Contains(delta, "run_command audit") && strings.Contains(delta, p.AuditContains))
+				switch {
+				case auditMiss:
+					fail++
+					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q", cat, prompt, p.AuditContains)
+				case containsAllCompact(low, mustContain):
 					pass++
-				} else {
+				default:
 					fail++
 					t.Logf("MISS [%s] %q: %q", cat, prompt, reply)
 				}
