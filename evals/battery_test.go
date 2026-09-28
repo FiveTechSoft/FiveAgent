@@ -33,6 +33,7 @@ type batteryPrompt struct {
 	Setup           bool     `yaml:"setup"`          // conversation setup turn, no scoring
 	NeedsSandbox    bool     `yaml:"needs_sandbox"`  // needs a run_command backend; skipped when unavailable
 	AuditContains   string   `yaml:"audit_contains"` // after the turn, the audit log must hold a run_command line with this token
+	MemoryWrites    string   `yaml:"memory_writes"`  // after the turn, the memory files on disk must hold this token (metric M1, write-through)
 	Source          string   `yaml:"source"`
 }
 
@@ -115,6 +116,25 @@ func abstains(reply string) bool {
 		}
 	}
 	return false
+}
+
+// memoryFilesContain walks the knowledge dir and reports whether any
+// markdown file holds the token, case-insensitively. It measures M1
+// write-through directly on disk, so a "guardado" reply that never
+// called save_memory counts as a miss.
+func memoryFilesContain(dir, token string) bool {
+	found := false
+	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		b, err := os.ReadFile(path)
+		if err == nil && strings.Contains(strings.ToLower(string(b)), strings.ToLower(token)) {
+			found = true
+		}
+		return nil
+	})
+	return found
 }
 
 // compact strips spaces, tabs and newlines so rubric tokens match the
@@ -280,6 +300,7 @@ func TestLiveBattery(t *testing.T) {
 	hallucinations := 0
 	for _, cat := range cats {
 		pass, abst, halluc, fail := 0, 0, 0, 0
+		writes, writeTotal := 0, 0
 		jscore, jcount := 0, 0
 		for _, p := range bf.Categories[cat] {
 			prompt := strings.ReplaceAll(p.Prompt, "{{weekday}}", weekday)
@@ -291,6 +312,19 @@ func TestLiveBattery(t *testing.T) {
 			reply, err := a.Handle(t.Context(), "whatsapp", "battery", prompt)
 			if err != nil {
 				t.Fatalf("prompt %q: %v", prompt, err)
+			}
+			// M1 write-through: a setup that should store a fact is
+			// scored on the DISK, not on the reply - the 2026-09-28
+			// baseline showed 4/7 recuerda: turns never reached the
+			// files even when the reply claimed they did. Metric, not
+			// gate: it reports like misses do.
+			if p.MemoryWrites != "" {
+				writeTotal++
+				if memoryFilesContain(filepath.Join(dir, "memory"), p.MemoryWrites) {
+					writes++
+				} else {
+					t.Logf("WRITE-MISS [%s] %q: memory files hold no %q after the turn", cat, prompt, p.MemoryWrites)
+				}
 			}
 			if p.Setup {
 				continue
@@ -355,6 +389,9 @@ func TestLiveBattery(t *testing.T) {
 		hallucinations += halluc
 		t.Logf("METRIC battery %s: %d pass, %d correct-abstention, %d miss, %d hallucination (of %d)",
 			cat, pass, abst, fail, halluc, len(bf.Categories[cat]))
+		if writeTotal > 0 {
+			t.Logf("METRIC memory-write %s: %d/%d setups reached the disk (M1 write-through)", cat, writes, writeTotal)
+		}
 		if judge != nil && jcount > 0 {
 			t.Logf("METRIC judge %s: %d/%d points (%.0f%% of reference model %s)",
 				cat, jscore, 2*jcount, 100*float64(jscore)/float64(2*jcount), judge.name)
