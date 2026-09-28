@@ -49,8 +49,10 @@ memory:
   # For docker compose / real deployments use Postgres (set DB_PASSWORD in .env).
   postgres: postgres://fiveagent:${DB_PASSWORD}@db:5432/fiveagent
 
-# sandbox: per-user isolated execution for the run_command tool.
-#   enabled: false
+# sandbox: per-user isolated execution for the run_command tool. ON by
+# default (it protects your machine from the agent's shell commands);
+# set enabled: false to opt out. If no backend is available on this
+# machine, startup logs "sandbox disabled: ..." and keeps running.
 #   backend: auto          # auto | bubblewrap (Linux) | appcontainer (Windows) | jobobject | docker
 #   Nota Ubuntu 24.04+: si bubblewrap falla con "Failed RTM_NEWADDR",
 #   ejecuta: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -58,3 +60,10 @@ memory:
 #   timeout: 30            # seconds per command
 #   max_ram_mb: 512        # docker / jobobject only
 #   image: alpine          # docker only
+
+# web_search: optional web_search tool for current facts. Off by default.
+# web_search:
+#   enabled: false         # set true to let the agent search the web
+#   provider: duckduckgo   # duckduckgo (default, no API key) | brave
+#   # api_key: ""          # brave only: https://brave.com/search/api/
+#   # max_results: 5       # per search, hard cap 10
