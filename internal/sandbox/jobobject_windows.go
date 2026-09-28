@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"syscall"
@@ -122,7 +123,15 @@ func (j *jobobject) Run(ctx context.Context, userKey string, argv []string) (Res
 	}
 	if ctx.Err() == context.DeadlineExceeded {
 		res.TimedOut = true
-		waitErr = nil
+		return res, nil // a timeout is an outcome, not a sandbox failure
+	}
+	// A non-zero exit code is a normal outcome (Result.ExitCode), not a
+	// sandbox failure: the caller needs the captured stdout/stderr
+	// (returning the ExitError here silently dropped them - first
+	// live-test finding).
+	var exitErr *exec.ExitError
+	if errors.As(waitErr, &exitErr) {
+		return res, nil
 	}
 	return res, waitErr
 }
