@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -103,14 +104,34 @@ func compact(s string) string {
 	return strings.NewReplacer(" ", "", "\t", "", "\n", "").Replace(s)
 }
 
-// containsAllCompact reports whether reply contains every token, with
-// whitespace ignored on both sides. Real false negative in the
-// 2026-09-28 live run: rubric said "%2", the model answered "x % 2 == 0"
-// - correct Python, marked MISS.
-func containsAllCompact(reply string, toks []string) bool {
-	r := compact(reply)
+// matchToken reports whether one rubric token matches the lowercased
+// reply. Plain tokens ignore whitespace on both sides ("%2" matches
+// "% 2"). A "w:" prefix enforces word boundaries on the un-compacted
+// text ("w:au" rejects "aunque", "w:25" rejects "256"). "|" separates
+// alternatives ("carbono|co2").
+func matchToken(low, lowC, tok string) bool {
+	if rest, ok := strings.CutPrefix(tok, "w:"); ok {
+		return regexp.MustCompile(`\b` + regexp.QuoteMeta(rest) + `\b`).MatchString(low)
+	}
+	if strings.Contains(tok, "|") {
+		for _, alt := range strings.Split(tok, "|") {
+			if matchToken(low, lowC, alt) {
+				return true
+			}
+		}
+		return false
+	}
+	return strings.Contains(lowC, compact(tok))
+}
+
+// containsAll reports whether the lowercased reply satisfies every
+// rubric token (see matchToken). Whitespace normalization fixed a real
+// false negative in the 2026-09-28 live run: rubric said "%2", the
+// model answered "x % 2 == 0" - correct Python, marked MISS.
+func containsAll(low string, toks []string) bool {
+	lowC := compact(low)
 	for _, tok := range toks {
-		if !strings.Contains(r, compact(tok)) {
+		if !matchToken(low, lowC, tok) {
 			return false
 		}
 	}
@@ -304,7 +325,7 @@ func TestLiveBattery(t *testing.T) {
 				case auditMiss:
 					fail++
 					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q", cat, prompt, p.AuditContains)
-				case containsAllCompact(low, mustContain):
+				case containsAll(low, mustContain):
 					pass++
 				default:
 					fail++
@@ -349,13 +370,51 @@ func TestAbstains(t *testing.T) {
 
 func TestContainsAllCompact(t *testing.T) {
 	reply := strings.ToLower("[x for x in numeros if x % 2 == 0]")
-	if !containsAllCompact(reply, []string{"%2", "== 0"}) {
+	if !containsAll(reply, []string{"%2", "== 0"}) {
 		t.Error("spaced answer must match unspaced rubric tokens")
 	}
-	if !containsAllCompact(strings.ToLower("x%2==0"), []string{"% 2", "== 0"}) {
+	if !containsAll(strings.ToLower("x%2==0"), []string{"% 2", "== 0"}) {
 		t.Error("unspaced answer must match spaced rubric tokens")
 	}
-	if containsAllCompact(reply, []string{"%3"}) {
+	if containsAll(reply, []string{"%3"}) {
 		t.Error("wrong operator must not match")
+	}
+}
+
+func TestMatchTokenWordBoundary(t *testing.T) {
+	cases := []struct {
+		reply, tok string
+		want       bool
+	}{
+		{"el oro, aunque raro, brilla", "w:au", false},
+		{"el símbolo es au (del latín)", "w:au", true},
+		{"el siguiente es 256", "w:25", false},
+		{"la respuesta es 25", "w:25", true},
+		{"en promedio, el imperio...", "w:rom", false},
+		{"lo construyó rom", "w:rom", true},
+	}
+	for _, c := range cases {
+		if got := containsAll(c.reply, []string{c.tok}); got != c.want {
+			t.Errorf("containsAll(%q, %q) = %v, want %v", c.reply, c.tok, got, c.want)
+		}
+	}
+}
+
+func TestMatchTokenAnyOf(t *testing.T) {
+	cases := []struct {
+		reply, tok string
+		want       bool
+	}{
+		{"absorben co2 de la atmósfera", "carbono|co2", true},
+		{"absorben dióxido de carbono", "carbono|co2", true},
+		{"liberan oxígeno", "carbono|co2", false},
+		{"devuelve un puntero nulo", "null|nulo", true},
+		{"usa const o mejor let", "let|const", true},
+		{"las declaras con var", "let|const", false},
+	}
+	for _, c := range cases {
+		if got := containsAll(c.reply, []string{c.tok}); got != c.want {
+			t.Errorf("containsAll(%q, %q) = %v, want %v", c.reply, c.tok, got, c.want)
+		}
 	}
 }

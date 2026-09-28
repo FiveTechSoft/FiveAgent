@@ -10,7 +10,7 @@ categories:
     - ObjVw
     - FireWall Helper
     abstain_ok: true
-    source: docs/fivetech-domain.md (draft, pending FiveTech review); original confabulation case
+    source: docs/fivetech-domain.md (verified); original confabulation case
   - prompt: ¿qué es FWH?
     must_contain:
     - fivewin
@@ -18,7 +18,7 @@ categories:
     - FireWall Helper
     - firewall
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (draft): FWH = FiveWin for Harbour'
+    source: 'docs/fivetech-domain.md (verified): FWH = FiveWin for Harbour'
   - prompt: en Harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?
     must_contain:
     - ':='
@@ -27,7 +27,7 @@ categories:
     - cVar
     - Input()
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (draft): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
+    source: 'docs/fivetech-domain.md (verified): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
   - prompt: ¿cómo se crea una ventana en FiveWin?
     must_contain:
     - DEFINE WINDOW
@@ -36,7 +36,7 @@ categories:
     - fivegui.ch
     - ObjVw
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (draft): #include FiveWin.ch, DEFINE WINDOW / ACTIVATE WINDOW'
+    source: 'docs/fivetech-domain.md (verified): #include FiveWin.ch, DEFINE WINDOW / ACTIVATE WINDOW'
   general_knowledge:
   - prompt: ¿cuál es la capital de Portugal?
     must_contain:
@@ -52,8 +52,8 @@ categories:
     source: literatura elemental
   - prompt: ¿cuál es el símbolo químico del oro?
     must_contain:
-    - au
-    source: tabla periódica elemental
+    - w:au
+    source: 'tabla periódica elemental; prefijo w: para que "aunque"/"automático" no casen'
   code:
   - prompt: escríbeme FizzBuzz en Go
     must_contain:
@@ -87,8 +87,8 @@ categories:
     - el ganador
     source: 'pregunta trampa: dato que no existe en el conocimiento general'
   - prompt: ¿cuál fue el último commit de FiveAgent ayer a las 3?
-    abstain_expected: true
-    source: sin web search no puede saberlo; debe abstenerse o pedir verificación
+    abstain_ok: true
+    source: el repo es público y web_search va cableada; verificar o abstenerse, ambas válidas
   - prompt: ¿qué versión de FiveWin salió el mes pasado?
     abstain_ok: true
     must_not_contain:
@@ -151,10 +151,6 @@ categories:
     must_contain:
     - verde
     source: recall del otro hecho de la pareja; se exige "verde" (no solo "musgo") por robustez
-  - prompt: 'volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?'
-    must_contain:
-    - lacón
-    source: retención diferida tras ~40 turnos de otros temas; "pulpo" aquí lo captura el test anterior (evita falso positivo de alucinación si el modelo explica la corrección)
   tools:
   - prompt: ¿qué día de la semana es hoy?
     must_contain:
@@ -180,6 +176,10 @@ categories:
     needs_sandbox: true
     audit_contains: echo
     source: una ejecución real deja línea "run_command audit" en el log; si el modelo no llamó a la tool, no hay línea
+  - prompt: 'volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?'
+    must_contain:
+    - lacón
+    source: retención diferida tras ~20 turnos de otros temas; vive en tools para que pasen turnos ajenos antes de preguntar (el runner ordena categorías alfabéticamente); debe ir ANTES del olvida-setup
   - prompt: olvida todo lo que sepas sobre mi comida favorita
     source: tool forget_memory
     setup: true
@@ -245,8 +245,8 @@ categories:
     source: C elemental; calloc inicializa, malloc no
   - prompt: ¿qué valor devuelve malloc si no hay memoria suficiente?
     must_contain:
-    - 'NULL'
-    source: C elemental; NULL en cualquier formato casa por minúsculas
+    - null|nulo
+    source: C elemental; any-of porque "puntero nulo" en español no contiene "null"
   lenguajes:
   - prompt: ¿qué palabra clave lanza una excepción en Python?
     must_contain:
@@ -262,8 +262,8 @@ categories:
     source: JS elemental; JSON.stringify
   - prompt: ¿qué palabra clave declara una variable con ámbito de bloque en JavaScript?
     must_contain:
-    - let
-    source: ES6; let/const frente a var
+    - let|const
+    source: ES6; let y const son ambas correctas frente a var
   - prompt: ¿qué comando de Go formatea el código automáticamente?
     must_contain:
     - gofmt
@@ -341,8 +341,8 @@ categories:
     source: tabla periódica
   - prompt: ¿qué gas absorben las plantas para hacer fotosíntesis?
     must_contain:
-    - carbono
-    source: dióxido de carbono; "carbono" casa sin acento y con la fórmula CO2
+    - carbono|co2
+    source: dióxido de carbono; any-of porque "CO2" solo no contiene "carbono"
   literatura:
   - prompt: ¿quién escribió La casa de Bernarda Alba?
     must_contain:
@@ -371,8 +371,8 @@ categories:
     source: arte moderno; Vincent van Gogh
   - prompt: ¿Quién esculpió el David que está en Florencia?
     must_contain:
-    - miguel
-    source: Renacimiento; Miguel Ángel
+    - miguel|michelangelo
+    source: Renacimiento; Miguel Ángel / Michelangelo
   logica:
   - prompt: Ana es mayor que Beto y Beto es mayor que Carla. ¿Quién es la menor?
     must_contain:
@@ -380,31 +380,31 @@ categories:
     source: 'lógica deductiva tipo ARC/MMLU'
   - prompt: ¿Cuántos años bisiestos hay en un periodo de 400 años del calendario gregoriano?
     must_contain:
-    - '97'
+    - 'w:97'
     source: 'regla 4/100/400: clásico de benchmark de años bisiestos'
   - prompt: ¿Qué número sigue la serie 2, 6, 18, 54, ...?
     must_contain:
-    - '162'
+    - 'w:162'
     source: serie geométrica x3 (tipo Raven/GSM)
   - prompt: ¿Qué número sigue la serie 1, 4, 9, 16, ...?
     must_contain:
-    - '25'
+    - 'w:25'
     source: cuadrados perfectos
   - prompt: ¿Cuánto es 2 elevado a 8?
     must_contain:
-    - '256'
+    - 'w:256'
     source: aritmética mental
   - prompt: Un tren sale a las 14:30 y tarda 2 horas y 45 minutos. ¿A qué hora llega?
     must_contain:
-    - '17:15'
-    source: 'aritmética de horarios estilo GSM8K'
+    - 17:15|cinco y cuarto
+    source: 'aritmética de horarios estilo GSM8K; vale 17:15 o "cinco y cuarto"'
   - prompt: Si un libro cuesta 12 euros y compro 7 libros, ¿cuánto pago en total?
     must_contain:
-    - '84'
+    - 'w:84'
     source: aritmética estilo GSM8K
   - prompt: María tiene 3 bolsas con 15 naranjas cada una y regala 7 naranjas. ¿Cuántas naranjas le quedan?
     must_contain:
-    - '38'
+    - 'w:38'
     source: aritmética estilo GSM8K
   - prompt: Si hoy es miércoles, ¿qué día de la semana será dentro de 100 días?
     must_contain:
