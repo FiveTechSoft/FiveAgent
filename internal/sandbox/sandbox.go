@@ -6,16 +6,20 @@
 //     user's folder mounted writable, timeout.
 //   - appcontainer (Windows): AppContainer + Job Object: host files not
 //     readable, no network, RAM cap, process tree killed with the job,
-//     per-user writable folder, timeout. Pending live verification on a
-//     real Windows PC. jobobject (older fallback) enforces only the RAM
-//     cap, process-tree kill and timeout - no filesystem or network
-//     isolation.
+//     per-user writable folder, timeout. CI-tested on windows runners;
+//     pending live verification on a real PC. jobobject (older
+//     fallback) enforces only the RAM cap, process-tree kill and
+//     timeout - NO filesystem or network isolation (live-verified on a
+//     real Windows PC 2026-09-28: commands run, but the machine is NOT
+//     isolated). The fallback logs a loud WARNING; `fiveagent doctor`
+//     reports the exact AppContainer probe error.
 package sandbox
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -86,8 +90,11 @@ func New(cfg config.Sandbox) (Sandbox, error) {
 	case "appcontainer":
 		sb, err := newAppContainer(root, timeout, maxRAM)
 		if err != nil {
-			// No AppContainer support (very old Windows): degrade to
-			// the weaker Job Objects backend instead of failing.
+			// No AppContainer support: degrade to the weaker Job
+			// Objects backend instead of failing - but say it LOUDLY,
+			// because the degradation silently drops the network and
+			// filesystem isolation (found in the first live test).
+			log.Printf("sandbox: WARNING: AppContainer unavailable (%v); falling back to jobobject: NO network or filesystem isolation, only RAM cap / process-tree kill / timeout. Run 'fiveagent doctor' for details", err)
 			return newJobObject(root, timeout, maxRAM)
 		}
 		return sb, nil
