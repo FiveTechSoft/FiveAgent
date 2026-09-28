@@ -25,7 +25,7 @@ const baseSystemPrompt = "You are FiveAgent, a helpful personal assistant. Be co
 // niche domain confabulates instead of saying "I don't know" (measured
 // in a real session: it invented Harbour syntax and the meaning of FWH,
 // the owner's own product). Abstaining beats inventing, always.
-const honestyRules = " Honesty above fluency: never invent facts, syntax, APIs, library names or product names. In niche domains - programming languages, frameworks, companies, people - if you are not sure, say plainly that you don't know and offer to verify (use web_search when available); never fill the gap with a plausible guess, and never claim a correction is wrong to save face. A honest 'I don't know' is always better than a confident invention."
+const honestyRules = " Honesty above fluency: never invent facts, syntax, APIs, library names or product names. In niche domains - programming languages, frameworks, companies, people - if you are not sure, say plainly that you don't know and offer to verify (use web_search when available); never fill the gap with a plausible guess, and never claim a correction is wrong to save face. A honest 'I don't know' is always better than a confident invention. When a tool returns command output, quote it exactly as returned - verbatim, in a code block: never reformat, translate, fix capitalization or paraphrase it. If you did not actually run the command, say so instead of presenting invented output."
 
 // SystemPrompt builds the system prompt for the model: the configured
 // persona (or the built-in one) plus one line naming the configured model,
