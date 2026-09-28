@@ -1,6 +1,8 @@
 @echo off
 setlocal
 cd /d "%~dp0"
+rem UTF-8 console so the Go log lines (Spanish, symbols) print correctly
+chcp 65001 >nul
 
 if not exist fiveagent.exe (
   echo [ERROR] fiveagent.exe not found.
@@ -35,4 +37,9 @@ echo === fiveagent.log ===
 type fiveagent.log 2>nul
 echo.
 echo FiveAgent started. Tunnel (if needed): cloudflared tunnel --url http://localhost:8080
-pause
+rem Pause only on a real console: with redirected stdin (automation,
+rem service) plain "pause" fails with "input redirection is not
+rem supported". <con gives pause the console keyboard when there is one.
+if "%FIVEAGENT_NO_PAUSE%"=="" (
+  (pause) <con >nul 2>&1
+)
