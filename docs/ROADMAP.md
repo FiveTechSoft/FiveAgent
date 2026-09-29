@@ -358,14 +358,29 @@ evidence that counts.
     triggers the skill (otherwise the triggered design would silently
     un-ground those answers). The live battery keeps its domain
     coverage through the same DomainSkill.
-18. **Subordinate agents** (planned) - the agent splits a big task
-    into small subtasks and runs each in an isolated sub-turn with
-    its own fresh context, then composes the results. The single
-    most effective harness technique for small models: no subtask
-    exceeds what the model can do in one clean turn. Simple first:
-    sequential subordinates, no parallelism (that is stage 34).
-    Done when: a multi-step task that fails as a single turn succeeds
-    decomposed; the battery grows a "subordinate" case comparing both.
+18. **Subordinate agents** (implemented, CI-tested) - the agent
+    splits a big task into small subtasks and runs each in an
+    isolated subturn with its own fresh context, then composes the
+    results. The single most effective harness technique for small
+    models: no subtask exceeds what the model can do in one clean
+    turn. internal/agent/subtask.go: the model drives the split
+    through the run_subtask tool (self-registered by agent.New); each
+    call runs one subtask with fresh context - no history, no memory
+    recall, no store writes - the same model and tools, and every
+    tool EXCEPT run_subtask, so delegation is capped at depth 1.
+    Subturns go through the stage-16 recovery ladder and the stage-14
+    argument repair like any turn. Sequential only, no parallelism
+    (that is stage 34).
+    Done when: (met) the scripted battery case
+    (evals/subtask_test.go) plays both sides of a multi-step task and
+    proves the machinery: the main turn delegates, the subturn
+    request carries the subtask text but NOT the original prompt
+    (fresh-context isolation) and no run_subtask spec (depth cap),
+    and the final reply composes the subturn result; a still-empty
+    subturn surfaces as a tool error, never a hang. The live battery
+    grows a subordinate: category measuring the outcome in vivo; the
+    model's own decision to decompose is the live side, pending the
+    next run.
 19. **Durable delivery ledger** (planned) - every outbound reply is
     recorded as a persistent delivery obligation (pending ->
     attempting -> delivered) so a crash between generating and
