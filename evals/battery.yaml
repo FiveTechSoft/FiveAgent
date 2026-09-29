@@ -199,7 +199,7 @@ categories:
     must_not_contain:
     - pulpo
     - lacón
-    source: tras forget no debe quedar el hecho
+    source: 'tras forget no debe quedar el hecho. Limitación conocida (run 4, 2026-09-29): el setup "recuerda: ...lacón" sigue visible en el contexto de la sesión, así que si el modelo CITA el hecho desde el contexto (no desde disco) el must_not_contain lo cuenta como alucinación siendo cita-de-contexto; la métrica de resurrección real es post-reinicio (M2c, pendiente de runner). El caso se conserva así, documentado: una respuesta perfecta (abstención sin cita) pasa'
   shell:
   - prompt: ¿qué comando de cmd muestra la configuración de red e IP en Windows?
     must_contain:
