@@ -545,13 +545,21 @@ evidence that counts.
     channels; channels without media support answer the model with an
     honest error, and send failures never report success. Battery
     report charts and diagrams remain pending variations of the same
-    renderer.
+    renderer. Phase c) first cut: with ffmpeg available (external
+    tool, ffmpeg_path in the yml or on PATH) inbound videos are
+    downloaded and split into key frames + a 16kHz WAV track, then the
+    EXISTING transcriber and describer processors turn them into
+    "[video] audio: ... | frames: ...". With no processors configured
+    the agent gets an honest "analysis not configured" note and no
+    megabytes are downloaded; with no ffmpeg the plain "[video]"
+    announcement stays. Tests fake the binary (CI has no ffmpeg) and
+    prove the pipeline and its honest fallbacks.
     internal/channel/whatsapp_media_test.go proves both directions
     against a fake Graph server with stub processors, asserts the
     Authorization header on every Graph call, and asserts failure
     paths surface honestly. Pending live verification with real
     whisper/VL/TTS services (the fake-server round trip cannot prove model
-    quality), plus phase c) below and the rest of e).
+    quality), plus the rest of e) and live verification of c).
     Inbound phases:
     a) Voice notes: opus audio -> local Whisper transcription
        (whisper.cpp / faster-whisper) -> treated as a text message.
