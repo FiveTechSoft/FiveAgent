@@ -75,6 +75,14 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// Delivery holds the durable delivery ledger settings (stage 19):
+// every outbound reply is recorded before sending, and after a crash
+// the pending ones are redelivered once with a recovered marker.
+type Delivery struct {
+	// Path is the ledger JSON file; default data/deliveries.json.
+	Path string `yaml:"path,omitempty"`
+}
+
 // WebSearch configures the optional web_search tool. Disabled by
 // default. Providers: duckduckgo (default, no API key, may rate-limit
 // under heavy use) and brave (needs api_key, the reliable upgrade).
@@ -101,6 +109,8 @@ type Config struct {
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
+	// Delivery is the durable delivery ledger (stage 19).
+	Delivery Delivery `yaml:"delivery,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
