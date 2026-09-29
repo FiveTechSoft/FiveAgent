@@ -66,6 +66,11 @@ type chatRequest struct {
 	Model    string       `json:"model"`
 	Messages []Message    `json:"messages"`
 	Tools    []tools.Spec `json:"tools,omitempty"`
+	// ChatTemplateKwargs carries template switches such as
+	// enable_thinking:false for reasoning models on SGLang/vLLM.
+	// Set it only for endpoints that accept it: strict servers may
+	// reject unknown fields, and the error surfaces as a 400.
+	ChatTemplateKwargs map[string]any `json:"chat_template_kwargs,omitempty"`
 }
 
 type chatResponse struct {
@@ -166,7 +171,7 @@ func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spe
 	}
 	var out Message
 	raw, err := c.post(ctx, c.cfg.BaseURL+"/chat/completions",
-		chatRequest{Model: c.cfg.Name, Messages: msgs, Tools: toolSpecs})
+		chatRequest{Model: c.cfg.Name, Messages: msgs, Tools: toolSpecs, ChatTemplateKwargs: c.cfg.ChatTemplateKwargs})
 	if err != nil {
 		return out, err
 	}
