@@ -12,6 +12,7 @@ import (
 
 	"github.com/FiveTechSoft/FiveAgent/docs"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
@@ -150,15 +151,16 @@ func channelStyle(channel string) string {
 
 // Agent ties the model, memory and tools together.
 type Agent struct {
-	mdl       *model.Client
-	coder     *model.Client     // optional: serves code-heavy requests
-	knowledge *memory.Knowledge // optional: long-term markdown memory
-	indexer   *Indexer          // optional: background auto-indexing (stage 7n)
-	store     memory.Store
-	tools     *tools.Registry
-	sysPrompt string
-	pruner    PruneConfig // context pruning (stage 15); zero value takes the defaults
-	skills    []Skill     // keyword-triggered context (stage 17)
+	mdl        *model.Client
+	coder      *model.Client     // optional: serves code-heavy requests
+	knowledge  *memory.Knowledge // optional: long-term markdown memory
+	indexer    *Indexer          // optional: background auto-indexing (stage 7n)
+	identities *identity.Store   // optional: cross-channel identity links (stage 36)
+	store      memory.Store
+	tools      *tools.Registry
+	sysPrompt  string
+	pruner     PruneConfig // context pruning (stage 15); zero value takes the defaults
+	skills     []Skill     // keyword-triggered context (stage 17)
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
@@ -188,6 +190,12 @@ func (a *Agent) WithSkills(skills ...Skill) *Agent {
 // for chaining.
 func (a *Agent) WithKnowledge(k *memory.Knowledge) *Agent {
 	a.knowledge = k
+	return a
+}
+
+// WithIdentities sets the cross-channel identity store (stage 36).
+func (a *Agent) WithIdentities(ids *identity.Store) *Agent {
+	a.identities = ids
 	return a
 }
 
@@ -351,14 +359,39 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			}
 		}
 	}
-	if err := a.store.Append(ctx, channel, userID, "user", text); err != nil {
+	// Stage 36: "vincular <code>" links this channel identity to the
+	// one that created the code. Mechanical, no model turn - the
+	// linking flow is explicit, never guessed.
+	if a.identities != nil && len(text) > len(identity.LinkPrefix) && strings.EqualFold(text[:len(identity.LinkPrefix)], identity.LinkPrefix) {
+		code := strings.TrimSpace(text[len(identity.LinkPrefix):])
+		canonical, err := a.identities.Redeem(channel, userID, code)
+		if err != nil {
+			log.Printf("identity: redeem for %s/%s: %v", channel, userID, err)
+			return "Ese código no vale, ya se usó o caducó. Pide uno nuevo desde tu otro canal.", nil
+		}
+		log.Printf("identity: %s/%s linked to %s", channel, userID, canonical)
+		return "Canales vinculados. Desde ahora veo una única conversación y una única memoria contigo, escribas desde donde escribas.", nil
+	}
+	// Stage 36: linked identities share one history and one memory
+	// scope under the canonical identity; unlinked senders key off
+	// their own channel identity, separate by default. Delivery
+	// tools keep the ORIGINAL channel+user (RequestInfo above): a
+	// reply or a scheduled job lands on the channel the user wrote
+	// from.
+	histChannel, canonUser := channel, userID
+	if a.identities != nil {
+		if canonical, linked := a.identities.Resolve(channel, userID); linked {
+			histChannel, canonUser = "unified", canonical
+		}
+	}
+	if err := a.store.Append(ctx, histChannel, canonUser, "user", text); err != nil {
 		return "", err
 	}
 	// Stage 15: fetch a deep history and prune it to the context
 	// budget instead of hard-truncating to the last 20 messages. Short
 	// conversations pass through untouched; long ones lose old tool
 	// outputs first, then middle turns, never the head or the tail.
-	history, err := a.store.Recent(ctx, channel, userID, 200)
+	history, err := a.store.Recent(ctx, histChannel, canonUser, 200)
 	if err != nil {
 		return "", err
 	}
@@ -398,7 +431,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		// recall. Another sender's scope is never opened here - one
 		// user's indexed facts never surface for another.
 		if a.indexer != nil {
-			if uk, err := a.indexer.userScope(userID); err == nil {
+			if uk, err := a.indexer.userScope(canonUser); err == nil {
 				if uhits, err := uk.Recall(text); err == nil {
 					hits = append(hits, uhits...)
 				}
@@ -504,14 +537,14 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			len(frag), share*100, len(reply))
 		return "", fmt.Errorf("agent: reply suppressed by the repetition guard")
 	}
-	if err := a.store.Append(ctx, channel, userID, "assistant", reply); err != nil {
+	if err := a.store.Append(ctx, histChannel, canonUser, "assistant", reply); err != nil {
 		return "", err
 	}
 	// Stage 7n: absorb the turn into the sender's memory scope in the
 	// background. Never blocks the reply; "recuerda:"/"olvida:" turns
 	// already went through deliberate curation, so they are skipped.
 	if a.indexer != nil && !startsWithMemoryCommand(text) {
-		a.indexer.Enqueue(channel, userID, text, reply)
+		a.indexer.Enqueue(histChannel, canonUser, text, reply)
 	}
 	return reply, nil
 }
