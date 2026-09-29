@@ -58,6 +58,10 @@ type Indexer struct {
 
 	mu    sync.Mutex
 	users map[string]*memory.Knowledge
+
+	// wg counts queued plus in-flight items so Drain can wait for
+	// the worker's current extraction, not just the queued ones.
+	wg sync.WaitGroup
 }
 
 // NewIndexer starts the background worker. root is the knowledge
@@ -79,9 +83,11 @@ func (ix *Indexer) Enqueue(channel, userID, userText, reply string) {
 	if !worthIndexing(userText) {
 		return
 	}
+	ix.wg.Add(1)
 	select {
 	case ix.queue <- indexItem{channel: channel, userID: userID, userText: userText, reply: reply}:
 	default:
+		ix.wg.Done()
 		log.Printf("indexer: queue full, dropping a turn for %s", userID)
 	}
 }
@@ -106,12 +112,16 @@ func (ix *Indexer) work() {
 		if err := ix.index(context.Background(), item); err != nil {
 			log.Printf("indexer: %s: %v", item.userID, err)
 		}
+		ix.wg.Done()
 	}
 }
 
-// Drain processes queued items synchronously - the battery needs a
+// Drain processes queued items synchronously and waits for any item
+// the background worker already took. The battery needs a
 // deterministic wait, and the honest way is to do the work, not to
-// sleep and hope.
+// sleep and hope: without the WaitGroup the worker can dequeue the
+// item a heartbeat before Drain looks, Drain sees an empty queue and
+// returns mid-extraction - a race that flaked CI (run 36539321117).
 func (ix *Indexer) Drain(ctx context.Context) {
 	for {
 		select {
@@ -119,7 +129,9 @@ func (ix *Indexer) Drain(ctx context.Context) {
 			if err := ix.index(ctx, item); err != nil {
 				log.Printf("indexer: %s: %v", item.userID, err)
 			}
+			ix.wg.Done()
 		default:
+			ix.wg.Wait()
 			return
 		}
 	}
