@@ -128,3 +128,28 @@ sees channels it has been invited to - invite it explicitly, the
 config cannot widen that. CI covers list/history/post payloads, the
 ok:false quirk surfacing as an error, auth headers and the
 not-connected path.
+
+## GitHub (27e)
+
+The last planned copy. Read: `github_repos`, `github_issues` (pull
+requests appear too, marked as PR - GitHub serves them through the
+issues API). Write: `github_create_issue`.
+
+```yaml
+integrations:
+  github:
+    enabled: true
+    client_id: "<github oauth app client id>"
+    client_secret: "..."
+    redirect_url: "https://<your-bot-host>"
+```
+
+Scope: `repo`. Two more honest differences, again in code: GitHub's
+token endpoint answers form-encoded unless asked for JSON, so the
+shared OAuth flow now declares per-provider token request headers
+(`TokenHeaders` on the shared config, tested) instead of
+special-casing a vendor; and OAuth-app tokens do not expire, so this
+provider never exercises the refresh path. Error responses carry a
+JSON `message` field that surfaces verbatim. CI covers repos/issues/
+create payloads, PR marking, the Accept headers, error message
+extraction and the not-connected path.
