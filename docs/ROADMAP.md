@@ -729,7 +729,8 @@ evidence that counts.
     the coordinator aggregates every result correctly (no lost, no
     duplicated work).
 
-35. **Proactivity layer** (planned) - the agent wakes up on its own
+35. **Proactivity layer** (implemented, 2026-09-29, CI-tested) -
+    the agent wakes up on its own
     when something happens: subscriptions to sources (an email
     arriving, a document changing, a calendar event starting) fire
     the agent instead of waiting for the user to speak. Time-based
@@ -737,12 +738,27 @@ evidence that counts.
     runs a turn and its reply goes out through the delivery ledger
     (stage 19), so a crash loses nothing. Every subscription is
     auditable (source, filter, what it triggered) and expires or
-    pauses cleanly.
-    Done when: a scripted source event wakes the agent, runs the
-    turn, and the reply lands through the ledger; the battery grows
-    a "proactive" case proving the wake came from the event (not a
-    user message) and that a second identical event does not
-    double-deliver.
+    pauses cleanly. internal/proactive: a JSON-backed subscription
+    manager (same shape as the cron store); adapters call Notify,
+    matching subscriptions run one turn and the reply goes out
+    through the ledger (stage 19), so a crash loses nothing. Time
+    wakes are NOT duplicated here - they stay with cron (stage 22).
+    Dedup: each subscription remembers the last 50 event ids; a
+    source redelivery never double-fires or double-delivers. Audit:
+    source, filter, instruction and a bounded trail (50) of what it
+    triggered; expiry is lazy and final, pause/resume anytime. A
+    failed turn stays unseen so a source redelivery retries; once
+    the turn ran, the fire is recorded even if delivery fails - the
+    ledger owns reply recovery from there. The model manages its
+    subscriptions with subscribe / subscriptions /
+    pause_subscription / unsubscribe; a user can only touch their
+    own. Live sources (real Gmail/Calendar watches) are pending live
+    verification with the user's credentials.
+    Done when - MET: the "proactive" battery case fires a scripted
+    gmail event with no user message, the model request carries the
+    wake marker and the event summary, the reply lands delivered
+    through the real ledger, and an identical event neither
+    re-runs nor re-delivers.
 36. **Unified conversation** (planned) - one conversation per user
     across channels, not one thread per channel: the user starts on
     WhatsApp, continues on Telegram, and the agent sees a single
