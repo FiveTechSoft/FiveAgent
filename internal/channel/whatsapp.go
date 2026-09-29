@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/media"
 )
 
 // whatsapp is the official WhatsApp Cloud API adapter.
@@ -42,6 +43,10 @@ type whatsapp struct {
 	debounceOn bool
 	mu         sync.Mutex
 	pending    map[string]*burst
+	// media processors (stage 25): nil means that direction is not
+	// configured and inbound media is announced without content.
+	transcriber media.Transcriber
+	describer   media.Describer
 }
 
 // queuedMsg is one inbound message waiting in a sender's burst.
@@ -78,6 +83,12 @@ func NewWhatsApp(cfg config.Channel, core Handler) Channel {
 		} else {
 			log.Printf("whatsapp: invalid debounce %q - using 3s", cfg.Debounce)
 		}
+	}
+	if cfg.TranscriberURL != "" {
+		w.transcriber = media.HTTPTranscriber{URL: cfg.TranscriberURL}
+	}
+	if cfg.DescriberURL != "" {
+		w.describer = media.HTTPDescriber{URL: cfg.DescriberURL, Model: cfg.DescriberModel, APIKey: cfg.DescriberKey}
 	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
@@ -265,7 +276,7 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 					continue
 				}
 				log.Printf("whatsapp: message from %s (type %s)", m.From, m.Type)
-				w.enqueue(m.From, m.ID, describe(m), quoteOf(m))
+				w.enqueue(m.From, m.ID, w.describeInbound(m), quoteOf(m))
 			}
 		}
 	}
@@ -304,6 +315,57 @@ func describe(m inboundMessage) string {
 		return "[reaction]"
 	default:
 		return "[" + m.Type + " message - not supported yet]"
+	}
+}
+
+// describeInbound turns one inbound message into text for the agent,
+// downloading and processing media when a processor is configured.
+// Voice notes become their transcript; images become a description.
+// When the matching processor is not configured - or processing fails -
+// the agent gets an honest bracket note and never a silent drop. Media
+// bytes and transcripts are never logged (privacy); ids and byte
+// counts only. Processing happens after the webhook has already
+// returned 200, so a slow transcription service does not stall Meta.
+func (w *whatsapp) describeInbound(m inboundMessage) string {
+	switch m.Type {
+	case "audio":
+		if w.transcriber == nil || m.Audio.ID == "" {
+			return "[voice note - transcription not configured]"
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		data, mimeType, err := w.DownloadMedia(ctx, m.Audio.ID)
+		if err != nil {
+			log.Printf("whatsapp: media %s download failed: %v", m.Audio.ID, err)
+			return "[voice note - download failed]"
+		}
+		log.Printf("whatsapp: voice note %s: %d bytes (%s)", m.Audio.ID, len(data), mimeType)
+		text, err := w.transcriber.Transcribe(ctx, data, mimeType)
+		if err != nil || text == "" {
+			log.Printf("whatsapp: media %s transcription failed: %v", m.Audio.ID, err)
+			return "[voice note - transcription failed]"
+		}
+		return "[voice note] " + text
+	case "image":
+		if w.describer == nil || m.Image.ID == "" {
+			return describe(m)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		data, mimeType, err := w.DownloadMedia(ctx, m.Image.ID)
+		if err != nil {
+			log.Printf("whatsapp: media %s download failed: %v", m.Image.ID, err)
+			return "[image - download failed]"
+		}
+		log.Printf("whatsapp: image %s: %d bytes (%s)", m.Image.ID, len(data), mimeType)
+		desc, err := w.describer.Describe(ctx, data, mimeType, m.Image.Caption)
+		if err != nil || desc == "" {
+			log.Printf("whatsapp: media %s description failed: %v", m.Image.ID, err)
+			return "[image - description failed]"
+		}
+		return "[image: " + desc + "]"
+	default:
+		return describe(m)
 	}
 }
 
