@@ -21,6 +21,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
+	"github.com/FiveTechSoft/FiveAgent/internal/proactive"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
 	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
 	"github.com/FiveTechSoft/FiveAgent/internal/slack"
@@ -64,6 +65,7 @@ func main() {
 	// lazily, once they are built below, and Run starts once ctx
 	// exists.
 	var chans []channel.Channel
+	var core *agent.Agent
 	var sc *sched.Scheduler
 	var linkSvc *links.Service
 	if cfg.Cron.Enabled {
@@ -94,6 +96,48 @@ func main() {
 		} else {
 			tl = append(tl, tools.ScheduleJob{Sched: sc})
 			log.Printf("cron scheduler: %s", cronPath)
+		}
+	}
+	// Stage 35: source subscriptions that wake the agent. Created
+	// before the registry so the model gets the subscribe tools; the
+	// runner closure resolves core lazily (built below) and deliver
+	// resolves channels lazily, like cron.
+	var pm *proactive.Manager
+	if cfg.Proactive.Enabled {
+		subPath := cfg.Proactive.Path
+		if subPath == "" {
+			subPath = "data/subscriptions.json"
+		}
+		runner := func(ctx context.Context, channelName, userID, prompt string) (string, error) {
+			if core == nil {
+				return "", fmt.Errorf("proactive: agent not ready")
+			}
+			return core.Handle(ctx, channelName, userID, prompt)
+		}
+		deliver := func(ctx context.Context, channelName, userID, text string) error {
+			for _, ch := range chans {
+				if ch.Name() != channelName {
+					continue
+				}
+				d, ok := ch.(interface {
+					Deliver(context.Context, string, string) error
+				})
+				if !ok {
+					return fmt.Errorf("proactive: channel %s cannot deliver", channelName)
+				}
+				return d.Deliver(ctx, userID, text)
+			}
+			return fmt.Errorf("proactive: channel %s is not enabled", channelName)
+		}
+		var err error
+		pm, err = proactive.Open(subPath, runner, deliver)
+		if err != nil {
+			log.Printf("proactive disabled: %v", err)
+			pm = nil
+		} else {
+			tl = append(tl, tools.Subscribe{Subs: pm}, tools.Subscriptions{Subs: pm},
+				tools.PauseSubscription{Subs: pm}, tools.Unsubscribe{Subs: pm})
+			log.Printf("proactive subscriptions: %s", subPath)
 		}
 	}
 	if cfg.Sandbox.Enabled {
@@ -365,7 +409,7 @@ func main() {
 	}
 	tl = append(tl, tools.SendChart{Send: mediaSend})
 	reg := tools.NewRegistry(tl...)
-	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
+	core = agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
 	core.WithSkills(agent.DomainSkill())
 	if kn != nil {
 		core.WithKnowledge(kn)
