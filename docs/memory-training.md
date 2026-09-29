@@ -4,7 +4,7 @@ Guía para usuarios de FiveAgent: sembrar la memoria a largo plazo
 (`data/memory/`) con hechos verificados por tu IA comercial (ChatGPT,
 Claude, Gemini, Copilot...) para que **tu modelo local los recuerde en
 lugar de alucinarlos**. Es el mismo principio del anti-confabulation seed
-del repo (`docs/fivetech-domain.md`), pero con el contenido que tú
+del repo (`skills/fivetech/SKILL.md`), pero con el contenido que tú
 elijas.
 
 ## Cómo funciona la memoria
