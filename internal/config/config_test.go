@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -165,5 +166,50 @@ func TestLoadExpandsEnv(t *testing.T) {
 	}
 	if want := "postgres://u:@db:5432/fiveagent"; cfg.Memory.Postgres != want {
 		t.Errorf("unset var: got %q, want %q", cfg.Memory.Postgres, want)
+	}
+}
+
+func TestLoadNumThread(t *testing.T) {
+	yml := `
+model:
+  base_url: http://localhost:11434/v1
+  name: qwen3
+  num_thread: 8
+coder:
+  name: qwen3-coder
+`
+	path := filepath.Join(t.TempDir(), "fiveagent.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model.NumThread != 8 {
+		t.Fatalf("model.num_thread: got %d, want 8", cfg.Model.NumThread)
+	}
+	if cfg.Coder.NumThread != 8 {
+		t.Fatalf("coder.num_thread not inherited: got %d, want 8", cfg.Coder.NumThread)
+	}
+}
+
+func TestLoadNumThreadRequiresV1BaseURL(t *testing.T) {
+	yml := `
+model:
+  base_url: http://localhost:11434
+  name: qwen3
+  num_thread: 8
+`
+	path := filepath.Join(t.TempDir(), "fiveagent.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected a loud config error, got nil")
+	}
+	if !strings.Contains(err.Error(), "num_thread") {
+		t.Fatalf("error must name num_thread: %v", err)
 	}
 }
