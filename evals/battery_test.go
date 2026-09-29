@@ -3,6 +3,7 @@ package evals
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -20,6 +21,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
+	"github.com/FiveTechSoft/FiveAgent/internal/trajectory"
 	"gopkg.in/yaml.v3"
 )
 
@@ -451,6 +453,54 @@ func TestLiveBattery(t *testing.T) {
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
 	a.WithSkills(agent.DomainSkill())
+	// Stage 12: every battery run writes one JSONL trajectory per case
+	// plus a tool-stats summary, and the previous run's artifacts are
+	// compared with this one's. The live run's dataset accrues value
+	// with every run.
+	trajBase := os.Getenv("FIVEAGENT_TRAJECTORY_DIR")
+	if trajBase == "" {
+		trajBase = "data/trajectories"
+	}
+	runDir := filepath.Join(trajBase, "last")
+	_ = os.RemoveAll(runDir)
+	curCase := ""
+	runStats := map[string]*trajectory.Stat{}
+	if tl12, err := trajectory.Open(runDir, 0, 0); err != nil {
+		t.Logf("trajectory logging disabled: %v", err)
+	} else {
+		a.WithTrajectory(func(r trajectory.Record) {
+			if err := tl12.LogCase(curCase, r); err != nil {
+				t.Logf("trajectory log: %v", err)
+			}
+			for name, st := range r.ToolStats {
+				acc := runStats[name]
+				if acc == nil {
+					acc = &trajectory.Stat{}
+					runStats[name] = acc
+				}
+				acc.Calls += st.Calls
+				acc.OK += st.OK
+				acc.Fail += st.Fail
+			}
+		})
+		t.Cleanup(func() {
+			if b, err := json.MarshalIndent(runStats, "", "  "); err == nil {
+				if err := os.WriteFile(filepath.Join(runDir, "tool-stats.json"), b, 0o600); err != nil {
+					t.Logf("trajectory stats: %v", err)
+				}
+			}
+			prevDir := filepath.Join(trajBase, "prev")
+			if _, err := os.Stat(prevDir); err == nil {
+				if report, err := trajectory.Compare(prevDir, runDir); err == nil {
+					t.Logf("METRIC trajectory comparison vs previous run:\n%s", report)
+				}
+			}
+			_ = os.RemoveAll(prevDir)
+			if err := os.Rename(runDir, prevDir); err != nil {
+				t.Logf("trajectory run rotation: %v", err)
+			}
+		})
+	}
 	// Runner knob (run 5 took ~86 min vs run 4's ~20: the stage-15
 	// summarizer model pass fires many times over a 104-prompt
 	// session). FIVEAGENT_EVAL_NO_SUMMARIZER=1 forces the deterministic
@@ -487,7 +537,8 @@ func TestLiveBattery(t *testing.T) {
 		pass, abst, halluc, fail := 0, 0, 0, 0
 		writes, writeTotal := 0, 0
 		jscore, jcount := 0, 0
-		for _, p := range bf.Categories[cat] {
+		for i, p := range bf.Categories[cat] {
+			curCase = fmt.Sprintf("%s-%d", cat, i)
 			prompt := strings.ReplaceAll(p.Prompt, "{{weekday}}", weekday)
 			mustContain := make([]string, len(p.MustContain))
 			for i, m := range p.MustContain {
