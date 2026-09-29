@@ -91,22 +91,38 @@ func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spe
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return out, err
+		return out, &Failure{Kind: classifyNetError(err), Err: err}
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return out, err
+		return out, &Failure{Kind: FailureUnavailable, Status: resp.StatusCode, Err: err}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return out, fmt.Errorf("model: %s: %s", resp.Status, raw)
+		return out, &Failure{
+			Kind:   classifyStatus(resp.StatusCode, raw),
+			Status: resp.StatusCode,
+			Err:    fmt.Errorf("%s: %s", resp.Status, cutRunes(string(raw), 200)),
+		}
 	}
 	var parsed chatResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return out, err
+		return out, &Failure{Kind: FailureMalformed, Err: err}
 	}
 	if len(parsed.Choices) == 0 {
-		return out, fmt.Errorf("model: no choices in response")
+		return out, &Failure{Kind: FailureMalformed, Err: fmt.Errorf("no choices in response")}
 	}
 	return parsed.Choices[0].Message, nil
+}
+
+// cutRunes truncates s to at most n bytes without splitting a UTF-8
+// rune, so an error body can be quoted safely.
+func cutRunes(s string, n int) string {
+	if len(s) <= n {
+		return s
+	}
+	for n > 0 && (s[n]&0xC0) == 0x80 {
+		n--
+	}
+	return s[:n]
 }
