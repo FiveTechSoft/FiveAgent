@@ -55,20 +55,64 @@ func SystemPrompt(cfg *config.Config) string {
 	if u, err := url.Parse(cfg.Model.BaseURL); err == nil && u.Host != "" {
 		host = u.Host
 	}
-	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s%s", p, cfg.Model.Name, host, honestyRules, domainBlock())
+	return fmt.Sprintf("%s You run on the model %s via %s; if asked, say so plainly. FiveAgent works with any OpenAI-compatible provider (DeepSeek, Ollama, OpenAI, ...): your owner can switch the model by editing fiveagent.yml, so never claim you cannot use one of them. FiveAgent is free and open source under the MIT license; its repo is https://github.com/FiveTechSoft/FiveAgent.%s", p, cfg.Model.Name, host, honestyRules)
+}
+
+// Skill is one bundle of instructions that enters the context only
+// when the user's message mentions its trigger words, never by
+// default (stage 17 of docs/ROADMAP.md). Sibling of the memory
+// recall-by-alias: the context only pays for what the turn needs.
+type Skill struct {
+	Name     string
+	Triggers []string
+	// Load returns the skill text; an empty string skips injection.
+	Load func() string
+}
+
+// skillMatches reports whether the user's text triggers the skill.
+// Long triggers match as substrings; short ones (3 chars or less)
+// require a word boundary so "fwh" does not fire inside longer words.
+func skillMatches(sk Skill, text string) bool {
+	low := strings.ToLower(text)
+	for _, tr := range sk.Triggers {
+		tr = strings.ToLower(strings.TrimSpace(tr))
+		if tr == "" {
+			continue
+		}
+		if len(tr) <= 3 {
+			if regexp.MustCompile(`\b` + regexp.QuoteMeta(tr) + `\b`).MatchString(low) {
+				return true
+			}
+			continue
+		}
+		if strings.Contains(low, tr) {
+			return true
+		}
+	}
+	return false
+}
+
+// DomainSkill is the first skill: the verified FiveTech domain
+// reference. It used to ride along on every turn; now only Harbour /
+// FiveWin mentions pay for it.
+func DomainSkill() Skill {
+	return Skill{
+		Name:     "fivetech-domain",
+		Triggers: []string{"harbour", "fivewin", "fwh", "fivetech", "fivegui", "xharbour"},
+		Load:     domainBlock,
+	}
 }
 
 // domainFile is the runtime location of the domain reference, relative
 // to the working directory.
 const domainFile = "docs/fivetech-domain.md"
 
-// domainBlock appends the FiveTech domain reference to every system
-// prompt. Small models confabulate Harbour/FiveWin facts (measured
-// live: invented syntax and a wrong expansion of FWH), so the verified
-// reference rides along on every turn and is marked as overriding the
-// model's general knowledge for this domain. On-demand domain loading
-// arrives with the skills stage; until then the file is small enough
-// to always inject.
+// domainBlock builds the FiveTech domain reference block. Small
+// models confabulate Harbour/FiveWin facts (measured live: invented
+// syntax and a wrong expansion of FWH), so the verified reference is
+// marked as overriding the model's general knowledge for this domain.
+// Since stage 17 it enters the context only when the turn mentions a
+// trigger word (see DomainSkill); before that it rode on every turn.
 func domainBlock() string {
 	d := strings.TrimSpace(loadDomain())
 	if d == "" {
@@ -113,6 +157,7 @@ type Agent struct {
 	tools     *tools.Registry
 	sysPrompt string
 	pruner    PruneConfig // context pruning (stage 15); zero value takes the defaults
+	skills    []Skill     // keyword-triggered context (stage 17)
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
@@ -124,6 +169,13 @@ func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt s
 // returns the agent for chaining.
 func (a *Agent) WithCoder(c *model.Client) *Agent {
 	a.coder = c
+	return a
+}
+
+// WithSkills installs keyword-triggered instruction bundles (stage 17)
+// and returns the agent for chaining.
+func (a *Agent) WithSkills(skills ...Skill) *Agent {
+	a.skills = skills
 	return a
 }
 
@@ -317,6 +369,17 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		log.Printf("agent: context pruning: %s", n)
 	}
 	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel)}}
+	// Stage 17: a skill's text enters the context only when the user's
+	// message mentions its trigger words.
+	for _, sk := range a.skills {
+		if !skillMatches(sk, text) {
+			continue
+		}
+		if block := strings.TrimSpace(sk.Load()); block != "" {
+			msgs = append(msgs, model.Message{Role: "system", Content: block})
+			log.Printf("agent: skill %q triggered (%d chars injected)", sk.Name, len(block))
+		}
+	}
 	if a.knowledge != nil {
 		if hits, err := a.knowledge.Recall(text); err == nil {
 			if note := recallNote(hits); note != "" {
