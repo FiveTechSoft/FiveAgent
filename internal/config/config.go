@@ -188,7 +188,8 @@ type Config struct {
 
 // Integrations groups the OAuth service settings.
 type Integrations struct {
-	Gmail GmailIntegration `yaml:"gmail,omitempty"`
+	Gmail    GmailIntegration    `yaml:"gmail,omitempty"`
+	Calendar CalendarIntegration `yaml:"calendar,omitempty"`
 }
 
 // GmailIntegration is the Gmail OAuth app + token store (stage 27a).
@@ -204,6 +205,16 @@ type GmailIntegration struct {
 	// data/tokens.json). NOT encrypted at rest - that is roadmap
 	// stage 8.
 	TokenPath string `yaml:"token_path,omitempty"`
+}
+
+// CalendarIntegration is the Google Calendar OAuth app (stage 27b).
+// Same fields as Gmail; the connect URL is /oauth/calendar/start.
+type CalendarIntegration struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClientID     string `yaml:"client_id,omitempty"`
+	ClientSecret string `yaml:"client_secret,omitempty"`
+	RedirectURL  string `yaml:"redirect_url,omitempty"`
+	TokenPath    string `yaml:"token_path,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
