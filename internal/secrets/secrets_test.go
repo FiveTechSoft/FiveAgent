@@ -6,6 +6,7 @@ package secrets
 
 import (
 	"encoding/base64"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -54,9 +55,23 @@ func TestTamperFails(t *testing.T) {
 	key, _ := GenerateKey()
 	c, _ := NewCipher(key)
 	sealed, _ := c.Seal([]byte("data"))
-	// Flip one byte inside the base64 ciphertext region.
-	i := strings.LastIndex(string(sealed), "A")
-	tampered := []byte(string(sealed[:i]) + "B" + string(sealed[i+1:]))
+	// Flip one bit inside the decoded ciphertext. Deterministic:
+	// editing base64 text by position is flaky (the alphabet position
+	// of a letter varies per blob - that bug red-pained CI randomly).
+	var env Envelope
+	if err := json.Unmarshal(sealed, &env); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(env.Data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw[0] ^= 0xff
+	env.Data = base64.StdEncoding.EncodeToString(raw)
+	tampered, err := json.Marshal(env)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if _, err := c.Open(tampered); err == nil {
 		t.Fatal("tampered blob must not open")
 	}
