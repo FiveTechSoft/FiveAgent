@@ -91,6 +91,7 @@ func main() {
 	}
 	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
+	core.WithSkills(agent.DomainSkill())
 	if kn != nil {
 		core.WithKnowledge(kn)
 	}
