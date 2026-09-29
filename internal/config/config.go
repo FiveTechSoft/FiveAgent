@@ -75,6 +75,16 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// Workspace holds the file-tools settings (stage 21): the agent gets
+// read_file / write_file / edit_file scoped to a per-user folder, with
+// go-git snapshots before every write so every edit is undoable.
+type Workspace struct {
+	Enabled bool `yaml:"enabled"`
+	// Root is the base folder; each user gets Root/<channel>-<userID>/.
+	// Default data/workspace.
+	Root string `yaml:"root,omitempty"`
+}
+
 // Delivery holds the durable delivery ledger settings (stage 19):
 // every outbound reply is recorded before sending, and after a crash
 // the pending ones are redelivered once with a recovered marker.
@@ -111,6 +121,8 @@ type Config struct {
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
 	// Delivery is the durable delivery ledger (stage 19).
 	Delivery Delivery `yaml:"delivery,omitempty"`
+	// Workspace is the per-user file-tools folder (stage 21).
+	Workspace Workspace `yaml:"workspace,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
