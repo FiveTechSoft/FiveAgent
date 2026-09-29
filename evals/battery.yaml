@@ -483,6 +483,12 @@ categories:
     - '391'
     - roma
     source: "caso subordinado (stage 18): tarea multi-paso; la maquinaria (delegación, contexto fresco, profundidad 1, composición) la prueba el caso scriptado de CI - aquí se mide el resultado en vivo, delegue el modelo o no"
+  files:
+  - prompt: "crea en tu workspace el fichero compra.txt con esta lista: pan, leche, huevos. Luego cambia leche por leche de avena y cuéntame qué cambió"
+    must_contain:
+    - leche de avena
+    - pan
+    source: "caso de ficheros (stage 21): la maquinaria (scoping por usuario, diff verdadero con verificación exacta, snapshot go-git previo a cada escritura, antiescape de rutas) la prueba el caso scriptado de CI - aquí se mide que el modelo maneja las tools en vivo"
   web_search:
   - prompt: usa la herramienta web_search para encontrar la documentación oficial de FiveWin for Harbour y dime su URL
     must_contain:
