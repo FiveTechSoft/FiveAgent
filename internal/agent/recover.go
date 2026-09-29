@@ -8,6 +8,12 @@
 //	timeout, malformed reply, rate-limit  -> retry the same model
 //	                                        (rate-limit waits longer),
 //	                                        then the fallback model
+//	empty reply (200, no content, no      -> retry the same model with
+//	tool calls)                               a reinforced prompt, then
+//	                                        the fallback model; still
+//	                                        empty returns the empty
+//	                                        answer for the agent's
+//	                                        honest-guard path
 //	context overflow                      -> compress the context with
 //	                                        the stage 15 pruner at half
 //	                                        budget, retry once, then
@@ -29,6 +35,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
@@ -48,6 +55,11 @@ const (
 // only one exists).
 func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client, msgs []model.Message, specs []tools.Spec) (model.Message, error) {
 	ans, err := mdl.Chat(ctx, msgs, specs)
+	if err == nil && strings.TrimSpace(ans.Content) == "" && len(ans.ToolCalls) == 0 {
+		// A 200 with nothing in it is a generation failure, not a
+		// success: classify it so the ladder below applies.
+		err = &model.Failure{Kind: model.FailureEmpty, Err: fmt.Errorf("model returned empty content and no tool calls")}
+	}
 	if err == nil {
 		return ans, nil
 	}
@@ -104,6 +116,45 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 			}
 		}
 		log.Printf("agent: context overflow persists after compression")
+
+	case model.FailureEmpty:
+		// Retry with a reinforced prompt: the transcript plus an
+		// explicit instruction that the last reply came back empty.
+		reinforced := append(append([]model.Message{}, msgs...), model.Message{
+			Role:    "system",
+			Content: "Tu última respuesta llegó vacía. Responde ahora directamente a la petición del usuario, con contenido real.",
+		})
+		for attempt := 1; attempt <= maxRecoveryRounds; attempt++ {
+			ans, err = mdl.Chat(ctx, reinforced, specs)
+			if err == nil && (strings.TrimSpace(ans.Content) != "" || len(ans.ToolCalls) > 0) {
+				log.Printf("agent: recovered from empty reply on reinforced retry %d", attempt)
+				return ans, nil
+			}
+			if err != nil && !errors.As(err, &f) {
+				return ans, err
+			}
+		}
+		log.Printf("agent: %d reinforced retries still returned empty", maxRecoveryRounds)
+		// The shared fallback rung below uses the plain transcript;
+		// for an empty reply the fallback model also gets the
+		// reinforcement, and a still-empty answer is returned as-is
+		// (nil error) so the agent's honest-guard path owns the
+		// final outcome.
+		if fallback != nil && fallback != mdl {
+			ans, err = fallback.Chat(ctx, reinforced, specs)
+			if err == nil {
+				if strings.TrimSpace(ans.Content) != "" || len(ans.ToolCalls) > 0 {
+					log.Printf("agent: recovered from empty reply via the fallback model")
+				}
+				return ans, nil
+			}
+			var ff *model.Failure
+			if errors.As(err, &ff) {
+				return ans, fmt.Errorf("agent: both models failed (%s, then %s): %w", kind, ff.Kind, err)
+			}
+			return ans, err
+		}
+		return ans, nil
 
 	case model.FailureUnavailable:
 		// Straight to the fallback model.
