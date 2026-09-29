@@ -6,7 +6,8 @@
 // subtask in an isolated subturn - fresh context (no conversation
 // history, no memory recall, no store writes), the same model and
 // tools, and every tool EXCEPT run_subtask, so delegation is capped
-// at depth 1. Sequential only; parallelism is stage 34. The subturn
+// at depth 1. run_subtask is sequential; its sibling run_subtasks
+// (stage 34) fans independent subtasks out in parallel. The subturn
 // result comes back as the tool result and the main turn composes
 // the final answer.
 package agent
@@ -82,7 +83,7 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 	if a.coder != nil && looksLikeCode(task) {
 		mdl, fallback = a.coder, a.mdl
 	}
-	specs := a.tools.Without("run_subtask").Specs()
+	specs := a.tools.Without("run_subtask", "run_subtasks").Specs()
 	var reply string
 	for round := 0; round < maxToolRounds; round++ {
 		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, specs)
@@ -102,7 +103,7 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 					rawArgs = fixed
 				}
 			}
-			result, err := a.tools.Without("run_subtask").Execute(ctx, call.Function.Name, rawArgs)
+			result, err := a.tools.Without("run_subtask", "run_subtasks").Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
 			}
