@@ -45,6 +45,11 @@ that run passes, the tag is cut and prebuilt binaries are published.
   stays a good neighbor on shared CPU hosts. Propagated through Ollama's
   native /api/chat (the OpenAI-compatible layer silently drops unknown
   options); a base_url where it cannot be honored fails loudly at load.
+- `chat_template_kwargs` per model: arbitrary chat-template switches in
+  the /v1/chat/completions body (measured need: enable_thinking: false
+  stops a reasoning model on SGLang from spending the whole token
+  budget on internal thinking and replying empty). Separate route from
+  num_thread; setting both on one model fails loudly at load.
 
 ### Memory and secrets
 
