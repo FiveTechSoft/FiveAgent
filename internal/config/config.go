@@ -75,6 +75,22 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// Links holds the link-server settings (stage 24): signed,
+// PIN-protected report and form links served by the bot itself.
+type Links struct {
+	Enabled bool `yaml:"enabled"`
+	// BaseURL is the public base the bot is reached on (the tunnel
+	// URL); links are minted under it. Required when enabled.
+	BaseURL string `yaml:"base_url,omitempty"`
+	// SecretPath is the HMAC signing key file; default
+	// data/links-secret (created on first run).
+	SecretPath string `yaml:"secret_path,omitempty"`
+	// StoreDir holds report pages and link records; default data/links.
+	StoreDir string `yaml:"store_dir,omitempty"`
+	// VaultDir receives form submissions; default data/vault.
+	VaultDir string `yaml:"vault_dir,omitempty"`
+}
+
 // Browser holds the web-browser settings (stage 23): numbered-element
 // pages, by-id actions, gated submits, per-user audit log.
 type Browser struct {
@@ -143,6 +159,8 @@ type Config struct {
 	Cron Cron `yaml:"cron,omitempty"`
 	// Browser is the web browser tool (stage 23).
 	Browser Browser `yaml:"browser,omitempty"`
+	// Links is the link server for reports and forms (stage 24).
+	Links Links `yaml:"links,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
