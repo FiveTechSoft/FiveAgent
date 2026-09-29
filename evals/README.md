@@ -262,10 +262,23 @@ model failures:
 The 2 misses:
 
 1. tools/echo FooBAR-Baz_123: the reply showed "A c c e s o d e n e g
-   a d o" (spaced letters) without the string - either a real
-   AppContainer denial surfacing through the tool (sandbox bug) or a
-   model glitch. PENDING DIAGNOSIS: owner reproduces it manually
-   against the live bot before any fix.
+   a d o" (spaced letters) without the string. DIAGNOSED 2026-09-29
+   (owner, 3 manual runs against the live bot, wiring identical to
+   main.go, probe removed afterwards): no real E_ACCESDENIED exists -
+   that string is nowhere in the repo; the sandbox's real error for a
+   bare `echo` is `run_command audit cmd="echo" error=sandbox:
+   CreateProcess: The system cannot find the file specified` (echo is
+   a cmd builtin, no exe on the AppContainer PATH). The miss was text
+   hallucinated by the model with spaced-letter degradation, not a
+   sandbox failure.
+   Side finding: run 1 reproduced the empty-reply bug live -
+   `cmd /c echo FooBAR-Baz_123` executed fine (exit=0, 327 ms) yet
+   the model returned empty content through 3 tool rounds and 3
+   forced attempts until the fallback guard fired; observed rate
+   ~1 in 3. The command itself is reliable (exit=0, 87-327 ms every
+   time; the model sometimes detours through cat/python3). Empty
+   generation with the tool OK becomes an explicit class of the
+   stage-16 recovery classifier: retry with a reinforced prompt.
 2. The M3a detector gap itself, counted as NO-ABSTENTION. Fixed as
    above.
 
