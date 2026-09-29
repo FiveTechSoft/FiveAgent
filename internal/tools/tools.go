@@ -36,6 +36,37 @@ func NewRegistry(ts ...Tool) *Registry {
 	return r
 }
 
+// Add registers t unless the name is already taken. The agent uses it
+// to self-register its built-ins (stage 18's run_subtask) into the
+// caller's registry.
+func (r *Registry) Add(t Tool) {
+	if _, ok := r.byName[t.Name()]; ok {
+		return
+	}
+	r.tools = append(r.tools, t)
+	r.byName[t.Name()] = t
+}
+
+// Without returns a copy of the registry excluding the named tools.
+// Sub-turns use it to cap the delegation depth (stage 18: a subturn
+// gets every tool EXCEPT run_subtask, so subturns cannot spawn their
+// own subturns).
+func (r *Registry) Without(names ...string) *Registry {
+	ex := make(map[string]bool, len(names))
+	for _, n := range names {
+		ex[n] = true
+	}
+	out := &Registry{byName: make(map[string]Tool, len(r.tools))}
+	for _, t := range r.tools {
+		if ex[t.Name()] {
+			continue
+		}
+		out.tools = append(out.tools, t)
+		out.byName[t.Name()] = t
+	}
+	return out
+}
+
 // Spec describes one tool for the chat completions request.
 type Spec struct {
 	Type     string `json:"type"` // "function"
