@@ -718,16 +718,23 @@ evidence that counts.
     rejected without token, command runs confined to the sandbox), and
     the doc page gets a reader from zero to first call in minutes.
 
-34. **Multi-agent parallel execution** (future path, for large models;
-    see the single-agent principle below) - a worker pool (goroutines)
-    fed by a task queue: N concurrent tasks, each isolated in its own
-    context, sharing nothing mutable. Memory stays thread-safe under
-    concurrency (the knowledge mutex pattern from stage h). A
-    coordinator collects worker results and synthesizes one answer.
-    Done when: `go test -race` stays green across the pool, and an
-    acceptance test launches several subtasks in parallel and verifies
-    the coordinator aggregates every result correctly (no lost, no
-    duplicated work).
+34. **Multi-agent parallel execution** (implemented, 2026-09-29,
+    CI-tested) - run_subtasks fans SEVERAL independent subtasks out
+    through a bounded worker pool (goroutines fed by a task queue,
+    cap 4 concurrent, cap 8 per call) on the stage 18 subturn
+    machinery: each subtask is the same isolated subturn - fresh
+    context, nothing mutable shared - and delegation stays capped at
+    depth 1 (subturns see neither run_subtask nor run_subtasks). One
+    failing subtask fills its own slot with an honest, attributed
+    error; the others still finish. The main turn is the
+    coordinator: it receives every result in order and synthesizes
+    the answer. Sequential run_subtask stays for dependent steps.
+    Done when - MET: `go test -race` green across the pool; the
+    "parallel" battery fans 3 subtasks whose fake subturns sleep
+    250ms each - the whole turn takes ~260ms, not the ~750ms
+    sequential would, proving real overlap from wall time; the
+    coordinator's request carries every aggregated slot; no
+    subturn's request offers the delegation tools.
 
 35. **Proactivity layer** (implemented, 2026-09-29, CI-tested) -
     the agent wakes up on its own
