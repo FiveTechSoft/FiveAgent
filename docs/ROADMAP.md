@@ -599,7 +599,8 @@ evidence that counts.
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
 27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
-    (planned) - the agent reads and acts on the user's real accounts,
+    (partially implemented, 2026-09-29: shared pattern + Gmail) -
+    the agent reads and acts on the user's real accounts,
     one integration per service behind a shared pattern (OAuth
     connect, read tools, write tools), so the next service is a
     known shape, not a new design:
@@ -617,6 +618,17 @@ evidence that counts.
     data, never instructions (stage 9), secrets live encrypted at
     rest (stage 8), and outbound actions ride the delivery ledger
     (stage 19).
+    Shipped slice (27a): the shared pattern - internal/oauth
+    (authorization-code flow, refresh, 0600 token store with atomic
+    writes, /oauth/<service>/start + /callback handler mounted like
+    links) - plus Gmail: gmail_search and gmail_send tools, the
+    connect flow, and transparent token refresh. Everything is tested
+    against fake endpoints (form fields, state rejection, store
+    permissions, RFC822 payloads, auth headers); no real account is
+    ever touched in CI. The token store is NOT encrypted at rest and
+    declares its dependency on stage 8. Pending: live verification
+    with a real Google OAuth app (needs the operator's client
+    credentials), and the second integration copying the shape.
     Done when: one integration ships end-to-end (OAuth connect ->
     read -> write) with its battery case, and the second integration
     lands as a copy of the shape, proving the pattern.
