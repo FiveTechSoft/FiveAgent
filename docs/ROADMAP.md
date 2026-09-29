@@ -600,7 +600,7 @@ evidence that counts.
     the screenshot and the action.
 27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
     (partially implemented, 2026-09-29: shared pattern, Gmail,
-    Calendar) -
+    Calendar, Drive) -
     the agent reads and acts on the user's real accounts,
     one integration per service behind a shared pattern (OAuth
     connect, read tools, write tools), so the next service is a
@@ -633,8 +633,12 @@ evidence that counts.
     Calendar list/create tools, FreeBusy in the client, same
     store/handler/honest-error shape, tested against fake endpoints -
     the pattern is proven, not just claimed. Pending: merging Google
-    scopes into one consent, and Drive / Slack / GitHub as the next
-    copies.
+    scopes into one consent, and Slack / GitHub as the next copies.
+    27c shipped as the third copy: Drive list/download/upload tools
+    on the drive.file scope (the agent sees only its own files - a
+    personal agent browsing the whole Drive is a bigger trust
+    decision than this stage takes), same store/handler/honest-error
+    shape, tested against fake endpoints.
     Done when: one integration ships end-to-end (OAuth connect ->
     read -> write) with its battery case, and the second integration
     lands as a copy of the shape, proving the pattern.
