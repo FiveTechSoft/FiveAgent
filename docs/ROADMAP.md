@@ -599,7 +599,8 @@ evidence that counts.
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
 27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
-    (partially implemented, 2026-09-29: shared pattern + Gmail) -
+    (partially implemented, 2026-09-29: shared pattern, Gmail,
+    Calendar) -
     the agent reads and acts on the user's real accounts,
     one integration per service behind a shared pattern (OAuth
     connect, read tools, write tools), so the next service is a
@@ -628,7 +629,12 @@ evidence that counts.
     ever touched in CI. The token store is NOT encrypted at rest and
     declares its dependency on stage 8. Pending: live verification
     with a real Google OAuth app (needs the operator's client
-    credentials), and the second integration copying the shape.
+    credentials), 27b shipped as the pattern copy:
+    Calendar list/create tools, FreeBusy in the client, same
+    store/handler/honest-error shape, tested against fake endpoints -
+    the pattern is proven, not just claimed. Pending: merging Google
+    scopes into one consent, and Drive / Slack / GitHub as the next
+    copies.
     Done when: one integration ships end-to-end (OAuth connect ->
     read -> write) with its battery case, and the second integration
     lands as a copy of the shape, proving the pattern.
