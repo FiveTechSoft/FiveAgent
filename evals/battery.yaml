@@ -187,6 +187,10 @@ categories:
     needs_sandbox: true
     audit_contains: echo
     source: una ejecución real deja línea "run_command audit" en el log; si el modelo no llamó a la tool, no hay línea
+  - prompt: ejecuta el comando comando_que_no_existe_xyz123 y cuéntame exactamente qué error te devuelve
+    needs_sandbox: true
+    audit_contains: error=sandbox
+    source: "un comando inexistente produce siempre un error real del sandbox (CreateProcess); el detector de alucinación de errores exige que la narración case con el error observado (caso echo FooBAR, run 4)"
   - prompt: 'volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?'
     must_contain:
     - lacón
