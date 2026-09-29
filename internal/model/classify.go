@@ -37,6 +37,10 @@ const (
 	// FailureUnavailable: the endpoint cannot be reached or is down
 	// (connection errors, 502/503/504).
 	FailureUnavailable
+	// FailureEmpty is not a transport or API error: the endpoint
+	// answered 200 with empty content and no tool calls. The agent
+	// layer synthesizes it so the same recovery ladder handles it.
+	FailureEmpty
 )
 
 func (k FailureKind) String() string {
@@ -53,6 +57,8 @@ func (k FailureKind) String() string {
 		return "malformed-reply"
 	case FailureUnavailable:
 		return "unavailable"
+	case FailureEmpty:
+		return "empty-reply"
 	}
 	return "unknown"
 }
