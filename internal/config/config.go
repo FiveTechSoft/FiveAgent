@@ -55,6 +55,14 @@ type Channel struct {
 	DescriberURL   string `yaml:"describer_url,omitempty"`
 	DescriberModel string `yaml:"describer_model,omitempty"`
 	DescriberKey   string `yaml:"describer_key,omitempty"`
+	// Outbound voice notes (stage 25d): tts_url points at an
+	// OpenAI-compatible /v1/audio/speech endpoint (openedai-speech for
+	// Piper, kokoro-fastapi for Kokoro). Empty disables voice replies;
+	// replies then go out as text as before.
+	TTSURL   string `yaml:"tts_url,omitempty"`
+	TTSModel string `yaml:"tts_model,omitempty"`
+	TTSVoice string `yaml:"tts_voice,omitempty"`
+	TTSKey   string `yaml:"tts_key,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
