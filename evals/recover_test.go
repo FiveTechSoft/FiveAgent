@@ -244,3 +244,58 @@ func TestRecoveryForeignErrorBubbles(t *testing.T) {
 	}
 	fmt.Println("bubbled error:", err)
 }
+
+const emptyAnswer = `{"choices":[{"message":{"role":"assistant","content":""}}]}`
+
+// (7) Empty reply: 200 with no content and no tool calls is a
+// generation failure; the ladder retries with a reinforced prompt.
+// Anti-humo: the retry request must carry the reinforcement - without
+// it this case fails even though the answer eventually arrives.
+func TestRecoveryEmptyReinforcedRetry(t *testing.T) {
+	var bodies []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		bodies = append(bodies, string(b))
+		w.Header().Set("Content-Type", "application/json")
+		if len(bodies) <= 2 {
+			io.WriteString(w, emptyAnswer)
+			return
+		}
+		io.WriteString(w, okAnswer)
+	}))
+	t.Cleanup(srv.Close)
+	cfg := config.Model{BaseURL: srv.URL, Name: "eval", Timeout: 10}
+	a := newRecoverAgent(t, cfg, config.Model{})
+	reply, err := a.Handle(context.Background(), "whatsapp", "u1", "hola")
+	if err != nil {
+		t.Fatalf("empty replies should recover via reinforcement: %v", err)
+	}
+	if !strings.Contains(reply, "recuperado") {
+		t.Fatalf("unexpected reply: %q", reply)
+	}
+	if len(bodies) < 2 || !strings.Contains(bodies[1], "respuesta llegó vacía") {
+		t.Fatalf("retry 2 must carry the reinforced prompt; bodies=%d", len(bodies))
+	}
+}
+
+// (8) Always empty: after the full ladder the user gets the one
+// honest line - never silence, never an error.
+func TestRecoveryEmptyHonestGuard(t *testing.T) {
+	srv, calls := flaky(t,
+		fail(200, emptyAnswer), fail(200, emptyAnswer), fail(200, emptyAnswer),
+		fail(200, emptyAnswer), fail(200, emptyAnswer), fail(200, emptyAnswer),
+		fail(200, emptyAnswer))
+	cfg := config.Model{BaseURL: srv.URL, Name: "eval", Timeout: 10}
+	a := newRecoverAgent(t, cfg, config.Model{})
+	reply, err := a.Handle(context.Background(), "whatsapp", "u1", "hola")
+	if err != nil {
+		t.Fatalf("an always-empty model must degrade to the honest line, not error: %v", err)
+	}
+	if reply != "Lo siento, no he podido preparar una respuesta esta vez. Prueba a preguntármelo otra vez." {
+		t.Fatalf("expected the honest guard line, got: %q", reply)
+	}
+	// 1 classified call + 2 reinforced retries + 3 forced attempts.
+	if *calls != 6 {
+		t.Fatalf("expected 6 model calls across the whole ladder, got %d", *calls)
+	}
+}
