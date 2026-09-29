@@ -477,6 +477,12 @@ categories:
     must_contain:
     - teclado|piano
     source: "adivinanza clásica estilo CommonsenseQA; 2026-09-29 run 5: el modelo respondió un piano - variante defensible (un piano tiene llaves/teclas), la rúbrica admite ambas y lo documenta aquí, no es un debilitamiento silencioso"
+  subordinate:
+  - prompt: "hazme dos cosas y preséntame ambos resultados juntos: calcula 17*23 y dime la capital de Italia"
+    must_contain:
+    - '391'
+    - roma
+    source: "caso subordinado (stage 18): tarea multi-paso; la maquinaria (delegación, contexto fresco, profundidad 1, composición) la prueba el caso scriptado de CI - aquí se mide el resultado en vivo, delegue el modelo o no"
   web_search:
   - prompt: usa la herramienta web_search para encontrar la documentación oficial de FiveWin for Harbour y dime su URL
     must_contain:
