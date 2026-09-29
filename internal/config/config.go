@@ -20,6 +20,14 @@ type Model struct {
 	// local endpoints (localhost), where large models load into RAM on
 	// first use and easily exceed two minutes.
 	Timeout int `yaml:"timeout,omitempty"`
+	// ChatTemplateKwargs passes arbitrary chat-template keyword arguments
+	// (e.g. enable_thinking: false for reasoning models on SGLang/vLLM)
+	// in the /v1/chat/completions body. Measured need: a reasoning model
+	// can spend the whole token budget on internal thinking and return
+	// empty visible content. Only the OpenAI-compatible route carries
+	// them - num_thread forces Ollama's native route, so setting both on
+	// the same model is a config error (no silent drops).
+	ChatTemplateKwargs map[string]any `yaml:"chat_template_kwargs,omitempty"`
 	// NumThread caps the inference thread count (Ollama's num_thread).
 	// Without it the runner spawns one thread per CPU core and saturates
 	// shared hosts even when the process is pinned by affinity. 0 leaves
@@ -389,12 +397,18 @@ func Load(path string) (*Config, error) {
 	if c.Coder.Name != "" && c.Coder.NumThread == 0 {
 		c.Coder.NumThread = c.Model.NumThread
 	}
+	if c.Coder.Name != "" && c.Coder.ChatTemplateKwargs == nil {
+		c.Coder.ChatTemplateKwargs = c.Model.ChatTemplateKwargs
+	}
 	for _, m := range []struct {
 		label string
 		m     Model
 	}{{"model", c.Model}, {"coder", c.Coder}} {
 		if m.m.NumThread > 0 && !strings.HasSuffix(m.m.BaseURL, "/v1") {
 			return nil, fmt.Errorf("%s.num_thread is honored only through Ollama's native API; %s.base_url must end in /v1 so the native endpoint can be derived", m.label, m.label)
+		}
+		if m.m.NumThread > 0 && len(m.m.ChatTemplateKwargs) > 0 {
+			return nil, fmt.Errorf("%s sets both num_thread (Ollama native route) and chat_template_kwargs (/v1 route); they travel on separate paths, keep one per model", m.label)
 		}
 	}
 	return &c, nil
