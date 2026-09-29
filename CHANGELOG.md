@@ -41,6 +41,10 @@ that run passes, the tag is cut and prebuilt binaries are published.
 - Trajectory logging (opt-in): one JSONL trajectory per battery case
   with bounded rotation and redaction, designed as the future
   fine-tuning dataset source.
+- `num_thread` per model: caps Ollama's inference threads so the runner
+  stays a good neighbor on shared CPU hosts. Propagated through Ollama's
+  native /api/chat (the OpenAI-compatible layer silently drops unknown
+  options); a base_url where it cannot be honored fails loudly at load.
 
 ### Memory and secrets
 
