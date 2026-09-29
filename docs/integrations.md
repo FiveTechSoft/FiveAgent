@@ -78,3 +78,27 @@ scope today; merging Google scopes into one consent is a documented
 future refinement, not hidden magic. CI covers list/create/free-busy
 parsing, the create payload, auth headers and the honest
 not-connected path against fake endpoints.
+
+## Google Drive (27c)
+
+Third copy of the shape. Read: `drive_list` (Drive query syntax) and
+`drive_download` (text content, capped at 4 MiB). Write:
+`drive_upload` (metadata + content in one multipart request).
+
+```yaml
+integrations:
+  drive:
+    enabled: true
+    client_id: "....apps.googleusercontent.com"
+    client_secret: "..."
+    redirect_url: "https://<your-bot-host>"
+```
+
+The scope is deliberately `drive.file`, not full Drive: the agent sees
+and manages only the files it created (or that were explicitly opened
+with it). A personal agent that can browse your whole Drive is a
+bigger trust decision than a bot that keeps its own notes; the config
+cannot widen that today. Same shared token store (key "drive"), same
+connect handler (`/oauth/drive/start`), same honest errors. CI covers
+query forwarding, the multipart upload payload (metadata + bytes),
+download bytes, auth headers and the not-connected path.
