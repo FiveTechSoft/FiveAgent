@@ -109,13 +109,13 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 
 - **Channels** - thin adapters that normalize messages into one event format. WhatsApp and Telegram are implemented; iMessage is planned.
 - **Core** - a single Go binary running the agent loop: conversation memory and model calls. Provider-agnostic.
-- **Tools** - planned: web search, email, calendar, files, and a sandboxed browser (Playwright sidecar container, already in docker compose).
+- **Tools** - web search, Gmail/Calendar/Drive/Slack/GitHub over OAuth, workspace files with undoable diffs, a sandboxed shell (bubblewrap / AppContainer / Docker), a confirmation-gated browser, cron jobs, charts, and an MCP endpoint.
 
 ## Works today
 
 - Single Go binary, no runtime. Docker compose brings up the agent, Postgres and a Playwright sidecar.
 - WhatsApp channel via the official Cloud API, verified end-to-end in a live install ([guía en español paso a paso](docs/whatsapp.md)). Telegram channel via long polling (no public URL needed).
-- Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
+- Conversation memory in Postgres, plus long-term memory in plain markdown files with git as the source of truth: the agent saves and forgets facts with tools and recalls them past the 20-message window - CI evals prove recall, corrections and dedup.
 - Links, not walls of text: long answers go out as signed, PIN-protected links to clean pages served by the bot itself (`make_report_link`), and sensitive data (tokens, passwords) is collected with a small form link (`make_form_link`) whose value lands straight in the vault (data/vault), never in the chat or any log (`links.enabled` + `links.base_url` in the yml).
 - Cron scheduler: reminders and recurring automations in natural language (`schedule_job` tool), delivered back to your WhatsApp/Telegram when they fire (`cron.enabled` in the yml); every job is auditable in data/jobs.json (what ran, when, what it sent).
 - Durable delivery ledger: every reply is recorded before sending (data/deliveries.json), so a crash mid-send never silently loses it - on the next start, pending replies are redelivered once with a visible recovered marker. Attempts are capped (5) and replies undelivered after 24 h expire instead of arriving confusingly late.
@@ -134,19 +134,22 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 }
 ```
 
+- Multi-agent: isolated subagents, parallel subtask execution, one unified conversation across channels, and a proactivity layer where event watches wake the agent instead of polling.
+- Skills: drop a domain-knowledge file into `skills/` and the agent loads it when its keywords come up.
+- Trajectory logging (opt-in): one JSONL record per run, rotated and redacted - raw material for future fine-tuning.
+
 ## Roadmap
 
 Tracked as GitHub issues and milestones, in this order:
 
-1. ~~Tool calling in the agent loop~~ (done)
-2. ~~Telegram channel~~ (done)
-3. Per-user sandboxed command execution (all backends verified in CI: bubblewrap on Linux, AppContainer + Job Objects on Windows, Docker fallback; macOS sandbox-exec later)
-4. ~~CI with tests (GitHub Actions)~~ (done: ubuntu + windows + macos on every push)
-5. First release: v0.0.1
-6. Long-term memory (pgvector), secrets encrypted at rest, prompt-injection tests
-7. Tools: web search, browser, email, calendar
-8. iMessage channel
-9. Per-task model routing (planned): each request goes to the model best suited to it (chat to Qwen3-30B, code to Qwen2.5-Coder), with a router classifying requests and the models configurable in fiveagent.yml
+Stages 1-4 are done (tool calling, Telegram channel, per-user sandboxed command execution verified in CI on all backends, CI on ubuntu + windows + macos on every push). The roadmap kept moving from there - long-term memory, secrets at rest, web search, workspace, browser, cron, links, integrations, subagents, skills, MCP and more. What shipped and what still needs live verification is tracked honestly in [CHANGELOG.md](CHANGELOG.md).
+
+Next up:
+
+1. First release v0.0.1 - the candidate is ready; the tag waits for the baseline battery run against HEAD with the zero-real-hallucinations gate.
+2. iMessage channel.
+3. Model tuning for local models.
+4. Per-task model routing, full version: each request goes to the model best suited to it, configurable in fiveagent.yml.
 
 Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
@@ -154,7 +157,7 @@ Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 - Today: your secrets live in `fiveagent.yml` / environment variables on your machine. Keep that file private (it's in .gitignore).
 - The browser sidecar runs in its own container.
-- Shipped: secrets encrypted at rest (AES-256-GCM, key from env or 0600 key file, plaintext stores migrate without loss). On the roadmap: a prompt-injection test suite in CI. External content will be treated as data, never as instructions.
+- Shipped: secrets encrypted at rest (AES-256-GCM, key from env or 0600 key file, plaintext stores migrate without loss), and prompt-injection evals in CI covering memory content - external content is treated as data, never as instructions. Before the bot opens to multiple users, the suite must also cover the inbound messages themselves.
 
 ## Status
 
