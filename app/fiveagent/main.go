@@ -21,6 +21,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
+	"github.com/FiveTechSoft/FiveAgent/internal/slack"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
 
@@ -120,6 +121,9 @@ func main() {
 			tokenPath = cfg.Integrations.Drive.TokenPath
 		}
 		if tokenPath == "" {
+			tokenPath = cfg.Integrations.Slack.TokenPath
+		}
+		if tokenPath == "" {
 			tokenPath = "data/tokens.json"
 		}
 		store := &oauth.TokenStore{Path: tokenPath}
@@ -184,6 +188,26 @@ func main() {
 			providers["drive"] = ocfg
 			redirects["drive"] = cfg.Integrations.Drive.RedirectURL
 			log.Printf("drive integration: connect at /oauth/drive/start")
+		}
+		if cfg.Integrations.Slack.Enabled {
+			ocfg := oauth.Config{
+				ClientID:     cfg.Integrations.Slack.ClientID,
+				ClientSecret: cfg.Integrations.Slack.ClientSecret,
+				AuthURL:      slack.AuthURL,
+				TokenURL:     slack.TokenURL,
+				Scopes:       []string{"channels:read", "channels:history", "chat:write"},
+			}
+			slackFor := func(ctx context.Context) (*slack.Client, error) {
+				c, err := oauth.Client(ctx, ocfg, store, "slack")
+				if err != nil {
+					return nil, err
+				}
+				return &slack.Client{HTTP: c}, nil
+			}
+			tl = append(tl, tools.SlackChannels{Client: slackFor}, tools.SlackRead{Client: slackFor}, tools.SlackSend{Client: slackFor})
+			providers["slack"] = ocfg
+			redirects["slack"] = cfg.Integrations.Slack.RedirectURL
+			log.Printf("slack integration: connect at /oauth/slack/start")
 		}
 		if len(providers) > 0 {
 			oauthHandler = oauth.NewHandler(providers, store,
