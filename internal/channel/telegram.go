@@ -213,6 +213,11 @@ func (t *telegram) process(m *tgMessage) {
 	}
 }
 
+// Deliver sends an unquoted text, used by the scheduler (stage 22).
+func (t *telegram) Deliver(ctx context.Context, userID, text string) error {
+	return t.SendText(ctx, userID, text, 0)
+}
+
 // SendText sends a text message. replyToMessageID > 0 quotes that message.
 func (t *telegram) SendText(ctx context.Context, chatID, text string, replyToMessageID int) error {
 	payload := map[string]any{
