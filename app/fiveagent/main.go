@@ -58,6 +58,15 @@ func main() {
 			log.Printf("sandbox: %s backend", sb.Name())
 		}
 	}
+	if cfg.Workspace.Enabled {
+		root := cfg.Workspace.Root
+		if root == "" {
+			root = "data/workspace"
+		}
+		ws := tools.Workspace{Root: root}
+		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
+		log.Printf("workspace file tools: %s", root)
+	}
 	var kn *memory.Knowledge
 	if cfg.Memory.Knowledge != "" {
 		var err error
