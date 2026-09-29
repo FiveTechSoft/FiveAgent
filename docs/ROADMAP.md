@@ -531,13 +531,20 @@ evidence that counts.
     services. When a processor is not configured or fails, the agent
     gets an honest bracket note ("[voice note - transcription not
     configured]"), never a silent drop or a fake transcript. Outbound,
-    UploadMedia + send-by-id round-trip through the Graph API.
+    UploadMedia + send-by-id round-trip through the Graph API, and
+    phase d) first cut: with tts_url pointing at an OpenAI-compatible
+    /v1/audio/speech endpoint (openedai-speech for Piper,
+    kokoro-fastapi for Kokoro - one client covers both), replies go
+    out as native voice notes; any synthesis/upload/send failure falls
+    back to the text reply, and agent-failure fallback strings always
+    go as text. Per-user opt-in ("respondeme por voz") is pending; the
+    toggle is global per deployment today.
     internal/channel/whatsapp_media_test.go proves both directions
     against a fake Graph server with stub processors, asserts the
     Authorization header on every Graph call, and asserts failure
     paths surface honestly. Pending live verification with real
-    whisper/VL services (the fake-server round trip cannot prove model
-    quality), plus phases c), d) and e) below.
+    whisper/VL/TTS services (the fake-server round trip cannot prove model
+    quality), plus phases c) and e) below.
     Inbound phases:
     a) Voice notes: opus audio -> local Whisper transcription
        (whisper.cpp / faster-whisper) -> treated as a text message.
