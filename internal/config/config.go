@@ -4,6 +4,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,6 +20,13 @@ type Model struct {
 	// local endpoints (localhost), where large models load into RAM on
 	// first use and easily exceed two minutes.
 	Timeout int `yaml:"timeout,omitempty"`
+	// NumThread caps the inference thread count (Ollama's num_thread).
+	// Without it the runner spawns one thread per CPU core and saturates
+	// shared hosts even when the process is pinned by affinity. 0 leaves
+	// the server default. Honored only through Ollama's native API: when
+	// set, requests go to /api/chat instead of /v1/chat/completions, so
+	// base_url must end in /v1 (validated at Load).
+	NumThread int `yaml:"num_thread,omitempty"`
 }
 
 // Channel is one messaging channel's settings. The fields used depend on
@@ -377,6 +385,17 @@ func Load(path string) (*Config, error) {
 	}
 	if c.Coder.Name != "" && c.Coder.APIKey == "" {
 		c.Coder.APIKey = c.Model.APIKey
+	}
+	if c.Coder.Name != "" && c.Coder.NumThread == 0 {
+		c.Coder.NumThread = c.Model.NumThread
+	}
+	for _, m := range []struct {
+		label string
+		m     Model
+	}{{"model", c.Model}, {"coder", c.Coder}} {
+		if m.m.NumThread > 0 && !strings.HasSuffix(m.m.BaseURL, "/v1") {
+			return nil, fmt.Errorf("%s.num_thread is honored only through Ollama's native API; %s.base_url must end in /v1 so the native endpoint can be derived", m.label, m.label)
+		}
 	}
 	return &c, nil
 }
