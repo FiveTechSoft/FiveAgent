@@ -162,7 +162,11 @@ type Agent struct {
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
 func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt string) *Agent {
-	return &Agent{mdl: mdl, store: store, tools: reg, sysPrompt: sysPrompt}
+	a := &Agent{mdl: mdl, store: store, tools: reg, sysPrompt: sysPrompt}
+	// Stage 18: the agent self-registers run_subtask into the caller's
+	// registry; subturns exclude it (depth 1).
+	reg.Add(subtaskTool{a: a})
+	return a
 }
 
 // WithCoder sets the optional second model for code-heavy requests and
