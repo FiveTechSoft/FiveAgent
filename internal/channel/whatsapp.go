@@ -47,6 +47,9 @@ type whatsapp struct {
 	// configured and inbound media is announced without content.
 	transcriber media.Transcriber
 	describer   media.Describer
+	// tts synthesizes outbound voice notes (stage 25d); nil keeps
+	// replies as text.
+	tts media.Synthesizer
 }
 
 // queuedMsg is one inbound message waiting in a sender's burst.
@@ -89,6 +92,9 @@ func NewWhatsApp(cfg config.Channel, core Handler) Channel {
 	}
 	if cfg.DescriberURL != "" {
 		w.describer = media.HTTPDescriber{URL: cfg.DescriberURL, Model: cfg.DescriberModel, APIKey: cfg.DescriberKey}
+	}
+	if cfg.TTSURL != "" {
+		w.tts = media.HTTTSynthesizer{URL: cfg.TTSURL, Model: cfg.TTSModel, Voice: cfg.TTSVoice, APIKey: cfg.TTSKey}
 	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
@@ -488,7 +494,7 @@ func (w *whatsapp) processBatch(from string, msgs []queuedMsg) {
 			w.ledger.Attempting(d.ID)
 		}
 	}
-	sendErr := w.SendText(sendCtx, from, reply, replyTo)
+	sendErr := w.sendReply(sendCtx, from, reply, replyTo, agentFailed)
 	if sendErr != nil {
 		log.Printf("whatsapp: send: %v", sendErr)
 		if d != nil {
@@ -539,6 +545,56 @@ func (w *whatsapp) MountLinks(h http.Handler) {
 // Deliver sends an unquoted text, used by the scheduler (stage 22).
 func (w *whatsapp) Deliver(ctx context.Context, userID, text string) error {
 	return w.SendText(ctx, userID, text, "")
+}
+
+// sendReply delivers the agent's reply: as a voice note when TTS is
+// configured and the reply is a real answer, as text otherwise. Voice
+// degrades honestly: any synthesis or upload failure falls back to the
+// text reply (logged without content), so the user always gets the
+// answer. Fallback error strings always go out as text - a synthetic
+// voice apologizing would bury the signal that the agent failed.
+func (w *whatsapp) sendReply(ctx context.Context, to, text, replyTo string, agentFailed bool) error {
+	if w.tts == nil || agentFailed {
+		return w.SendText(ctx, to, text, replyTo)
+	}
+	ttsCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	audio, mimeType, err := w.tts.Synthesize(ttsCtx, text)
+	if err != nil {
+		log.Printf("whatsapp: tts failed (%v) - falling back to text", err)
+		return w.SendText(ctx, to, text, replyTo)
+	}
+	log.Printf("whatsapp: tts reply: %d bytes (%s)", len(audio), mimeType)
+	id, err := w.UploadMedia(ttsCtx, mimeType, "reply"+ttsExtFor(mimeType), audio)
+	if err != nil {
+		log.Printf("whatsapp: voice upload failed (%v) - falling back to text", err)
+		return w.SendText(ctx, to, text, replyTo)
+	}
+	payload := map[string]any{
+		"messaging_product": "whatsapp",
+		"to":                to,
+		"type":              "audio",
+		"audio":             map[string]any{"id": id},
+	}
+	if replyTo != "" {
+		payload["context"] = map[string]string{"message_id": replyTo}
+	}
+	if err := w.post(ctx, payload); err != nil {
+		log.Printf("whatsapp: voice send failed (%v) - falling back to text", err)
+		return w.SendText(ctx, to, text, replyTo)
+	}
+	return nil
+}
+
+// ttsExtFor maps synthesized audio MIME types to a file extension.
+func ttsExtFor(mimeType string) string {
+	if strings.HasPrefix(mimeType, "audio/ogg") || strings.HasPrefix(mimeType, "audio/opus") {
+		return ".ogg"
+	}
+	if strings.HasPrefix(mimeType, "audio/mpeg") {
+		return ".mp3"
+	}
+	return ".bin"
 }
 
 // SendText sends a text message. replyTo (a wamid) quotes that message.
