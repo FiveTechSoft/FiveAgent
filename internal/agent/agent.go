@@ -348,10 +348,12 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 				reply = r
 				break
 			}
-			// Empty reply with no tool calls: appending nothing keeps the
-			// transcript unchanged, so just ask again (sampling varies).
-			log.Printf("agent: empty reply on tool round %d/%d, retrying", round+1, maxToolRounds)
-			continue
+			// Empty reply with no tool calls: recoverableChat already
+			// ran the stage 16 empty-reply ladder (reinforced retries,
+			// then the fallback model), so stop the round loop and let
+			// the forced-answer / honest-guard path own the outcome.
+			log.Printf("agent: empty reply survives the recovery ladder on round %d/%d", round+1, maxToolRounds)
+			break
 		}
 		if c := strings.TrimSpace(ans.Content); c != "" {
 			lastContent = c
