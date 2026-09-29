@@ -336,14 +336,28 @@ evidence that counts.
     exactly 6 model calls. 14 classifier unit tests
     (internal/model/classify_test.go) pin the status/body/network
     mapping, the kind names and errors.As survival through wrapping.
-17. **Keyword-triggered context** (planned, with Skills) - skill and
-    domain instructions enter the context only when the message
+17. **Keyword-triggered context** (implemented, CI-tested) - skill
+    and domain instructions enter the context only when the message
     mentions their trigger words, never by default. Sibling of the
     memory recall-by-alias: the context only pays for what the turn
-    needs.
-    Done when: with several skills installed, an unrelated turn
-    carries zero skill text and a matching turn carries exactly one;
-    the battery grows a "trigger" case measuring injected tokens.
+    needs. internal/agent/agent.go gains the Skill type (name,
+    triggers, loader) and WithSkills; long triggers match as
+    substrings, short ones (<=3 chars) need a word boundary so "fwh"
+    does not fire inside a longer word. The FiveTech domain reference
+    is the first skill (DomainSkill, triggers harbour/fivewin/fwh/
+    fivetech/fivegui/xharbour): it used to ride in every system
+    prompt (2.9KB per turn) and now enters only on matching turns.
+    Scope note: skills are defined in code; the skills/ folder format
+    with one SKILL.md per skill stays at stage 32, and
+    docs/fivetech-domain.md migrates then as planned.
+    Done when: (met) the scripted trigger cases (evals/trigger_test.go)
+    capture the exact request the model receives and measure the
+    injected bytes: an unrelated turn carries zero skill text, a
+    matching turn carries the domain block exactly once (2959 bytes),
+    and a coverage guard proves every harbour_fivewin battery prompt
+    triggers the skill (otherwise the triggered design would silently
+    un-ground those answers). The live battery keeps its domain
+    coverage through the same DomainSkill.
 18. **Subordinate agents** (planned) - the agent splits a big task
     into small subtasks and runs each in an isolated sub-turn with
     its own fresh context, then composes the results. The single
