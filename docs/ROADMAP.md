@@ -30,6 +30,9 @@ evidence that counts.
    https://github.com/FiveTechSoft/FiveAgent/actions/runs/36331174095
 5. **Unit tests** - model client, WhatsApp webhook, agent loop.
 6. **Release v0.0.1** - tag, changelog, prebuilt binaries for Windows/Linux/macOS.
+   Candidate documented in CHANGELOG.md (2026-09-29); the tag waits
+   for battery run 6 (baseline) against HEAD with the agreed gate of
+   zero real hallucinations.
 
 ## Phase 2 - v0.2: memory and safety
 
