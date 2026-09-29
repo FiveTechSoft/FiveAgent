@@ -171,6 +171,25 @@ func main() {
 			log.Printf("web search: %s provider", p.Name())
 		}
 	}
+	// Stage 25e: code-made images (charts) as native chat media. The
+	// dispatcher resolves the channel at call time, so channels built
+	// below are visible to the tool.
+	mediaSend := func(ctx context.Context, channelName, userID, mimeType, caption string, data []byte) error {
+		for _, ch := range chans {
+			if ch.Name() != channelName {
+				continue
+			}
+			s, ok := ch.(interface {
+				SendMediaBytes(context.Context, string, string, string, []byte) error
+			})
+			if !ok {
+				return fmt.Errorf("send_chart: channel %s cannot send media", channelName)
+			}
+			return s.SendMediaBytes(ctx, userID, mimeType, caption, data)
+		}
+		return fmt.Errorf("send_chart: channel %s is not enabled", channelName)
+	}
+	tl = append(tl, tools.SendChart{Send: mediaSend})
 	reg := tools.NewRegistry(tl...)
 	core := agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
 	core.WithSkills(agent.DomainSkill())
