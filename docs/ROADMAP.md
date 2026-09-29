@@ -138,7 +138,15 @@ evidence that counts.
       M5 frozen-snapshot stability (a mid-session write must not
       rewrite the system prompt prefix; the hard gate of 7k), M6
       memory anti-hallucination (a never-stored fact yields
-      abstention, not invention). Evolution is measured, not told:
+      abstention, not invention), M7 tool-error narration fidelity
+      (implemented 2026-09-29: when a tool call errors, the reply's
+      narrated error must match the error the audit trail observed -
+      the inventedErrorNarration detector compares E_ codes and
+      access-denied phrases against the run_command audit delta,
+      whitespace-free to catch the spaced-letters degradation, and
+      scores a mismatch as a hallucination; pattern from run 4's
+      invented E_ACCESDENIED vs the real CreateProcess
+      file-not-found). Evolution is measured, not told:
       every live run dumps its metrics to a JSON artifact under
       evals/out/ (stage 12's trajectory logger becomes their natural
       transport), a historical scorecard in evals/README.md tracks the
