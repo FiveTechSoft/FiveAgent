@@ -96,8 +96,11 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	// Stage 7n: the auto-indexer extraction call is recognizable by
-	// its system prompt; the player answers it with a fixed fact
-	// line, as a real model would.
+	// its system prompt; the player answers it as a real extractor
+	// would - the fact line when the exchange carries the fact, NONE
+	// when it does not. Answering every call with the fact would
+	// index it into scopes and turns where it never happened,
+	// silently faking the isolation the battery claims to prove.
 	extraction := false
 	for _, m := range req.Messages {
 		if m.Role == "system" && strings.Contains(m.Content, "extract durable facts") {
@@ -105,8 +108,10 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	switch {
-	case extraction:
+	case extraction && strings.Contains(string(body), "Celta"):
 		io.WriteString(w, reply("preferences: su equipo favorito es el Celta de Vigo desde siempre"))
+	case extraction:
+		io.WriteString(w, reply("NONE"))
 	case strings.HasPrefix(lastUser, "remember: "):
 		entry := strings.TrimPrefix(lastUser, "remember: ")
 		if toolResults == 0 {
