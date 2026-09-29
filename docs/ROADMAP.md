@@ -154,6 +154,21 @@ evidence that counts.
       last scorecard with the same model blocks the "done" of the
       stage that caused it until the drop is explained. Hallucinations
       stay the hard gate of every run.
+   n. **Automatic background indexing** (planned) - today memory grows
+      only when the model decides to save (save_memory /
+      forget_memory). Add the complementary path: a background
+      indexer absorbs conversations into the memory files with no
+      model decision at all - the system remembers on its own, and
+      the manual tools stay for deliberate curation. Indexing is per
+      user from day one: each sender's conversations index into their
+      own scope (links with 7i's scoping decision and the per-user
+      sandbox of stage 3). The files stay the single source of
+      truth; the indexer is a writer, not a second memory.
+      Done when: a scripted conversation that mentions a fact (no
+      "recuerda:" anywhere) recalls it in a later session without a
+      single save_memory call; the battery grows an "auto-index"
+      case proving the fact landed through the indexer, and that one
+      sender's indexed facts never surface for another.
 8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
    Today this covers memory content; before the bot opens to multiple
@@ -522,7 +537,28 @@ evidence that counts.
     the accessibility tree, and sends real before/after screenshots
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
-27. **Email + calendar** - read and act on the user's accounts (OAuth).
+27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
+    (planned) - the agent reads and acts on the user's real accounts,
+    one integration per service behind a shared pattern (OAuth
+    connect, read tools, write tools), so the next service is a
+    known shape, not a new design:
+    a. **Gmail** - OAuth connect, read (search, threads, attachments)
+       and write (drafts, send, reply).
+    b. **Google Calendar** - OAuth connect, read (events, free/busy)
+       and write (create, update, invite).
+    c. **Drive** - OAuth connect, read (search, download) and write
+       (upload, share).
+    d. **Slack** - OAuth connect, read (channels, DMs, threads) and
+       write (post, reply).
+    e. **GitHub** - OAuth connect, read (issues, PRs, repos) and
+       write (comment, review).
+    Every integration inherits the same rules: external content is
+    data, never instructions (stage 9), secrets live encrypted at
+    rest (stage 8), and outbound actions ride the delivery ledger
+    (stage 19).
+    Done when: one integration ships end-to-end (OAuth connect ->
+    read -> write) with its battery case, and the second integration
+    lands as a copy of the shape, proving the pattern.
 
 ## Phase 4 - v0.4: more channels
 
@@ -575,6 +611,32 @@ evidence that counts.
     acceptance test launches several subtasks in parallel and verifies
     the coordinator aggregates every result correctly (no lost, no
     duplicated work).
+
+35. **Proactivity layer** (planned) - the agent wakes up on its own
+    when something happens: subscriptions to sources (an email
+    arriving, a document changing, a calendar event starting) fire
+    the agent instead of waiting for the user to speak. Time-based
+    wakes ride the cron scheduler (stage 22); a fired subscription
+    runs a turn and its reply goes out through the delivery ledger
+    (stage 19), so a crash loses nothing. Every subscription is
+    auditable (source, filter, what it triggered) and expires or
+    pauses cleanly.
+    Done when: a scripted source event wakes the agent, runs the
+    turn, and the reply lands through the ledger; the battery grows
+    a "proactive" case proving the wake came from the event (not a
+    user message) and that a second identical event does not
+    double-deliver.
+36. **Unified conversation** (planned) - one conversation per user
+    across channels, not one thread per channel: the user starts on
+    WhatsApp, continues on Telegram, and the agent sees a single
+    history and a single memory scope. Channel identities resolve to
+    one user identity through an explicit linking flow, never
+    guessed; each reply still lands on the channel the user wrote
+    from.
+    Done when: a scripted user writes from two channels and the
+    second channel's turn sees the first channel's context; the
+    battery grows a "unified" case proving the shared history, and
+    that unlinked senders stay separate by default.
 
 ## Phase 5 - setup that does not need a manual
 
