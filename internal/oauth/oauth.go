@@ -29,6 +29,11 @@ type Config struct {
 	AuthURL      string   // authorization endpoint
 	TokenURL     string   // token endpoint
 	Scopes       []string // requested scopes
+	// TokenHeaders are extra headers on token endpoint requests.
+	// GitHub's token endpoint answers form-encoded unless asked for
+	// JSON ("Accept": "application/json") - declared here instead of
+	// special-casing a vendor inside the shared flow.
+	TokenHeaders map[string]string
 }
 
 // Token is an OAuth2 token set.
@@ -76,6 +81,9 @@ func tokenPost(ctx context.Context, cfg Config, form url.Values) (*Token, error)
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	for k, v := range cfg.TokenHeaders {
+		req.Header.Set(k, v)
+	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, err
