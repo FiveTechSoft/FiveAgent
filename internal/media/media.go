@@ -152,6 +152,67 @@ func (d HTTPDescriber) Describe(ctx context.Context, image []byte, mimeType, cap
 	return parsed.Choices[0].Message.Content, nil
 }
 
+// Synthesizer turns reply text into audio bytes for an outbound
+// voice note.
+type Synthesizer interface {
+	Synthesize(ctx context.Context, text string) (audio []byte, mimeType string, err error)
+}
+
+// HTTTSynthesizer posts text to an OpenAI-compatible /v1/audio/speech
+// endpoint: openedai-speech (Piper) and kokoro-fastapi both speak this
+// protocol, so one client covers the local Spanish TTS options.
+type HTTTSynthesizer struct {
+	URL    string // e.g. "http://localhost:8100/v1/audio/speech"
+	Model  string // model name the endpoint expects (e.g. "piper", "kokoro")
+	Voice  string // voice id as the endpoint expects it
+	APIKey string // optional bearer token
+	Client *http.Client
+}
+
+func (s HTTTSynthesizer) client() *http.Client {
+	if s.Client != nil {
+		return s.Client
+	}
+	return &http.Client{Timeout: 120 * time.Second}
+}
+
+func (s HTTTSynthesizer) Synthesize(ctx context.Context, text string) ([]byte, string, error) {
+	body, err := json.Marshal(map[string]any{
+		"model":           s.Model,
+		"voice":           s.Voice,
+		"input":           text,
+		"response_format": "opus",
+	})
+	if err != nil {
+		return nil, "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.URL, bytes.NewReader(body))
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if s.APIKey != "" {
+		req.Header.Set("Authorization", "Bearer "+s.APIKey)
+	}
+	resp, err := s.client().Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
+	audio, _ := io.ReadAll(io.LimitReader(resp.Body, 16<<20))
+	if resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("tts: %s", resp.Status)
+	}
+	if len(audio) == 0 {
+		return nil, "", fmt.Errorf("tts: empty audio")
+	}
+	mimeType := resp.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "audio/ogg"
+	}
+	return audio, mimeType, nil
+}
+
 // extFor maps common audio MIME types to a file extension the
 // transcription server can sniff.
 func extFor(mimeType string) string {
