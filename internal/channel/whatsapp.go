@@ -599,9 +599,32 @@ func (w *whatsapp) MountOAuth(h http.Handler) {
 	w.mux.Handle("/oauth/", h)
 }
 
-// Deliver sends an unquoted text, used by the scheduler (stage 22).
+// Deliver sends an unquoted text, used by the scheduler (stage 22)
+// and proactive subscriptions (stage 35). It goes through the
+// delivery ledger (stage 19) like the reply path: the obligation is
+// recorded BEFORE the send, so a crash redelivers it on the next
+// start with the recovered marker.
 func (w *whatsapp) Deliver(ctx context.Context, userID, text string) error {
-	return w.SendText(ctx, userID, text, "")
+	var d *Delivery
+	if w.ledger != nil {
+		if dd, lerr := w.ledger.Add("whatsapp", userID, text); lerr != nil {
+			log.Printf("whatsapp: delivery ledger: %v", lerr)
+		} else {
+			d = dd
+			w.ledger.Attempting(d.ID)
+		}
+	}
+	err := w.SendText(ctx, userID, text, "")
+	if err != nil {
+		if d != nil {
+			w.ledger.Failed(d.ID, err)
+		}
+		return err
+	}
+	if d != nil {
+		w.ledger.Delivered(d.ID)
+	}
+	return nil
 }
 
 // sendReply delivers the agent's reply: as a voice note when TTS is
