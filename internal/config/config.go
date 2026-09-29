@@ -75,6 +75,14 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// Browser holds the web-browser settings (stage 23): numbered-element
+// pages, by-id actions, gated submits, per-user audit log.
+type Browser struct {
+	Enabled bool `yaml:"enabled"`
+	// AuditDir receives one audit log per user; default data/browser-audit.
+	AuditDir string `yaml:"audit_dir,omitempty"`
+}
+
 // Cron holds the scheduler settings (stage 22): one-shot reminders and
 // recurring automations, delivered back to the originating channel.
 type Cron struct {
@@ -133,6 +141,8 @@ type Config struct {
 	Workspace Workspace `yaml:"workspace,omitempty"`
 	// Cron is the scheduler for reminders and automations (stage 22).
 	Cron Cron `yaml:"cron,omitempty"`
+	// Browser is the web browser tool (stage 23).
+	Browser Browser `yaml:"browser,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
