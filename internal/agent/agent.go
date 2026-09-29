@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"log"
 	"net/url"
-	"os"
 	"regexp"
 	"strings"
 
-	"github.com/FiveTechSoft/FiveAgent/docs"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
@@ -64,8 +62,14 @@ func SystemPrompt(cfg *config.Config) string {
 // default (stage 17 of docs/ROADMAP.md). Sibling of the memory
 // recall-by-alias: the context only pays for what the turn needs.
 type Skill struct {
-	Name     string
-	Triggers []string
+	Name string
+	// TriggerLine is the one-line description that rides in the
+	// system prompt index (stage 32); Triggers are the match words.
+	TriggerLine string
+	Triggers    []string
+	// Tools, when set, names registry tools offered only on turns
+	// where this skill triggered.
+	Tools []string
 	// Load returns the skill text; an empty string skips injection.
 	Load func() string
 }
@@ -91,48 +95,6 @@ func skillMatches(sk Skill, text string) bool {
 		}
 	}
 	return false
-}
-
-// DomainSkill is the first skill: the verified FiveTech domain
-// reference. It used to ride along on every turn; now only Harbour /
-// FiveWin mentions pay for it.
-func DomainSkill() Skill {
-	return Skill{
-		Name:     "fivetech-domain",
-		Triggers: []string{"harbour", "fivewin", "fwh", "fivetech", "fivegui", "xharbour"},
-		Load:     domainBlock,
-	}
-}
-
-// domainFile is the runtime location of the domain reference, relative
-// to the working directory.
-const domainFile = "docs/fivetech-domain.md"
-
-// domainBlock builds the FiveTech domain reference block. Small
-// models confabulate Harbour/FiveWin facts (measured live: invented
-// syntax and a wrong expansion of FWH), so the verified reference is
-// marked as overriding the model's general knowledge for this domain.
-// Since stage 17 it enters the context only when the turn mentions a
-// trigger word (see DomainSkill); before that it rode on every turn.
-func domainBlock() string {
-	d := strings.TrimSpace(loadDomain())
-	if d == "" {
-		return ""
-	}
-	return "\n\nFiveTech domain reference (FiveWin, Harbour, FWH and related products). For this domain the reference below is AUTHORITATIVE: it overrides your general knowledge - follow it even when it contradicts what you know, and when a FiveTech question is not covered by it, say you are not sure instead of inventing syntax or product names.\n\n" + d
-}
-
-// loadDomain prefers the on-disk domain reference (edit the .md and
-// restart, no rebuild needed) and falls back to the copy embedded at
-// build time from the same file. Single source of truth:
-// docs/fivetech-domain.md.
-func loadDomain() string {
-	if b, err := os.ReadFile(domainFile); err == nil {
-		log.Printf("domain knowledge: %s (file)", domainFile)
-		return string(b)
-	}
-	log.Printf("domain knowledge: %s (embedded fallback)", domainFile)
-	return docs.FiveTechDomain
 }
 
 // channelStyle tells the model how the channel renders text, so it does
@@ -415,13 +377,15 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	for _, n := range pruneNotes {
 		log.Printf("agent: context pruning: %s", n)
 	}
-	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel)}}
+	msgs := []model.Message{{Role: "system", Content: a.sysPrompt + " " + channelStyle(channel) + SkillsIndex(a.skills)}}
 	// Stage 17: a skill's text enters the context only when the user's
 	// message mentions its trigger words.
+	triggered := map[string]bool{}
 	for _, sk := range a.skills {
 		if !skillMatches(sk, text) {
 			continue
 		}
+		triggered[sk.Name] = true
 		if block := strings.TrimSpace(sk.Load()); block != "" {
 			msgs = append(msgs, model.Message{Role: "system", Content: block})
 			log.Printf("agent: skill %q triggered (%d chars injected)", sk.Name, len(block))
@@ -458,7 +422,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		fallback = a.mdl
 	}
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.tools.Specs())
+		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.toolSpecsFor(triggered))
 		if err != nil {
 			return "", err
 		}
