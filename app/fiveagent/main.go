@@ -369,6 +369,10 @@ func main() {
 	core.WithSkills(agent.DomainSkill())
 	if kn != nil {
 		core.WithKnowledge(kn)
+		if cfg.Memory.AutoIndex {
+			core.WithIndexer(agent.NewIndexer(mdl, cfg.Memory.Knowledge))
+			log.Printf("memory auto-indexing: on (per-sender scopes under %s/users/)", cfg.Memory.Knowledge)
+		}
 	}
 	if cfg.Coder.Name != "" {
 		core.WithCoder(model.NewOpenAICompat(cfg.Coder))
