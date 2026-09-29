@@ -383,3 +383,81 @@ func TestSendMediaBytesImage(t *testing.T) {
 		t.Fatalf("unauthenticated Graph calls: %v", graph.authFailures)
 	}
 }
+
+type stubVideoExtractor struct {
+	got    []byte
+	frames [][]byte
+	audio  []byte
+}
+
+func (s *stubVideoExtractor) Extract(_ context.Context, video []byte, _ int) ([][]byte, []byte, error) {
+	s.got = video
+	return s.frames, s.audio, nil
+}
+
+// Stage 25c: an inbound video arrives as transcript + frame
+// descriptions, reusing the transcriber and describer processors.
+func TestMediaVideoAnalyzed(t *testing.T) {
+	graph := &fakeMediaGraph{mediaBytes: []byte("fake-mp4")}
+	srv := httptest.NewServer(graph.handler())
+	t.Cleanup(srv.Close)
+	fc := &fakeCore{}
+	w := NewWhatsApp(config.Channel{
+		VerifyToken: "secret-token", PhoneNumberID: "123", AccessToken: "token",
+	}, fc).(*whatsapp)
+	w.baseURL = srv.URL
+	w.debounce = 10 * time.Millisecond
+	ve := &stubVideoExtractor{frames: [][]byte{[]byte("f1"), []byte("f2")}, audio: []byte("wav")}
+	w.video = ve
+	st := &stubTranscriber{out: "el perro corre por el parque"}
+	sd := &stubDescriber{out: "un perro marron"}
+	w.transcriber = st
+	w.describer = sd
+
+	postWebhook(t, w, `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"video","video":{"id":"m123","mime_type":"video/mp4","caption":"mira"}}]}}]}]}`)
+	got := awaitCore(t, fc)
+	want := "[video] audio: el perro corre por el parque | frames: un perro marron / un perro marron"
+	if got != want {
+		t.Fatalf("core got %q, want %q", got, want)
+	}
+	if string(ve.got) != "fake-mp4" {
+		t.Fatalf("extractor got %d bytes", len(ve.got))
+	}
+	if string(st.got) != "wav" {
+		t.Fatalf("transcriber got %q", st.got)
+	}
+	graph.mu.Lock()
+	defer graph.mu.Unlock()
+	if len(graph.authFailures) > 0 {
+		t.Fatalf("unauthenticated Graph calls: %v", graph.authFailures)
+	}
+}
+
+// Without an extractor the video falls back to the plain bracket
+// announcement; with an extractor but no processors the agent gets an
+// honest "not configured" note, never an empty analysis.
+func TestMediaVideoHonestFallbacks(t *testing.T) {
+	fc := &fakeCore{}
+	w := newTestWhatsApp(t, fc)
+	w.debounce = 10 * time.Millisecond
+	w.video = nil // explicit: this case tests the no-extractor fallback
+	postWebhook(t, w, `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"video","video":{"id":"m123","mime_type":"video/mp4","caption":"mira"}}]}}]}]}`)
+	if got := awaitCore(t, fc); got != "[video: mira]" {
+		t.Fatalf("no extractor: core got %q", got)
+	}
+
+	graph := &fakeMediaGraph{mediaBytes: []byte("fake-mp4")}
+	srv := httptest.NewServer(graph.handler())
+	t.Cleanup(srv.Close)
+	fc2 := &fakeCore{}
+	w2 := NewWhatsApp(config.Channel{
+		VerifyToken: "secret-token", PhoneNumberID: "123", AccessToken: "token",
+	}, fc2).(*whatsapp)
+	w2.baseURL = srv.URL
+	w2.debounce = 10 * time.Millisecond
+	w2.video = &stubVideoExtractor{frames: [][]byte{[]byte("f1")}, audio: []byte("wav")}
+	postWebhook(t, w2, `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"video","video":{"id":"m123","mime_type":"video/mp4"}}]}}]}]}`)
+	if got := awaitCore(t, fc2); got != "[video - analysis not configured]" {
+		t.Fatalf("no processors: core got %q", got)
+	}
+}
