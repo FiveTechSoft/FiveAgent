@@ -14,6 +14,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/channel"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/github"
 	"github.com/FiveTechSoft/FiveAgent/internal/google"
 	"github.com/FiveTechSoft/FiveAgent/internal/links"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
@@ -124,6 +125,9 @@ func main() {
 			tokenPath = cfg.Integrations.Slack.TokenPath
 		}
 		if tokenPath == "" {
+			tokenPath = cfg.Integrations.GitHub.TokenPath
+		}
+		if tokenPath == "" {
 			tokenPath = "data/tokens.json"
 		}
 		store := &oauth.TokenStore{Path: tokenPath}
@@ -208,6 +212,29 @@ func main() {
 			providers["slack"] = ocfg
 			redirects["slack"] = cfg.Integrations.Slack.RedirectURL
 			log.Printf("slack integration: connect at /oauth/slack/start")
+		}
+		if cfg.Integrations.GitHub.Enabled {
+			ocfg := oauth.Config{
+				ClientID:     cfg.Integrations.GitHub.ClientID,
+				ClientSecret: cfg.Integrations.GitHub.ClientSecret,
+				AuthURL:      github.AuthURL,
+				TokenURL:     github.TokenURL,
+				Scopes:       []string{"repo"},
+				// GitHub's token endpoint answers form-encoded
+				// unless asked for JSON.
+				TokenHeaders: map[string]string{"Accept": "application/json"},
+			}
+			ghFor := func(ctx context.Context) (*github.Client, error) {
+				c, err := oauth.Client(ctx, ocfg, store, "github")
+				if err != nil {
+					return nil, err
+				}
+				return &github.Client{HTTP: c}, nil
+			}
+			tl = append(tl, tools.GitHubRepos{Client: ghFor}, tools.GitHubIssues{Client: ghFor}, tools.GitHubCreateIssue{Client: ghFor})
+			providers["github"] = ocfg
+			redirects["github"] = cfg.Integrations.GitHub.RedirectURL
+			log.Printf("github integration: connect at /oauth/github/start")
 		}
 		if len(providers) > 0 {
 			oauthHandler = oauth.NewHandler(providers, store,
