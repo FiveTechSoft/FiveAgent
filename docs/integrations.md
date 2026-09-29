@@ -52,3 +52,29 @@ CI covers the whole flow against fake endpoints (form fields, state
 checks, 0600 store, transparent refresh, RFC822 payload, auth header
 on every call). Live verification with a real Google app is pending -
 it needs the operator's client credentials, same as the media services.
+
+## Google Calendar (27b)
+
+The pattern copy: same token store, same connect handler
+(`/oauth/calendar/start`), same honest-error tools.
+
+Read: `calendar_list` (events in a range; RFC3339 or bare dates).
+Write: `calendar_create` (summary, start/end RFC3339, optional
+location, description, attendees). `FreeBusy` is in the client for the
+next slice.
+
+```yaml
+integrations:
+  calendar:
+    enabled: true
+    client_id: "....apps.googleusercontent.com"
+    client_secret: "..."
+    redirect_url: "https://<your-bot-host>"
+```
+
+Both Google services share `data/tokens.json` under different keys
+("gmail", "calendar"), so each asks for its own consent with its own
+scope today; merging Google scopes into one consent is a documented
+future refinement, not hidden magic. CI covers list/create/free-busy
+parsing, the create payload, auth headers and the honest
+not-connected path against fake endpoints.
