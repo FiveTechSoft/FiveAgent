@@ -538,13 +538,20 @@ evidence that counts.
     out as native voice notes; any synthesis/upload/send failure falls
     back to the text reply, and agent-failure fallback strings always
     go as text. Per-user opt-in ("respondeme por voz") is pending; the
-    toggle is global per deployment today.
+    toggle is global per deployment today. Phase e) first cut: the
+    send_chart tool renders bar/line charts in pure Go (stdlib +
+    x/image bitmap font, no cgo, no services) and sends them as native
+    images (upload + send by id, optional caption) on media-capable
+    channels; channels without media support answer the model with an
+    honest error, and send failures never report success. Battery
+    report charts and diagrams remain pending variations of the same
+    renderer.
     internal/channel/whatsapp_media_test.go proves both directions
     against a fake Graph server with stub processors, asserts the
     Authorization header on every Graph call, and asserts failure
     paths surface honestly. Pending live verification with real
     whisper/VL/TTS services (the fake-server round trip cannot prove model
-    quality), plus phases c) and e) below.
+    quality), plus phase c) below and the rest of e).
     Inbound phases:
     a) Voice notes: opus audio -> local Whisper transcription
        (whisper.cpp / faster-whisper) -> treated as a text message.
