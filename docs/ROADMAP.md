@@ -381,15 +381,25 @@ evidence that counts.
     grows a subordinate: category measuring the outcome in vivo; the
     model's own decision to decompose is the live side, pending the
     next run.
-19. **Durable delivery ledger** (planned) - every outbound reply is
-    recorded as a persistent delivery obligation (pending ->
-    attempting -> delivered) so a crash between generating and
-    sending never loses or duplicates a reply; a redelivery after a
-    crash carries a visible "recovered" marker. Attempts are capped
-    and stale entries expire.
-    Done when: a killed-mid-send test redelivers exactly once with
-    the marker; the battery grows a "delivery" case over a crash
-    fixture.
+19. **Durable delivery ledger** (implemented, CI-tested) - every
+    outbound reply is recorded as a persistent delivery obligation
+    (pending -> attempting -> delivered) BEFORE the send is
+    attempted, so a crash between generating and sending never
+    silently loses a reply. internal/channel/ledger.go: a JSON-file
+    ledger (data/deliveries.json, configurable via delivery.path)
+    shared by the Telegram and WhatsApp adapters; on startup each
+    adapter redelivers its pending entries exactly once, prefixed
+    with a visible recovered marker. Attempts are capped (5, then
+    dead) and entries undelivered after 24 h expire instead of
+    arriving confusingly late. Scope note: a crash can land after
+    the platform accepted the message but before the ledger recorded
+    it, so a redelivery can repeat a message the user already got -
+    the marker exists exactly for that case.
+    Done when: (met) the battery's delivery case
+    (evals/delivery_test.go) kills a send mid-flight over a crash
+    fixture and proves the next start redelivers exactly once with
+    the marker, the obligation is durable before the send, a dead
+    entry is never retried, and a stale entry expires unsent.
 20. **Web search** (implemented, CI-tested against fake servers; pending
     first live run) - the `web_search` tool with pluggable providers:
     DuckDuckGo by default (no API key, may rate-limit under heavy use),
