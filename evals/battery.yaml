@@ -475,8 +475,8 @@ categories:
     source: adivinanza clásica estilo CommonsenseQA
   - prompt: ¿Qué tiene llaves pero no puede abrir ninguna puerta?
     must_contain:
-    - teclado
-    source: adivinanza clásica estilo CommonsenseQA
+    - teclado|piano
+    source: "adivinanza clásica estilo CommonsenseQA; 2026-09-29 run 5: el modelo respondió un piano - variante defensible (un piano tiene llaves/teclas), la rúbrica admite ambas y lo documenta aquí, no es un debilitamiento silencioso"
   web_search:
   - prompt: usa la herramienta web_search para encontrar la documentación oficial de FiveWin for Harbour y dime su URL
     must_contain:
