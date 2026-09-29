@@ -353,3 +353,33 @@ func TestTTSFailureFallsBackToText(t *testing.T) {
 	}
 	t.Fatal("text fallback was never sent")
 }
+
+// Stage 25e: code-made artifacts (charts) go out as native images -
+// upload the bytes, send by id with the caption.
+func TestSendMediaBytesImage(t *testing.T) {
+	graph := &fakeMediaGraph{}
+	srv := httptest.NewServer(graph.handler())
+	t.Cleanup(srv.Close)
+	w := newTestWhatsApp(t, &fakeCore{})
+	w.baseURL = srv.URL
+
+	if err := w.SendMediaBytes(context.Background(), "34600123456", "image/png", "las ventas", []byte("real-png-bytes")); err != nil {
+		t.Fatal(err)
+	}
+	graph.mu.Lock()
+	defer graph.mu.Unlock()
+	if !strings.Contains(string(graph.uploaded), "real-png-bytes") {
+		t.Fatalf("upload missing bytes: %d bytes", len(graph.uploaded))
+	}
+	img := graph.sentByType["image"]
+	if img == nil {
+		t.Fatalf("no image send recorded: %v", graph.sentByType)
+	}
+	body, ok := img["image"].(map[string]any)
+	if !ok || body["id"] != "mid-out-1" || body["caption"] != "las ventas" {
+		t.Fatalf("send body: %v", img)
+	}
+	if len(graph.authFailures) > 0 {
+		t.Fatalf("unauthenticated Graph calls: %v", graph.authFailures)
+	}
+}
