@@ -50,6 +50,9 @@ type whatsapp struct {
 	// tts synthesizes outbound voice notes (stage 25d); nil keeps
 	// replies as text.
 	tts media.Synthesizer
+	// video extracts frames+audio from inbound videos (stage 25c);
+	// nil keeps the plain "[video]" announcement.
+	video media.VideoExtractor
 }
 
 // queuedMsg is one inbound message waiting in a sender's burst.
@@ -95,6 +98,11 @@ func NewWhatsApp(cfg config.Channel, core Handler) Channel {
 	}
 	if cfg.TTSURL != "" {
 		w.tts = media.HTTTSynthesizer{URL: cfg.TTSURL, Model: cfg.TTSModel, Voice: cfg.TTSVoice, APIKey: cfg.TTSKey}
+	}
+	if ff, err := media.NewFFmpeg(cfg.FFmpegPath); err == nil {
+		w.video = ff
+	} else {
+		log.Printf("whatsapp: video analysis off: %v", err)
 	}
 	w.mux.HandleFunc("/webhook/whatsapp", w.handleWebhook)
 	return w
@@ -370,6 +378,49 @@ func (w *whatsapp) describeInbound(m inboundMessage) string {
 			return "[image - description failed]"
 		}
 		return "[image: " + desc + "]"
+	case "video":
+		if w.video == nil || m.Video.ID == "" {
+			return describe(m)
+		}
+		if w.transcriber == nil && w.describer == nil {
+			// Nothing could consume the analysis - say so without
+			// downloading megabytes of video first.
+			return "[video - analysis not configured]"
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 4*time.Minute)
+		defer cancel()
+		data, _, err := w.DownloadMedia(ctx, m.Video.ID)
+		if err != nil {
+			log.Printf("whatsapp: media %s download failed: %v", m.Video.ID, err)
+			return "[video - download failed]"
+		}
+		log.Printf("whatsapp: video %s: %d bytes", m.Video.ID, len(data))
+		frames, audio, err := w.video.Extract(ctx, data, 3)
+		if err != nil {
+			log.Printf("whatsapp: video %s extraction failed: %v", m.Video.ID, err)
+			return "[video - frame extraction failed]"
+		}
+		var parts []string
+		if len(audio) > 0 && w.transcriber != nil {
+			if text, terr := w.transcriber.Transcribe(ctx, audio, "audio/wav"); terr == nil && text != "" {
+				parts = append(parts, "audio: "+text)
+			}
+		}
+		if w.describer != nil {
+			var descs []string
+			for _, frame := range frames {
+				if d, derr := w.describer.Describe(ctx, frame, "image/jpeg", m.Video.Caption); derr == nil && d != "" {
+					descs = append(descs, d)
+				}
+			}
+			if len(descs) > 0 {
+				parts = append(parts, "frames: "+strings.Join(descs, " / "))
+			}
+		}
+		if len(parts) == 0 {
+			return "[video - analysis not configured]"
+		}
+		return "[video] " + strings.Join(parts, " | ")
 	default:
 		return describe(m)
 	}
