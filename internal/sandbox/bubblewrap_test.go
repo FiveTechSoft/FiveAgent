@@ -21,7 +21,24 @@ func bwrapOrSkip(t *testing.T) Sandbox {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bwrapViableOrSkip(t, sb)
 	return sb
+}
+
+// bwrapViableOrSkip preflights the backend with a trivial command:
+// bwrap can be installed yet unable to set up its sandbox on a
+// restricted host - loopback configuration fails with "RTM_NEWADDR:
+// Operation not permitted" where network permissions are locked down
+// (observed live on an ARM64 GB10 runner, failing 3 tests in this
+// group). That host cannot exercise this backend, so skip with the
+// reason logged instead of failing every test.
+func bwrapViableOrSkip(t *testing.T, sb Sandbox) {
+	t.Helper()
+	if r, err := sb.Run(context.Background(), "preflight", []string{"true"}); err != nil {
+		t.Skipf("bubblewrap not viable on this host: %v", err)
+	} else if r.ExitCode != 0 {
+		t.Skipf("bubblewrap not viable on this host: preflight exit %d: %s", r.ExitCode, r.Stderr)
+	}
 }
 
 func TestBubblewrapEcho(t *testing.T) {
@@ -41,6 +58,7 @@ func TestBubblewrapWorkDirIsWritableAndPersists(t *testing.T) {
 	if err != nil {
 		t.Skip(err)
 	}
+	bwrapViableOrSkip(t, sb)
 	if _, err := sb.Run(context.Background(), "u1", []string{"sh", "-c", "echo datos > nota.txt"}); err != nil {
 		t.Fatal(err)
 	}
@@ -88,6 +106,7 @@ func TestBubblewrapTimeout(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	bwrapViableOrSkip(t, sb)
 	r, err := sb.Run(context.Background(), "u1", []string{"sleep", "30"})
 	if err != nil {
 		t.Fatal(err)
