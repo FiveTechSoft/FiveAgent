@@ -63,6 +63,11 @@ type Channel struct {
 	TTSModel string `yaml:"tts_model,omitempty"`
 	TTSVoice string `yaml:"tts_voice,omitempty"`
 	TTSKey   string `yaml:"tts_key,omitempty"`
+	// Inbound video analysis (stage 25c): ffmpeg is an external tool;
+	// ffmpeg_path overrides the binary location, empty means PATH. When
+	// ffmpeg is available AND the transcriber/describer above are set,
+	// inbound videos arrive as transcript + frame descriptions.
+	FFmpegPath string `yaml:"ffmpeg_path,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
