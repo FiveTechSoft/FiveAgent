@@ -190,6 +190,7 @@ type Config struct {
 type Integrations struct {
 	Gmail    GmailIntegration    `yaml:"gmail,omitempty"`
 	Calendar CalendarIntegration `yaml:"calendar,omitempty"`
+	Drive    DriveIntegration    `yaml:"drive,omitempty"`
 }
 
 // GmailIntegration is the Gmail OAuth app + token store (stage 27a).
@@ -210,6 +211,17 @@ type GmailIntegration struct {
 // CalendarIntegration is the Google Calendar OAuth app (stage 27b).
 // Same fields as Gmail; the connect URL is /oauth/calendar/start.
 type CalendarIntegration struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClientID     string `yaml:"client_id,omitempty"`
+	ClientSecret string `yaml:"client_secret,omitempty"`
+	RedirectURL  string `yaml:"redirect_url,omitempty"`
+	TokenPath    string `yaml:"token_path,omitempty"`
+}
+
+// DriveIntegration is the Google Drive OAuth app (stage 27c). Same
+// fields as Gmail; the connect URL is /oauth/drive/start. Scope is
+// drive.file: the agent only sees files it created.
+type DriveIntegration struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id,omitempty"`
 	ClientSecret string `yaml:"client_secret,omitempty"`
