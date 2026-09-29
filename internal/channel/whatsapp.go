@@ -468,6 +468,11 @@ func (w *whatsapp) markRead(ctx context.Context, messageID string) error {
 	})
 }
 
+// Deliver sends an unquoted text, used by the scheduler (stage 22).
+func (w *whatsapp) Deliver(ctx context.Context, userID, text string) error {
+	return w.SendText(ctx, userID, text, "")
+}
+
 // SendText sends a text message. replyTo (a wamid) quotes that message.
 func (w *whatsapp) SendText(ctx context.Context, to, text, replyToMessageID string) error {
 	payload := map[string]any{
