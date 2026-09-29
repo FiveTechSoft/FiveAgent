@@ -451,6 +451,20 @@ func TestLiveBattery(t *testing.T) {
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
 	a.WithSkills(agent.DomainSkill())
+	// Runner knob (run 5 took ~86 min vs run 4's ~20: the stage-15
+	// summarizer model pass fires many times over a 104-prompt
+	// session). FIVEAGENT_EVAL_NO_SUMMARIZER=1 forces the deterministic
+	// omission marker instead of the model pass. Fidelity preserved:
+	// pruning still runs at full budget, so recall-past-truncation
+	// measures the same thing; summarizer QUALITY is covered in CI by
+	// the stage-15 scripted test (61 turns). What stops being measured
+	// live is summary quality drift.
+	if os.Getenv("FIVEAGENT_EVAL_NO_SUMMARIZER") == "1" {
+		a.WithPruning(agent.PruneConfig{Summarize: func(ctx context.Context, turns []model.Message) (string, error) {
+			return "", fmt.Errorf("summarizer disabled by FIVEAGENT_EVAL_NO_SUMMARIZER (battery runner knob)")
+		}})
+		t.Logf("FIVEAGENT_EVAL_NO_SUMMARIZER=1: middle compaction uses the deterministic omission marker")
+	}
 
 	// Capture the run_command audit lines so audit_contains cases can
 	// prove the execution left its line; keep them on stderr too.
