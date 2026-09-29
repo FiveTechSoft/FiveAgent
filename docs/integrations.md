@@ -8,8 +8,13 @@ so adding the next one is a known shape, not a new design.
 
 - `internal/oauth`: authorization-code flow, token exchange, refresh,
   and the token store (`data/tokens.json`, 0600, atomic writes). The
-  store is NOT encrypted at rest; that is roadmap stage 8 and the code
-  says so instead of faking crypto.
+  store is encrypted at rest (stage 8): AES-256-GCM via
+  internal/secrets, key from FIVEAGENT_MASTER_KEY (env, strongest:
+  never touches the disk) or data/master.key (0600, auto-created).
+  Plaintext stores migrate on first load without loss. Honest threat
+  model: a key file on the same disk protects COPIES of the token
+  file (backups, sync clients), not the live machine; the docs and
+  the code comments say so instead of overselling.
 - Connect handler: `/oauth/<service>/start` redirects to the
   provider's consent screen; `/oauth/<service>/callback` verifies the
   single-use state, exchanges the code and stores the token. It mounts
