@@ -16,13 +16,13 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/github"
 	"github.com/FiveTechSoft/FiveAgent/internal/google"
+	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/links"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
-	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
-	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/proactive"
+	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
 	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
 	"github.com/FiveTechSoft/FiveAgent/internal/slack"
@@ -434,7 +434,7 @@ func main() {
 	if ids != nil {
 		core.WithIdentities(ids)
 	}
-	core.WithSkills(agent.DomainSkill())
+	core.WithSkills(agent.LoadSkillsDir(agent.DefaultSkillsDir)...)
 	if kn != nil {
 		core.WithKnowledge(kn)
 		if cfg.Memory.AutoIndex {
