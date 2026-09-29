@@ -102,3 +102,29 @@ cannot widen that today. Same shared token store (key "drive"), same
 connect handler (`/oauth/drive/start`), same honest errors. CI covers
 query forwarding, the multipart upload payload (metadata + bytes),
 download bytes, auth headers and the not-connected path.
+
+## Slack (27d)
+
+The first copy outside Google: different vendor, different API style,
+same shape. Read: `slack_channels`, `slack_read` (channel history).
+Write: `slack_send`.
+
+```yaml
+integrations:
+  slack:
+    enabled: true
+    client_id: "<slack app client id>"
+    client_secret: "..."
+    redirect_url: "https://<your-bot-host>"
+```
+
+Bot scopes: `channels:read`, `channels:history`, `chat:write`. Two
+honest differences from the Google copies, handled in code rather
+than hidden: Slack answers application errors as HTTP 200 with
+`{"ok": false, "error": "..."}`, so every call checks the ok flag;
+and bot tokens do not expire, so this provider never exercises the
+refresh path (the shared client handles both cases). The bot only
+sees channels it has been invited to - invite it explicitly, the
+config cannot widen that. CI covers list/history/post payloads, the
+ok:false quirk surfacing as an error, auth headers and the
+not-connected path.
