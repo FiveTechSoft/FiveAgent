@@ -15,6 +15,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
+	"github.com/FiveTechSoft/FiveAgent/internal/sched"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
 
@@ -50,6 +51,42 @@ func main() {
 	defer store.Close()
 
 	tl := []tools.Tool{tools.Datetime{}}
+	// Stage 22: the scheduler is created before the registry so the
+	// model gets schedule_job; its deliver closure resolves channels
+	// lazily, once they are built below, and Run starts once ctx
+	// exists.
+	var chans []channel.Channel
+	var sc *sched.Scheduler
+	if cfg.Cron.Enabled {
+		cronPath := cfg.Cron.Path
+		if cronPath == "" {
+			cronPath = "data/jobs.json"
+		}
+		deliver := func(ctx context.Context, channelName, userID, text string) error {
+			for _, ch := range chans {
+				if ch.Name() != channelName {
+					continue
+				}
+				d, ok := ch.(interface {
+					Deliver(context.Context, string, string) error
+				})
+				if !ok {
+					return fmt.Errorf("cron: channel %s cannot deliver scheduled jobs", channelName)
+				}
+				return d.Deliver(ctx, userID, text)
+			}
+			return fmt.Errorf("cron: channel %s is not enabled", channelName)
+		}
+		var err error
+		sc, err = sched.Open(cronPath, deliver)
+		if err != nil {
+			log.Printf("cron disabled: %v", err)
+			sc = nil
+		} else {
+			tl = append(tl, tools.ScheduleJob{Sched: sc})
+			log.Printf("cron scheduler: %s", cronPath)
+		}
+	}
 	if cfg.Sandbox.Enabled {
 		if sb, err := sandbox.New(cfg.Sandbox); err != nil {
 			log.Printf("sandbox disabled: %v", err)
@@ -112,7 +149,10 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	chans := channel.Build(cfg, core)
+	chans = channel.Build(cfg, core)
+	if sc != nil {
+		go sc.Run(ctx)
+	}
 	for _, ch := range chans {
 		go func(ch channel.Channel) {
 			if err := ch.Run(ctx); err != nil {
