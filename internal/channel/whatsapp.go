@@ -593,6 +593,12 @@ func (w *whatsapp) MountLinks(h http.Handler) {
 	w.mux.Handle("/l/", h)
 }
 
+// MountOAuth serves the OAuth connect handler (stage 27) on the same
+// listener as the webhook, under /oauth/.
+func (w *whatsapp) MountOAuth(h http.Handler) {
+	w.mux.Handle("/oauth/", h)
+}
+
 // Deliver sends an unquoted text, used by the scheduler (stage 22).
 func (w *whatsapp) Deliver(ctx context.Context, userID, text string) error {
 	return w.SendText(ctx, userID, text, "")
