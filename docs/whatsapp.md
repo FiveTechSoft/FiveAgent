@@ -686,6 +686,10 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 - Saliente: texto, media por enlace (`SendMedia`), plantillas aprobadas
   para fuera de la ventana de 24 h (`SendTemplate`), subida de media
   (`UploadMedia`) + envío por id.
+- Imágenes salientes hechas por código (etapa 25e): la herramienta
+  `send_chart` dibuja gráficas de barras/líneas en Go puro y las envía
+  como imagen nativa (`SendMediaBytes`: subida + envío por id, con
+  caption opcional). Probado contra Graph falso con bytes verificados.
 - Notas de voz salientes (etapa 25d): con `tts_url` apuntando a un
   endpoint `/v1/audio/speech` compatible con OpenAI (openedai-speech
   para Piper, kokoro-fastapi para Kokoro), las respuestas salen como
