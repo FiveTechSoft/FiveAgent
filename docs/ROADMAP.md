@@ -405,16 +405,26 @@ evidence that counts.
     DuckDuckGo by default (no API key, may rate-limit under heavy use),
     Brave via `web_search.api_key` for production. `web_search:` section
     in the yml. A self-hosted SearXNG provider remains a welcome option.
-21. **Workspace tools** (planned) - real filesystem tools for the
-    agent: read_file, write_file and edit_file with true diffs (the
-    model passes old/new text, the tool verifies the exact context and
-    returns the applied diff), all scoped to the user's folder. Every
-    write takes an automatic snapshot with go-git (already a
+21. **Workspace tools** (implemented, CI-tested) - real filesystem
+    tools for the agent: read_file, write_file and edit_file with
+    true diffs (the model passes old/new text, the tool verifies the
+    exact context matches exactly once and returns the applied diff;
+    unknown or ambiguous old_text is refused without touching the
+    file), all scoped to the user's folder
+    (data/workspace/<channel>-<user>, workspace.enabled in the yml) -
+    path escapes are flattened inside however they are written. Every
+    write snapshots the prior state with go-git (already a
     dependency), so every edit is undoable and auditable - no more
     destructive shell redirects. Base for the later git tool.
-    Done when: the agent creates, edits and fixes a file over WhatsApp
-    and returns the exact diff applied; the battery grows a "files"
-    case that verifies the edit and the rollback snapshot.
+    Done when: (met) the scripted battery case
+    (evals/files_test.go) drives the write/read roundtrip, the
+    true-diff edit with its exact-match verification, path-escape
+    flattening, per-user isolation, and the snapshot chain (three
+    writes leave two prior-state commits holding the earlier
+    contents). The live battery grows a files: case measuring the
+    model driving the tools in vivo; the first end-to-end file edit
+    over real WhatsApp remains pending live verification on a live
+    install.
 22. **Cron scheduler** (planned) - scheduled automations in natural
     language, delivered to any channel: daily reports, nightly
     backups, weekly audits, reminders. The scheduler lives in the
