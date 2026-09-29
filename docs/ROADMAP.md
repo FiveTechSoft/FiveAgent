@@ -154,9 +154,10 @@ evidence that counts.
       last scorecard with the same model blocks the "done" of the
       stage that caused it until the drop is explained. Hallucinations
       stay the hard gate of every run.
-   n. **Automatic background indexing** (planned) - today memory grows
+   n. **Automatic background indexing** (implemented, 2026-09-29,
+      CI-tested) - memory no longer grows
       only when the model decides to save (save_memory /
-      forget_memory). Add the complementary path: a background
+      forget_memory). The complementary path: a background
       indexer absorbs conversations into the memory files with no
       model decision at all - the system remembers on its own, and
       the manual tools stay for deliberate curation. Indexing is per
@@ -164,6 +165,19 @@ evidence that counts.
       own scope (links with 7i's scoping decision and the per-user
       sandbox of stage 3). The files stay the single source of
       truth; the indexer is a writer, not a second memory.
+      internal/agent/indexer.go: a bounded queue plus a background
+      worker; a cheap heuristic pre-filter skips trivia, then ONE
+      small extractor call per non-trivial turn (declared cost)
+      writes plain bullets through Knowledge.Append only - no YAML
+      headers, no structure, newlines stripped, 200-char cap, so
+      injected content cannot rewrite memory layout; the exchange
+      travels delimited as DATA in the extractor prompt. Model
+      failures and a full queue log and drop, never delay the reply.
+      The 7i question narrows honestly to "should manual saves also
+      scope?" - documented, not silently decided: save_memory and
+      "recuerda:" still write to the global scope while the indexer
+      writes per sender, and recall merges global + own scope.
+      memory.auto_index: false opts out.
       Done when: a scripted conversation that mentions a fact (no
       "recuerda:" anywhere) recalls it in a later session without a
       single save_memory call; the battery grows an "auto-index"
