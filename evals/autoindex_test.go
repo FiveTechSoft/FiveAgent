@@ -64,6 +64,10 @@ func TestAutoIndexBattery(t *testing.T) {
 	if _, err := a.Handle(context.Background(), "whatsapp", "user-b", "cual es mi equipo favorito"); err != nil {
 		t.Fatal(err)
 	}
+	// No background work may outlive the test: leftover extractions
+	// race the TempDir cleanup (and the next -count run), which is
+	// what flaked CI run 36539321117.
+	a.DrainIndexer(context.Background())
 	memB := injectedMemory(t, p.last())
 	if strings.Contains(memB, "Celta") {
 		t.Fatalf("sender A fact leaked into sender B recall:\n%s", memB)
