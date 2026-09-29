@@ -489,6 +489,11 @@ categories:
     - leche de avena
     - pan
     source: "caso de ficheros (stage 21): la maquinaria (scoping por usuario, diff verdadero con verificación exacta, snapshot go-git previo a cada escritura, antiescape de rutas) la prueba el caso scriptado de CI - aquí se mide que el modelo maneja las tools en vivo"
+  cron:
+  - prompt: "prográmame un recordatorio dentro de 5 minutos: sacar la ropa de la lavadora"
+    must_contain:
+    - recordatorio
+    source: "caso cron (stage 22): la maquinaria (persistencia, disparo one-shot y recurrente, no-repetición, auditoría) la prueba el caso scriptado de CI - aquí se mide que el modelo registra el job y lo confirma en vivo"
   web_search:
   - prompt: usa la herramienta web_search para encontrar la documentación oficial de FiveWin for Harbour y dime su URL
     must_contain:
