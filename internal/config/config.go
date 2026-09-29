@@ -153,6 +153,24 @@ type Cron struct {
 // explicit code flow, never guessed; unlinked senders stay separate.
 // Enabled by default - inert until a user links two channels; set
 // enabled: false to opt out.
+// MCP is the local MCP server for external agents such as the
+// owner's OpenCode (stage 33 of docs/ROADMAP.md). Token-authenticated,
+// loopback by default: it exposes fiveagent_run_command (executes
+// inside the sandbox, never outside it) and fiveagent_read_file
+// (confined to the workspace folder).
+type MCP struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+	// ListenAddr defaults to 127.0.0.1:8090. Keep it on loopback
+	// unless the transport in front adds its own authentication.
+	ListenAddr string `yaml:"listen_addr,omitempty"`
+	// Token is the required bearer token; the server refuses to
+	// start without one.
+	Token string `yaml:"token,omitempty"`
+	// UserKey selects the sandbox folder for MCP calls (default
+	// "mcp").
+	UserKey string `yaml:"user_key,omitempty"`
+}
+
 type Identity struct {
 	Enabled bool `yaml:"enabled"`
 	// Path is the identities JSON file; default data/identities.json.
@@ -223,6 +241,8 @@ type Config struct {
 	Proactive Proactive `yaml:"proactive,omitempty"`
 	// Identity is cross-channel conversation unification (stage 36).
 	Identity Identity `yaml:"identity,omitempty"`
+	// MCP is the local MCP server for external agents (stage 33).
+	MCP MCP `yaml:"mcp,omitempty"`
 	// Browser is the web browser tool (stage 23).
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
