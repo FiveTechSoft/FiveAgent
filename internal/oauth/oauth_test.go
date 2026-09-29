@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -23,7 +24,11 @@ func TestTokenStoreRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if fi.Mode().Perm() != 0o600 {
+	// The 0600 guarantee is POSIX-only: Windows has no POSIX
+	// permission bits and Go normalizes file modes there (owner-
+	// writable becomes 0666), so the strict assertion would fail on
+	// a correct file. Windows protection is the user profile ACL.
+	if runtime.GOOS != "windows" && fi.Mode().Perm() != 0o600 {
 		t.Fatalf("token file perms: %o", fi.Mode().Perm())
 	}
 	got, err := store.Load("gmail")
