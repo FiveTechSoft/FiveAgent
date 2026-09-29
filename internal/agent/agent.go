@@ -330,13 +330,16 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	var lastContent string // model words from a tool-call turn, as fallback
 	rescued := 0           // tool calls whose mistyped arguments were repaired (stage 14)
 	// The agent decides which model serves this request: the coder model
-	// for code-heavy text, the main model otherwise.
+	// for code-heavy text, the main model otherwise. The other one is
+	// the fallback for the stage 16 recovery ladder.
 	mdl := a.mdl
+	fallback := a.coder
 	if a.coder != nil && looksLikeCode(text) {
 		mdl = a.coder
+		fallback = a.mdl
 	}
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := mdl.Chat(ctx, msgs, a.tools.Specs())
+		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.tools.Specs())
 		if err != nil {
 			return "", err
 		}
