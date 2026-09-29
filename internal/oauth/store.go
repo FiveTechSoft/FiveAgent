@@ -8,8 +8,10 @@ import (
 )
 
 // TokenStore keeps one token per integration name in a JSON file:
-// 0600 permissions, atomic tmp+rename writes, never a second source
-// of truth. NOT encrypted at rest - roadmap stage 8 owns that.
+// 0600 permissions (POSIX; on Windows there are no POSIX bits and
+// protection is the user profile ACL), atomic tmp+rename writes,
+// never a second source of truth. NOT encrypted at rest - roadmap
+// stage 8 owns that.
 type TokenStore struct {
 	Path string
 }
