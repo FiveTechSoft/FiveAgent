@@ -66,6 +66,14 @@ memory:
 #   max_ram_mb: 512        # docker / jobobject only
 #   image: alpine          # docker only
 
+# trajectory: opt-in turn recorder (stage 12). Every turn lands redacted
+# as a JSONL trajectory - the dataset shape for stage 13 fine-tuning.
+# trajectory:
+#   enabled: true
+#   # dir: data/trajectories   # rotating trajectories.jsonl lives here
+#   # max_mb: 10               # per rotating file
+#   # max_files: 5             # rotated files kept
+
 # mcp: local MCP server for external agents (e.g. your OpenCode). Off by
 # default. Needs sandbox.enabled: true - fiveagent_run_command is the point.
 # See docs/mcp.md for the client config and a curl smoke test.
