@@ -26,6 +26,9 @@ type telegram struct {
 	// agentTimeout caps one full agent run; set by Build from the model
 	// timeout, defaults to 5 minutes.
 	agentTimeout time.Duration
+	// ledger records outbound replies before sending (stage 19); nil
+	// disables the ledger.
+	ledger *Ledger
 }
 
 // NewTelegram builds the Telegram adapter.
@@ -50,6 +53,11 @@ func (t *telegram) Run(ctx context.Context) error {
 		return fmt.Errorf("telegram: token check failed: %w", err)
 	}
 	log.Printf("telegram: connected as @%s, long polling (no public URL needed)", me)
+
+	// Stage 19: redeliver replies a crash left unsent, with marker.
+	RecoverPending(ctx, t.ledger, "telegram", func(sendCtx context.Context, userID, text string) error {
+		return t.SendText(sendCtx, userID, text, 0)
+	})
 
 	offset := 0
 	for {
@@ -183,8 +191,25 @@ func (t *telegram) process(m *tgMessage) {
 	}
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer sendCancel()
-	if err := t.SendText(sendCtx, chatID, reply, m.MessageID); err != nil {
-		log.Printf("telegram: send: %v", err)
+	// Stage 19: record the reply BEFORE sending; a crash after this
+	// point redelivers it on the next start with the recovered marker.
+	var d *Delivery
+	if t.ledger != nil {
+		if dd, lerr := t.ledger.Add("telegram", chatID, reply); lerr != nil {
+			log.Printf("telegram: delivery ledger: %v", lerr)
+		} else {
+			d = dd
+			t.ledger.Attempting(d.ID)
+		}
+	}
+	sendErr := t.SendText(sendCtx, chatID, reply, m.MessageID)
+	if sendErr != nil {
+		log.Printf("telegram: send: %v", sendErr)
+		if d != nil {
+			t.ledger.Failed(d.ID, sendErr)
+		}
+	} else if d != nil {
+		t.ledger.Delivered(d.ID)
 	}
 }
 
