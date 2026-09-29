@@ -6,6 +6,9 @@ model:
   # timeout: 120         # seconds per model call; local endpoints default to 600
   # num_thread: 8        # Ollama only: cap inference threads (good neighbor on shared CPU hosts).
                          # When set, requests go to Ollama's native /api/chat, so base_url must end in /v1.
+  # chat_template_kwargs:  # /v1 route only (SGLang/vLLM): arbitrary chat-template switches.
+  #   enable_thinking: false  # reasoning models can spend the whole budget thinking and reply empty.
+                         # Conflicts with num_thread on the same model (separate routes; Load fails loudly).
 
 # Optional: a second model for code-heavy requests. When set, the agent
 # auto-routes: messages that look like code go here, everything else to
