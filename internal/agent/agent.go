@@ -153,6 +153,7 @@ type Agent struct {
 	mdl       *model.Client
 	coder     *model.Client     // optional: serves code-heavy requests
 	knowledge *memory.Knowledge // optional: long-term markdown memory
+	indexer   *Indexer          // optional: background auto-indexing (stage 7n)
 	store     memory.Store
 	tools     *tools.Registry
 	sysPrompt string
@@ -187,6 +188,13 @@ func (a *Agent) WithSkills(skills ...Skill) *Agent {
 // for chaining.
 func (a *Agent) WithKnowledge(k *memory.Knowledge) *Agent {
 	a.knowledge = k
+	return a
+}
+
+// WithIndexer sets the background memory indexer (stage 7n) and
+// returns the agent for chaining.
+func (a *Agent) WithIndexer(ix *Indexer) *Agent {
+	a.indexer = ix
 	return a
 }
 
@@ -385,10 +393,19 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 		}
 	}
 	if a.knowledge != nil {
-		if hits, err := a.knowledge.Recall(text); err == nil {
-			if note := recallNote(hits); note != "" {
-				msgs = append(msgs, model.Message{Role: "system", Content: note})
+		hits, _ := a.knowledge.Recall(text)
+		// Stage 7n: the sender's own auto-indexed scope merges into
+		// recall. Another sender's scope is never opened here - one
+		// user's indexed facts never surface for another.
+		if a.indexer != nil {
+			if uk, err := a.indexer.userScope(userID); err == nil {
+				if uhits, err := uk.Recall(text); err == nil {
+					hits = append(hits, uhits...)
+				}
 			}
+		}
+		if note := recallNote(hits); note != "" {
+			msgs = append(msgs, model.Message{Role: "system", Content: note})
 		}
 	}
 	msgs = append(msgs, hmsgs...)
@@ -490,5 +507,27 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 	if err := a.store.Append(ctx, channel, userID, "assistant", reply); err != nil {
 		return "", err
 	}
+	// Stage 7n: absorb the turn into the sender's memory scope in the
+	// background. Never blocks the reply; "recuerda:"/"olvida:" turns
+	// already went through deliberate curation, so they are skipped.
+	if a.indexer != nil && !startsWithMemoryCommand(text) {
+		a.indexer.Enqueue(channel, userID, text, reply)
+	}
 	return reply, nil
+}
+
+// DrainIndexer processes queued auto-index work synchronously. It
+// exists for the battery: evals need a deterministic wait, and the
+// honest way is doing the work, not sleeping and hoping.
+func (a *Agent) DrainIndexer(ctx context.Context) {
+	if a.indexer != nil {
+		a.indexer.Drain(ctx)
+	}
+}
+
+// startsWithMemoryCommand reports whether the message went through
+// the deliberate memory path ("recuerda:" / "olvida:").
+func startsWithMemoryCommand(text string) bool {
+	return (len(text) >= len(rememberPrefix) && strings.EqualFold(text[:len(rememberPrefix)], rememberPrefix)) ||
+		(len(text) >= len(forgetPrefix) && strings.EqualFold(text[:len(forgetPrefix)], forgetPrefix))
 }
