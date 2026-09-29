@@ -425,16 +425,27 @@ evidence that counts.
     model driving the tools in vivo; the first end-to-end file edit
     over real WhatsApp remains pending live verification on a live
     install.
-22. **Cron scheduler** (planned) - scheduled automations in natural
-    language, delivered to any channel: daily reports, nightly
-    backups, weekly audits, reminders. The scheduler lives in the
-    agent process, fires jobs unattended, and delivers the result to
-    the user's WhatsApp/Telegram. Each job is auditable (what ran,
-    when, what it sent).
-    Done when: the user asks "recuérdame X mañana a las 9" over
-    WhatsApp and the reminder arrives at that time on the same
-    channel; the battery grows a "cron" case that creates a job,
-    fires it, and verifies the delivery text.
+22. **Cron scheduler** (implemented, CI-tested) - scheduled
+    automations in natural language, delivered to the originating
+    channel. internal/sched: a JSON-file job store (data/jobs.json,
+    cron.enabled in the yml) inside the agent process; the model
+    registers jobs through the schedule_job tool (one-shot via
+    in_minutes or deliver_at, recurring via every_minutes) and a
+    15-second ticker fires them unattended, delivering the text back
+    to the same WhatsApp/Telegram chat with an ⏰ prefix. Every job
+    is auditable in the file: what runs, when it last ran, how many
+    times. Scope: a failed delivery is retried on the next tick; a
+    crash between delivery and persist can refire once - the stage-19
+    ledger integration for scheduled sends is future work. Richer
+    schedules (daily at HH:MM, weekdays) build on the same store.
+    Done when: (met) the scripted battery case (evals/cron_test.go)
+    creates a one-shot, fires it, and verifies the exact delivery
+    text, the audit trail, no refire on the next tick OR after a
+    restart (reloaded from the file), recurring next-run advance, and
+    the tool's refusal of bad timing args. The live battery grows a
+    cron: case measuring the model registering and confirming in
+    vivo; the first real WhatsApp reminder end-to-end remains
+    pending live verification on a live install.
 23. **Browser** (planned) - a headless Playwright browser as a native
     tool, OUTSIDE the command sandbox (which stays offline): one isolated
     browser profile per user, downloads land in the user's folder.
