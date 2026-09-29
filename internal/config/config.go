@@ -112,6 +112,21 @@ type Links struct {
 	VaultDir string `yaml:"vault_dir,omitempty"`
 }
 
+// Secrets holds encryption-at-rest settings (stage 8).
+type Secrets struct {
+	// KeyFile is the master key file (default data/master.key,
+	// created 0600 on first use). Documented limitation: a key file
+	// on the same disk as the data protects copies of the data
+	// (backups, sync clients), not the live machine.
+	KeyFile string `yaml:"key_file,omitempty"`
+	// KeyEnv names the environment variable holding the master key
+	// (base64 or hex, 32 bytes; default FIVEAGENT_MASTER_KEY). The
+	// environment is the strongest source: it keeps the key out of
+	// the filesystem entirely. Set KeyEnv to "off" to disable
+	// encryption explicitly.
+	KeyEnv string `yaml:"key_env,omitempty"`
+}
+
 // Browser holds the web-browser settings (stage 23): numbered-element
 // pages, by-id actions, gated submits, per-user audit log.
 type Browser struct {
@@ -182,6 +197,9 @@ type Config struct {
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
 	Links Links `yaml:"links,omitempty"`
+
+	// Secrets is encryption at rest for stored credentials (stage 8).
+	Secrets Secrets `yaml:"secrets,omitempty"`
 	// Integrations are the OAuth services of stage 27.
 	Integrations Integrations `yaml:"integrations,omitempty"`
 }
