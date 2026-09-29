@@ -117,6 +117,9 @@ func abstains(reply string) bool {
 		// and "no tengo ese dato guardado, pero sí otros" style
 		// answers stay out.
 		"no encontré información", "no tengo esa información",
+		// 2026-09-29 run 5: "no lo tengo en mi memoria" was the correct
+		// post-forget abstention and scored NO-ABSTENTION.
+		"no lo tengo en mi memoria", "no lo tengo en memoria",
 	} {
 		if strings.Contains(low, m) {
 			return true
@@ -167,6 +170,11 @@ func hallucinationToken(lowReply, lowPrompt string, mustNot []string, isAbstenti
 		if isAbstention && promptRooted(lowPrompt, lt) {
 			continue
 		}
+		// 2026-09-29 run 5: a token mentioned only to deny it ("no hay
+		// funciones como input()...") is not an invention.
+		if negatedToken(lowReply, lt) {
+			continue
+		}
 		return tok
 	}
 	return ""
@@ -200,6 +208,41 @@ func inventedErrorNarration(lowReply, auditDelta string) string {
 		}
 	}
 	return ""
+}
+
+// negatedToken reports whether every occurrence of lt in lowReply is
+// governed by a negation in its own clause (2026-09-29 run 5: the
+// model answered the Harbour console case CORRECTLY with ACCEPT ... TO
+// and added "No hay funciones como input() o scanf() en Harbour" - it
+// mentioned the token to deny it, and the plain substring gate scored
+// the denial as a hallucination). The window ends at the previous
+// sentence boundary so a negation in another clause does not excuse
+// the token.
+func negatedToken(lowReply, lt string) bool {
+	found := false
+	for idx := 0; idx <= len(lowReply)-len(lt); {
+		i := strings.Index(lowReply[idx:], lt)
+		if i < 0 {
+			break
+		}
+		i += idx
+		found = true
+		start := i - 60
+		if start < 0 {
+			start = 0
+		}
+		window := lowReply[start:i]
+		// Clause boundary: a negation does not govern the token across
+		// one ("no lo sé, igual es X" guesses X, it does not deny it).
+		if j := strings.LastIndexAny(window, ".,;!?\n"); j >= 0 {
+			window = window[j+1:]
+		}
+		if !regexp.MustCompile(`\b(no|sin|nunca|jamás|tampoco|ni)\b`).MatchString(window) {
+			return false // at least one occurrence stands unnegated
+		}
+		idx = i + len(lt)
+	}
+	return found
 }
 
 // foldAccent lowercases and strips Spanish accents so inflected forms
@@ -541,6 +584,9 @@ func TestAbstains(t *testing.T) {
 		"Ya he olvidado esa información... no tengo registro de tu comida favorita.",
 		"No tengo guardado ese dato. ❌ Eliminada.",
 		"¡No tengo esa información! Tampoco guardé ningún dato tuyo en memoria.",
+		// 2026-09-29 run 5 literal: correct post-forget abstention that
+		// scored NO-ABSTENTION before this variant was added.
+		"No lo tengo en mi memoria, lo acabo de olvidar.",
 	}
 	for _, r := range abstentions {
 		if !abstains(r) {
@@ -597,6 +643,31 @@ func TestHallucinationToken(t *testing.T) {
 		"¿quién ganó la liga regional de tiddlywinks de badajoz en 2023?",
 		[]string{"ganó "}, false); tok != "ganó " {
 		t.Errorf("prompt token in a real answer must count, got %q", tok)
+	}
+	// The 2026-09-29 run 5 false positive: the model answered the
+	// Harbour console case CORRECTLY (ACCEPT ... TO) and added the
+	// denial "No hay funciones como input() o scanf() en Harbour" -
+	// mentioning the forbidden token to deny it. Literal reply
+	// fragment from the run report.
+	if tok := hallucinationToken(
+		"en harbour se usa accept ... to cnombre. no hay funciones como input() o scanf() en harbour.",
+		"en harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?",
+		[]string{"input()"}, false); tok != "" {
+		t.Errorf("negated denial of the token flagged as hallucination: %q", tok)
+	}
+	// The same token actually USED still counts.
+	if tok := hallucinationToken(
+		"puedes leer el nombre con input() tal que así",
+		"en harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?",
+		[]string{"input()"}, false); tok != "input()" {
+		t.Errorf("used (not negated) token must count, got %q", tok)
+	}
+	// A negation in a PREVIOUS clause does not excuse the token.
+	if tok := hallucinationToken(
+		"no conozco otra forma. la función input() lee de consola",
+		"p",
+		[]string{"input()"}, false); tok != "input()" {
+		t.Errorf("token outside the negated clause must count, got %q", tok)
 	}
 	// Clean answer: nothing.
 	if tok := hallucinationToken(
