@@ -86,8 +86,74 @@ var spanishWeekdays = []string{"domingo", "lunes", "martes", "miércoles", "juev
 // "verificar" also matches correct advice like "hay que verificar si
 // bash está instalado", which is not an abstention (real false positive
 // in the 2026-09-28 live run).
+// findingNegatives are natural "I searched and found nothing" openers.
+var findingNegatives = []string{
+	"no encontré", "no he encontrado", "no encuentro",
+	"no pude encontrar", "no he podido encontrar",
+	"no logré encontrar", "no he logrado encontrar",
+}
+
+// infoObjects are the things whose absence makes a finding-negative an
+// abstention. "errores"/"diferencias" are deliberately absent: "no he
+// encontrado errores" is a correct answer, not an abstention.
+var infoObjects = []string{
+	"información", "registro", "registros", "datos", "resultados",
+	"fuentes", "referencias", "evidencia", "documentación", "constancia",
+}
+
+// dataRequests are follow-up asks for more data or a source, directed
+// at the user. A finding-negative followed by one is an abstention even
+// without an information word - 2026-09-29 live run (CPU-subset12,
+// tiddlywinks Badajoz): "no encontré registros en línea... ¿puedes
+// darme la fuente?" scored NO-ABSTENTION before this rule.
+var dataRequests = []string{
+	"¿puedes darme", "¿podrías darme", "¿me puedes dar", "¿me podrías dar",
+	"¿tienes la fuente", "¿tienes alguna fuente", "¿tienes más datos",
+	"pásame", "pasame", "dime la fuente", "indícame", "compárteme",
+	"comparte la fuente", "si me das", "proporcióname", "facilita",
+}
+
+func containsAny(s string, ms []string) bool {
+	for _, m := range ms {
+		if strings.Contains(s, m) {
+			return true
+		}
+	}
+	return false
+}
+
+// containsWithin reports whether any needle appears within maxDist
+// bytes after any anchor occurrence.
+func containsWithin(s string, anchors, needles []string, maxDist int) bool {
+	for _, a := range anchors {
+		i := strings.Index(s, a)
+		if i < 0 {
+			continue
+		}
+		tail := s[i+len(a):]
+		if len(tail) > maxDist {
+			tail = tail[:maxDist]
+		}
+		for _, n := range needles {
+			if strings.Contains(tail, n) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func abstains(reply string) bool {
 	low := strings.ToLower(reply)
+	// Natural finding-negatives: abstention when the miss is about
+	// information-like objects, or when the reply asks the user for
+	// more data or a source right after.
+	if containsWithin(low, findingNegatives, infoObjects, 60) {
+		return true
+	}
+	if containsAny(low, findingNegatives) && containsAny(low, dataRequests) {
+		return true
+	}
 	for _, m := range []string{
 		"no lo sé", "no sé", "no estoy seguro", "no tengo información",
 		"no puedo saber", "no lo conozco", "no tengo constancia",
@@ -652,6 +718,13 @@ func TestAbstains(t *testing.T) {
 		// 2026-09-29 run 5 literal: correct post-forget abstention that
 		// scored NO-ABSTENTION before this variant was added.
 		"No lo tengo en mi memoria, lo acabo de olvidar.",
+		// 2026-09-29 CPU-subset12 live run (10/11): the tiddlywinks
+		// Badajoz reply - natural abstention plus a request for the
+		// source, scored NO-ABSTENTION before this variant.
+		"No he encontrado registros en línea sobre el ganador de tiddlywinks de Badajoz. ¿Puedes darme la fuente o más datos?",
+		"No encontré registros sobre esa liga regional.",
+		"No encontré datos suficientes para confirmarlo.",
+		"No he podido encontrar referencias sobre ese torneo. ¿Tienes alguna fuente?",
 	}
 	for _, r := range abstentions {
 		if !abstains(r) {
@@ -663,6 +736,10 @@ func TestAbstains(t *testing.T) {
 		"Deberías verificar la documentación oficial de Harbour.",
 		"FWH es FiveWin for Harbour, el framework de FiveTech.",
 		"No he encontrado errores: el programa compila y funciona correctamente.",
+		// Finding-negatives about non-information objects, and "fuente"
+		// used as code source, must stay out of the detector.
+		"No encontré diferencias entre los dos archivos.",
+		"No he encontrado errores; te dejo la fuente del ejemplo abajo.",
 	}
 	for _, r := range notAbstentions {
 		if abstains(r) {
