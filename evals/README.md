@@ -325,11 +325,15 @@ the pre-16b retry machinery (0 empty forced answers, 0 fallback lines
 delivered). Baseline for the stage-16b empty-reply ladder, which was
 not in this tree.
 
-PERFORMANCE WARNING: the stage-15 summarizer took the run from ~20
-minutes (run 4) to ~86 minutes (~4x); the first attempt died at the
-35-minute timeout 10/17 categories in. The battery runner needs a
-fidelity-safe way to make the middle compaction cheaper - options
-under review with the owner before implementation.
+PERFORMANCE: the stage-15 summarizer took the run from ~20 minutes
+(run 4) to ~86 minutes (~4x); the first attempt died at the
+35-minute timeout 10/17 categories in. Fixed with a runner knob:
+FIVEAGENT_EVAL_NO_SUMMARIZER=1 replaces the summarizer model pass
+with the deterministic "N earlier turns omitted" marker in the live
+battery. Fidelity preserved: pruning still runs at full budget, so
+recall-past-truncation measures the same thing; summarizer quality
+stays covered in CI by the stage-15 scripted test (61 turns). What
+stops being measured live: summary quality drift.
 
 Runs at a glance: 81/95 (run 1) -> 83/96 (run 3, first gate PASS) ->
 91/104 (run 4) -> 92/104 (run 5, 0 real hallucinations).
