@@ -126,6 +126,10 @@ channels:
     access_token: ""          # Paso 8
     phone_number_id: ""       # Paso 8
     verify_token: "inventa-una-palabra-larga-y-rara"
+    # Media (opcional): servicios externos, el binario sigue siendo Go puro
+    # transcriber_url: "http://localhost:8090/inference"   # whisper.cpp
+    # describer_url: "http://localhost:8091/v1/chat/completions"
+    # describer_model: "qwen2.5-vl"                        # modelo VL del endpoint
 ```
 
 Las dos opciones llevan la misma idea: el bot sabe qué modelo usa y, si se
@@ -666,10 +670,19 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 - Verificación del webhook (`GET`) con comparación en tiempo constante.
 - Entrante: texto, imágenes, notas de voz, documentos, vídeo, stickers,
   ubicaciones y reacciones, descritos al agente (ej.: `[image: caption]`).
-  `DownloadMedia` baja los bytes de Meta cuando haga falta.
+- Media entrante con procesadores (etapa 25 del roadmap): si configuras
+  `transcriber_url` (un servidor whisper.cpp), las notas de voz llegan
+  transcritas al agente; si configuras `describer_url` +
+  `describer_model` (un endpoint de visión compatible con OpenAI), las
+  imágenes llegan descritas. Sin configurar, el agente recibe un aviso
+  honesto (`[voice note - transcription not configured]`), nunca una
+  transcripción inventada. Bytes y transcripciones no se escriben en
+  logs. Probado contra servidor Graph falso en
+  `internal/channel/whatsapp_media_test.go`; pendiente de verificación
+  en vivo con servicios whisper/VL reales.
 - Saliente: texto, media por enlace (`SendMedia`), plantillas aprobadas
   para fuera de la ventana de 24 h (`SendTemplate`), subida de media
-  (`UploadMedia`).
+  (`UploadMedia`) + envío por id.
 - Acuse de lectura + indicador de "escribiendo..." al recibir.
 - Las respuestas citan el mensaje original.
 - Estados de entrega (enviado/entregado/leído/fallido) en el registro.
