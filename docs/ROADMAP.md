@@ -169,7 +169,19 @@ evidence that counts.
       single save_memory call; the battery grows an "auto-index"
       case proving the fact landed through the indexer, and that one
       sender's indexed facts never surface for another.
-8. **Secrets at rest** - AES-256-GCM encryption for stored credentials.
+8. **Secrets at rest** (implemented, 2026-09-29, CI-tested) -
+    AES-256-GCM encryption for stored credentials. internal/secrets:
+    32-byte key (base64/hex), self-describing JSON envelope, wrong
+    key and tampering fail loudly via GCM authentication. Key source:
+    FIVEAGENT_MASTER_KEY env (strongest: key never touches the disk)
+    or data/master.key (0600, auto-created; secrets.key_file /
+    secrets.key_env in the yml, "off" disables explicitly). The token
+    store seals on save and migrates existing plaintext on first
+    load without loss (parse first, then re-seal; a failed re-save
+    never blocks the read). Threat model stated honestly in code and
+    docs: a key file on the same disk protects copies of the data
+    file (backups, sync clients, leaked archives), NOT the live
+    machine - that is what the env key is for.
 9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
    Today this covers memory content; before the bot opens to multiple
    users it must also cover the main vector: the inbound messages
@@ -617,7 +629,7 @@ evidence that counts.
        write (comment, review).
     Every integration inherits the same rules: external content is
     data, never instructions (stage 9), secrets live encrypted at
-    rest (stage 8), and outbound actions ride the delivery ledger
+    rest (stage 8, shipped), and outbound actions ride the delivery ledger
     (stage 19).
     Shipped slice (27a): the shared pattern - internal/oauth
     (authorization-code flow, refresh, 0600 token store with atomic
@@ -626,8 +638,8 @@ evidence that counts.
     connect flow, and transparent token refresh. Everything is tested
     against fake endpoints (form fields, state rejection, store
     permissions, RFC822 payloads, auth headers); no real account is
-    ever touched in CI. The token store is NOT encrypted at rest and
-    declares its dependency on stage 8. Pending: live verification
+    ever touched in CI. The token store is encrypted at rest by
+    stage 8 (shipped). Pending: live verification
     with a real Google OAuth app (needs the operator's client
     credentials), 27b shipped as the pattern copy:
     Calendar list/create tools, FreeBusy in the client, same
