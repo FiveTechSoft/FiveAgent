@@ -83,17 +83,19 @@ func TestSubtaskToolRegistered(t *testing.T) {
 	}
 	cfg := config.Model{BaseURL: "http://localhost:1", Name: "eval", Timeout: 1}
 	agent.New(model.NewOpenAICompat(cfg), store, reg, agent.SystemPrompt(&config.Config{}))
-	found := false
+	found := map[string]bool{}
 	for _, s := range reg.Specs() {
-		if s.Function.Name == "run_subtask" {
-			found = true
+		if s.Function.Name == "run_subtask" || s.Function.Name == "run_subtasks" {
+			found[s.Function.Name] = true
 		}
 	}
-	if !found {
-		t.Fatal("agent.New must self-register run_subtask")
+	if !found["run_subtask"] || !found["run_subtasks"] {
+		t.Fatal("agent.New must self-register run_subtask and run_subtasks")
 	}
-	if n := len(reg.Without("run_subtask").Specs()); n != 0 {
-		t.Fatalf("Without must exclude run_subtask from the subturn registry, %d specs left", n)
+	// The subturn registry holds NO delegation tool: depth stays 1
+	// under both the sequential and the parallel sibling (stage 34).
+	if n := len(reg.Without("run_subtask", "run_subtasks").Specs()); n != 0 {
+		t.Fatalf("the subturn registry must hold no delegation tools, %d specs left", n)
 	}
 }
 
