@@ -192,6 +192,7 @@ type Integrations struct {
 	Calendar CalendarIntegration `yaml:"calendar,omitempty"`
 	Drive    DriveIntegration    `yaml:"drive,omitempty"`
 	Slack    SlackIntegration    `yaml:"slack,omitempty"`
+	GitHub   GitHubIntegration   `yaml:"github,omitempty"`
 }
 
 // GmailIntegration is the Gmail OAuth app + token store (stage 27a).
@@ -234,6 +235,17 @@ type DriveIntegration struct {
 // Gmail; the connect URL is /oauth/slack/start. Bot tokens do not
 // expire, so this provider never exercises the refresh path.
 type SlackIntegration struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClientID     string `yaml:"client_id,omitempty"`
+	ClientSecret string `yaml:"client_secret,omitempty"`
+	RedirectURL  string `yaml:"redirect_url,omitempty"`
+	TokenPath    string `yaml:"token_path,omitempty"`
+}
+
+// GitHubIntegration is the GitHub OAuth app (stage 27e). Same fields
+// as Gmail; the connect URL is /oauth/github/start. OAuth-app tokens
+// do not expire, so this provider never exercises the refresh path.
+type GitHubIntegration struct {
 	Enabled      bool   `yaml:"enabled"`
 	ClientID     string `yaml:"client_id,omitempty"`
 	ClientSecret string `yaml:"client_secret,omitempty"`
