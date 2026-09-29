@@ -182,6 +182,28 @@ type Config struct {
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
 	Links Links `yaml:"links,omitempty"`
+	// Integrations are the OAuth services of stage 27.
+	Integrations Integrations `yaml:"integrations,omitempty"`
+}
+
+// Integrations groups the OAuth service settings.
+type Integrations struct {
+	Gmail GmailIntegration `yaml:"gmail,omitempty"`
+}
+
+// GmailIntegration is the Gmail OAuth app + token store (stage 27a).
+type GmailIntegration struct {
+	Enabled      bool   `yaml:"enabled"`
+	ClientID     string `yaml:"client_id,omitempty"`
+	ClientSecret string `yaml:"client_secret,omitempty"`
+	// RedirectURL is the public base URL the webhook listener is
+	// reachable at (e.g. "https://bot.example.com"); the callback path
+	// /oauth/gmail/callback is appended to it.
+	RedirectURL string `yaml:"redirect_url,omitempty"`
+	// TokenPath is the OAuth token store file (default
+	// data/tokens.json). NOT encrypted at rest - that is roadmap
+	// stage 8.
+	TokenPath string `yaml:"token_path,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
