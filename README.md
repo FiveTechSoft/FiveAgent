@@ -142,7 +142,7 @@ Details in [docs/ROADMAP.md](docs/ROADMAP.md).
 
 - Today: your secrets live in `fiveagent.yml` / environment variables on your machine. Keep that file private (it's in .gitignore).
 - The browser sidecar runs in its own container.
-- On the roadmap: secrets encrypted at rest (AES-256-GCM) and a prompt-injection test suite in CI. External content will be treated as data, never as instructions.
+- Shipped: secrets encrypted at rest (AES-256-GCM, key from env or 0600 key file, plaintext stores migrate without loss). On the roadmap: a prompt-injection test suite in CI. External content will be treated as data, never as instructions.
 
 ## Status
 
