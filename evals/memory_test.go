@@ -95,7 +95,18 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	w.Header().Set("Content-Type", "application/json")
+	// Stage 7n: the auto-indexer extraction call is recognizable by
+	// its system prompt; the player answers it with a fixed fact
+	// line, as a real model would.
+	extraction := false
+	for _, m := range req.Messages {
+		if m.Role == "system" && strings.Contains(m.Content, "extract durable facts") {
+			extraction = true
+		}
+	}
 	switch {
+	case extraction:
+		io.WriteString(w, reply("preferences: su equipo favorito es el Celta de Vigo desde siempre"))
 	case strings.HasPrefix(lastUser, "remember: "):
 		entry := strings.TrimPrefix(lastUser, "remember: ")
 		if toolResults == 0 {
