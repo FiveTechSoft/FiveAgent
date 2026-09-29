@@ -600,7 +600,7 @@ evidence that counts.
     the screenshot and the action.
 27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
     (partially implemented, 2026-09-29: shared pattern, Gmail,
-    Calendar, Drive) -
+    Calendar, Drive, Slack) -
     the agent reads and acts on the user's real accounts,
     one integration per service behind a shared pattern (OAuth
     connect, read tools, write tools), so the next service is a
@@ -638,7 +638,12 @@ evidence that counts.
     on the drive.file scope (the agent sees only its own files - a
     personal agent browsing the whole Drive is a bigger trust
     decision than this stage takes), same store/handler/honest-error
-    shape, tested against fake endpoints.
+    shape, tested against fake endpoints. 27d shipped as the first
+    non-Google copy: Slack channels/history/post tools, the
+    ok:false-on-200 quirk handled in code, non-expiring bot tokens,
+    same store/handler/honest-error shape - the pattern now stands
+    outside one vendor's API style. Remaining: GitHub as the last
+    planned copy.
     Done when: one integration ships end-to-end (OAuth connect ->
     read -> write) with its battery case, and the second integration
     lands as a copy of the shape, proving the pattern.
