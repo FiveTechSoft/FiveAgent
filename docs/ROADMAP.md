@@ -127,7 +127,11 @@ evidence that counts.
       the deferred and restart depths need runner support), M3
       effective forgetting (after olvida:: honest abstention -
       implemented - plus the fact gone from disk and never resurfacing
-      in open questions like "what do you know about me?"), M4
+      in open questions like "what do you know about me?"; 2026-09-29
+      refinement: a model quoting the forgotten fact from the
+      still-visible session context is a context citation, not a
+      resurrection - the true resurrection check is the post-restart
+      M2c depth, pending runner support), M4
       cross-user non-contamination (one sender's facts never surface
       for another; defined but DISABLED until 7i decides the scoping
       model - we do not measure what the design does not yet require),
