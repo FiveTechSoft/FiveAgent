@@ -117,6 +117,9 @@ func main() {
 			tokenPath = cfg.Integrations.Calendar.TokenPath
 		}
 		if tokenPath == "" {
+			tokenPath = cfg.Integrations.Drive.TokenPath
+		}
+		if tokenPath == "" {
 			tokenPath = "data/tokens.json"
 		}
 		store := &oauth.TokenStore{Path: tokenPath}
@@ -161,6 +164,26 @@ func main() {
 			providers["calendar"] = ocfg
 			redirects["calendar"] = cfg.Integrations.Calendar.RedirectURL
 			log.Printf("calendar integration: connect at /oauth/calendar/start")
+		}
+		if cfg.Integrations.Drive.Enabled {
+			ocfg := oauth.Config{
+				ClientID:     cfg.Integrations.Drive.ClientID,
+				ClientSecret: cfg.Integrations.Drive.ClientSecret,
+				AuthURL:      google.AuthURL,
+				TokenURL:     google.TokenURL,
+				Scopes:       []string{"https://www.googleapis.com/auth/drive.file"},
+			}
+			driveFor := func(ctx context.Context) (*google.Drive, error) {
+				c, err := oauth.Client(ctx, ocfg, store, "drive")
+				if err != nil {
+					return nil, err
+				}
+				return &google.Drive{HTTP: c}, nil
+			}
+			tl = append(tl, tools.DriveList{Client: driveFor}, tools.DriveDownload{Client: driveFor}, tools.DriveUpload{Client: driveFor})
+			providers["drive"] = ocfg
+			redirects["drive"] = cfg.Integrations.Drive.RedirectURL
+			log.Printf("drive integration: connect at /oauth/drive/start")
 		}
 		if len(providers) > 0 {
 			oauthHandler = oauth.NewHandler(providers, store,
