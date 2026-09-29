@@ -407,6 +407,7 @@ func TestLiveBattery(t *testing.T) {
 		tools.NewRegistry(tl...),
 		agent.SystemPrompt(cfg))
 	a.WithKnowledge(kn)
+	a.WithSkills(agent.DomainSkill())
 
 	// Capture the run_command audit lines so audit_contains cases can
 	// prove the execution left its line; keep them on stderr too.
