@@ -515,12 +515,29 @@ evidence that counts.
     in no log line, (iii) a link opened against another sender's
     record fails signature verification (403) and a missing/wrong
     PIN is rejected (403). Live model side pending the next run.
-25. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
-    the webhook receives image/audio/video/document with a media id,
-    downloads it with an authenticated Graph API call, dispatches by
-    type, and the result enters the normal message flow; outbound, the
-    bot synthesizes voice and images and sends them as native WhatsApp
-    media (upload + send via Graph API).
+25. **Media** (partially implemented, 2026-09-29) - WhatsApp media
+    pipeline in BOTH directions: the webhook receives
+    image/audio/video/document with a media id, downloads it with an
+    authenticated Graph API call, dispatches by type, and the result
+    enters the normal message flow; outbound, the bot synthesizes
+    voice and images and sends them as native WhatsApp media (upload +
+    send via Graph API).
+    Shipped slice: the pipeline skeleton. Inbound voice notes and
+    images are downloaded with the authenticated two-step Graph call
+    and dispatched to pluggable processors - a whisper.cpp server for
+    audio (transcriber_url in the yml) and any OpenAI-compatible
+    vision endpoint for images (describer_url/describer_model), so the
+    agent binary stays pure Go and the heavy models run as separate
+    services. When a processor is not configured or fails, the agent
+    gets an honest bracket note ("[voice note - transcription not
+    configured]"), never a silent drop or a fake transcript. Outbound,
+    UploadMedia + send-by-id round-trip through the Graph API.
+    internal/channel/whatsapp_media_test.go proves both directions
+    against a fake Graph server with stub processors, asserts the
+    Authorization header on every Graph call, and asserts failure
+    paths surface honestly. Pending live verification with real
+    whisper/VL services (the fake-server round trip cannot prove model
+    quality), plus phases c), d) and e) below.
     Inbound phases:
     a) Voice notes: opus audio -> local Whisper transcription
        (whisper.cpp / faster-whisper) -> treated as a text message.
@@ -542,7 +559,9 @@ evidence that counts.
     round trip - a test image of known content and a voice note with a
     known phrase, both scored with must_contain on the agent's reply,
     plus an outbound case where the bot emits audio/image and the
-    (fake) Graph server confirms the upload and the send.
+    (fake) Graph server confirms the upload and the send. The fake-
+    server half of that is done as Go integration tests (above); the
+    live half needs real whisper/VL services configured.
 26. **VM GUI** (planned) - a Linux VM with a lightweight desktop (XFCE
     or similar) on the server, QEMU/KVM, powered on demand, not 24/7.
     Real desktop screenshots via QEMU screendump or VNC, taken on
