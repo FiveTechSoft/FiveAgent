@@ -33,7 +33,10 @@ type whatsapp struct {
 	// agentTimeout caps one full agent run; set by Build from the model
 	// timeout, defaults to 5 minutes.
 	agentTimeout time.Duration
-	reactions    bool // react 👀/✅/⚠️ to inbound messages
+	// ledger records outbound replies before sending (stage 19); nil
+	// disables the ledger.
+	ledger    *Ledger
+	reactions bool // react 👀/✅/⚠️ to inbound messages
 	// debounce joins rapid bursts from one sender into a single turn.
 	debounce   time.Duration
 	debounceOn bool
@@ -96,6 +99,11 @@ func (w *whatsapp) Run(ctx context.Context) error {
 		_ = srv.Shutdown(shutCtx)
 	}()
 	w.logSecurityWarnings()
+
+	// Stage 19: redeliver replies a crash left unsent, with marker.
+	RecoverPending(ctx, w.ledger, "whatsapp", func(sendCtx context.Context, userID, text string) error {
+		return w.SendText(sendCtx, userID, text, "")
+	})
 	log.Printf("whatsapp webhook listening on %s/webhook/whatsapp", addr)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
@@ -407,10 +415,28 @@ func (w *whatsapp) processBatch(from string, msgs []queuedMsg) {
 	}
 	sendCtx, sendCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer sendCancel()
-	if err := w.SendText(sendCtx, from, reply, replyTo); err != nil {
-		log.Printf("whatsapp: send: %v", err)
+	// Stage 19: record the reply BEFORE sending; a crash after this
+	// point redelivers it on the next start with the recovered marker.
+	var d *Delivery
+	if w.ledger != nil {
+		if dd, lerr := w.ledger.Add("whatsapp", from, reply); lerr != nil {
+			log.Printf("whatsapp: delivery ledger: %v", lerr)
+		} else {
+			d = dd
+			w.ledger.Attempting(d.ID)
+		}
+	}
+	sendErr := w.SendText(sendCtx, from, reply, replyTo)
+	if sendErr != nil {
+		log.Printf("whatsapp: send: %v", sendErr)
+		if d != nil {
+			w.ledger.Failed(d.ID, sendErr)
+		}
 		reactAll("⚠️")
 		return
+	}
+	if d != nil {
+		w.ledger.Delivered(d.ID)
 	}
 	if agentFailed {
 		reactAll("⚠️") // the reply was a fallback, not a real answer
