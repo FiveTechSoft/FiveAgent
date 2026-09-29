@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/media"
 )
 
 type stubTranscriber struct {
@@ -52,7 +53,11 @@ type fakeMediaGraph struct {
 	authFailures []string
 	uploaded     []byte
 	sentBody     map[string]any
-	mediaBytes   []byte
+	// sentByType keeps the last message body per payload type, so the
+	// status reactions (eyes/check) posted around a reply cannot race
+	// the reply body itself in assertions.
+	sentByType map[string]map[string]any
+	mediaBytes []byte
 }
 
 func (f *fakeMediaGraph) handler() http.Handler {
@@ -81,6 +86,12 @@ func (f *fakeMediaGraph) handler() http.Handler {
 			_ = json.Unmarshal(raw, &body)
 			f.mu.Lock()
 			f.sentBody = body
+			if f.sentByType == nil {
+				f.sentByType = map[string]map[string]any{}
+			}
+			if typ, _ := body["type"].(string); typ != "" {
+				f.sentByType[typ] = body
+			}
 			f.mu.Unlock()
 			rw.Write([]byte(`{"messages":[{"id":"wamid.fake"}]}`))
 		default:
@@ -238,4 +249,107 @@ func TestMediaTranscriptionFailureHonest(t *testing.T) {
 	if got := awaitCore(t, fc); got != "[voice note - transcription failed]" {
 		t.Fatalf("core got %q", got)
 	}
+}
+
+// Stage 25d (outbound voice): with a TTS endpoint configured the reply
+// goes out as a native voice note - synthesize, upload, send by id.
+// The fake TTS server asserts it received the exact reply text and the
+// fake Graph server asserts the uploaded bytes are the TTS output, so
+// the test fails if the voice path never fires.
+func TestTTSReplyVoiceNote(t *testing.T) {
+	graph := &fakeMediaGraph{}
+	graphSrv := httptest.NewServer(graph.handler())
+	t.Cleanup(graphSrv.Close)
+
+	var ttsMu sync.Mutex
+	var ttsInput string
+	ttsSrv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Input string `json:"input"`
+		}
+		raw, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(raw, &body)
+		ttsMu.Lock()
+		ttsInput = body.Input
+		ttsMu.Unlock()
+		rw.Header().Set("Content-Type", "audio/ogg")
+		rw.Write([]byte("fake-opus-out"))
+	}))
+	t.Cleanup(ttsSrv.Close)
+
+	fc := &fakeCore{}
+	w := NewWhatsApp(config.Channel{
+		VerifyToken: "secret-token", PhoneNumberID: "123", AccessToken: "token",
+	}, fc).(*whatsapp)
+	w.baseURL = graphSrv.URL
+	w.debounce = 10 * time.Millisecond
+	w.tts = media.HTTTSynthesizer{URL: ttsSrv.URL, Model: "piper", Voice: "es-default"}
+
+	postWebhook(t, w, `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		graph.mu.Lock()
+		sent := graph.sentByType["audio"]
+		graph.mu.Unlock()
+		if sent != nil {
+			audio, ok := sent["audio"].(map[string]any)
+			if !ok || audio["id"] != "mid-out-1" {
+				t.Fatalf("send body: %v", sent)
+			}
+			graph.mu.Lock()
+			up := string(graph.uploaded)
+			graph.mu.Unlock()
+			if !strings.Contains(up, "fake-opus-out") {
+				t.Fatalf("upload missing tts bytes: %d bytes", len(up))
+			}
+			ttsMu.Lock()
+			in := ttsInput
+			ttsMu.Unlock()
+			if in != "ok reply" {
+				t.Fatalf("tts got input %q", in)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("voice note was never sent")
+}
+
+// A TTS failure must degrade to the plain text reply, never to
+// silence or a fake send.
+func TestTTSFailureFallsBackToText(t *testing.T) {
+	graph := &fakeMediaGraph{}
+	graphSrv := httptest.NewServer(graph.handler())
+	t.Cleanup(graphSrv.Close)
+	ttsSrv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		rw.WriteHeader(http.StatusInternalServerError)
+	}))
+	t.Cleanup(ttsSrv.Close)
+
+	fc := &fakeCore{}
+	w := NewWhatsApp(config.Channel{
+		VerifyToken: "secret-token", PhoneNumberID: "123", AccessToken: "token",
+	}, fc).(*whatsapp)
+	w.baseURL = graphSrv.URL
+	w.debounce = 10 * time.Millisecond
+	w.tts = media.HTTTSynthesizer{URL: ttsSrv.URL, Model: "piper", Voice: "es"}
+
+	postWebhook(t, w, `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600123456","id":"wamid.1","type":"text","text":{"body":"hola"}}]}}]}]}`)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		graph.mu.Lock()
+		sent := graph.sentByType["text"]
+		graph.mu.Unlock()
+		if sent != nil {
+			txt, ok := sent["text"].(map[string]any)
+			if !ok || txt["body"] != "ok reply" {
+				t.Fatalf("fallback body: %v", sent)
+			}
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("text fallback was never sent")
 }
