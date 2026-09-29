@@ -18,6 +18,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/google"
 	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/links"
+	"github.com/FiveTechSoft/FiveAgent/internal/mcp"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
@@ -161,11 +162,13 @@ func main() {
 			log.Printf("identity linking: %s", idPath)
 		}
 	}
+	var mcpSB sandbox.Sandbox
 	if cfg.Sandbox.Enabled {
 		if sb, err := sandbox.New(cfg.Sandbox); err != nil {
 			log.Printf("sandbox disabled: %v", err)
 		} else {
 			tl = append(tl, tools.RunCommand{SB: sb})
+			mcpSB = sb
 			log.Printf("sandbox: %s backend", sb.Name())
 		}
 	}
@@ -177,6 +180,29 @@ func main() {
 		ws := tools.Workspace{Root: root}
 		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
 		log.Printf("workspace file tools: %s", root)
+	}
+	if cfg.MCP.Enabled {
+		// Stage 33: local, token-authenticated MCP server so the
+		// owner's OpenCode can run commands in the sandbox and read
+		// workspace files.
+		addr := cfg.MCP.ListenAddr
+		if addr == "" {
+			addr = "127.0.0.1:8090"
+		}
+		wsRoot := cfg.Workspace.Root
+		if wsRoot == "" {
+			wsRoot = "data/workspace"
+		}
+		if srv, err := mcp.New(cfg.MCP.Token, mcpSB, tools.Workspace{Root: wsRoot}, cfg.MCP.UserKey); err != nil {
+			log.Printf("MCP server disabled: %v", err)
+		} else {
+			go func() {
+				log.Printf("MCP server: http://%s/mcp (bearer token required)", addr)
+				if err := http.ListenAndServe(addr, srv); err != nil {
+					log.Printf("MCP server stopped: %v", err)
+				}
+			}()
+		}
 	}
 	var oauthHandler http.Handler
 	{
