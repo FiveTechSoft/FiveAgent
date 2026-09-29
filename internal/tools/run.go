@@ -22,6 +22,14 @@ func WithRequestInfo(ctx context.Context, channel, userID string) context.Contex
 	return context.WithValue(ctx, ctxKey{}, channel+"/"+userID)
 }
 
+// RequestInfo reads back what WithRequestInfo set: the channel and
+// user ID of the message being answered ("" when unset).
+func RequestInfo(ctx context.Context) (channel, userID string) {
+	s, _ := ctx.Value(ctxKey{}).(string)
+	channel, userID, _ = strings.Cut(s, "/")
+	return
+}
+
 // RunCommand lets the model execute commands inside the per-user
 // sandbox: no network, only the user's own folder writable, killed
 // after the configured timeout.
