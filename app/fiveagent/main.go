@@ -8,14 +8,17 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/channel"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/google"
 	"github.com/FiveTechSoft/FiveAgent/internal/links"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
+	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
@@ -106,6 +109,34 @@ func main() {
 		ws := tools.Workspace{Root: root}
 		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
 		log.Printf("workspace file tools: %s", root)
+	}
+	var oauthHandler http.Handler
+	if cfg.Integrations.Gmail.Enabled {
+		tokenPath := cfg.Integrations.Gmail.TokenPath
+		if tokenPath == "" {
+			tokenPath = "data/tokens.json"
+		}
+		store := &oauth.TokenStore{Path: tokenPath}
+		ocfg := oauth.Config{
+			ClientID:     cfg.Integrations.Gmail.ClientID,
+			ClientSecret: cfg.Integrations.Gmail.ClientSecret,
+			AuthURL:      google.AuthURL,
+			TokenURL:     google.TokenURL,
+			Scopes:       []string{"https://www.googleapis.com/auth/gmail.modify"},
+		}
+		gmailFor := func(ctx context.Context) (*google.Gmail, error) {
+			c, err := oauth.Client(ctx, ocfg, store, "gmail")
+			if err != nil {
+				return nil, err
+			}
+			return &google.Gmail{HTTP: c}, nil
+		}
+		tl = append(tl, tools.GmailSearch{Client: gmailFor}, tools.GmailSend{Client: gmailFor})
+		oauthHandler = oauth.NewHandler(map[string]oauth.Config{"gmail": ocfg}, store,
+			func(name string) string {
+				return strings.TrimSuffix(cfg.Integrations.Gmail.RedirectURL, "/") + "/oauth/" + name + "/callback"
+			})
+		log.Printf("gmail integration: connect at /oauth/gmail/start (tokens: %s)", tokenPath)
 	}
 	if cfg.Links.Enabled {
 		secretPath := cfg.Links.SecretPath
@@ -215,6 +246,18 @@ func main() {
 		}
 		if !mounted {
 			log.Printf("links: no channel listener to mount on - links will not be reachable")
+		}
+	}
+	if oauthHandler != nil {
+		mounted := false
+		for _, ch := range chans {
+			if m, ok := ch.(interface{ MountOAuth(http.Handler) }); ok {
+				m.MountOAuth(oauthHandler)
+				mounted = true
+			}
+		}
+		if !mounted {
+			log.Printf("oauth: no channel listener to mount on - connect URLs will not be reachable")
 		}
 	}
 	if sc != nil {
