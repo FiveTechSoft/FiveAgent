@@ -58,3 +58,23 @@ func TestFailureSurvivesWrapping(t *testing.T) {
 		t.Fatalf("errors.As lost the failure: %v", f)
 	}
 }
+
+// Every kind has a stable name - logs, audits and the both-models-failed
+// error message all print it.
+func TestFailureKindStrings(t *testing.T) {
+	names := map[FailureKind]string{
+		FailureUnknown:     "unknown",
+		FailureTimeout:     "timeout",
+		FailureRateLimit:   "rate-limit",
+		FailureAuth:        "auth",
+		FailureOverflow:    "context-overflow",
+		FailureMalformed:   "malformed-reply",
+		FailureUnavailable: "unavailable",
+		FailureEmpty:       "empty-reply",
+	}
+	for k, want := range names {
+		if got := k.String(); got != want {
+			t.Errorf("FailureKind(%d).String() = %q, want %q", int(k), got, want)
+		}
+	}
+}
