@@ -10,7 +10,7 @@ categories:
     - ObjVw
     - FireWall Helper
     abstain_ok: true
-    source: docs/fivetech-domain.md (verified); original confabulation case
+    source: skills/fivetech/SKILL.md (verified); original confabulation case
   - prompt: ¿qué es FWH?
     must_contain:
     - fivewin
@@ -18,7 +18,7 @@ categories:
     - FireWall Helper
     - firewall
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (verified): FWH = FiveWin for Harbour'
+    source: 'skills/fivetech/SKILL.md (verified): FWH = FiveWin for Harbour'
   - prompt: en Harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?
     must_contain:
     - ':='
@@ -27,7 +27,7 @@ categories:
     - cVar
     - Input()
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (verified): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
+    source: 'skills/fivetech/SKILL.md (verified): LOCAL/STATIC/PRIVATE, ACCEPT...TO o @...GET + READ'
   - prompt: ¿cómo se crea una ventana en FiveWin?
     must_contain:
     - DEFINE WINDOW
@@ -36,7 +36,7 @@ categories:
     - fivegui.ch
     - ObjVw
     abstain_ok: true
-    source: 'docs/fivetech-domain.md (verified): #include FiveWin.ch, DEFINE WINDOW / ACTIVATE WINDOW'
+    source: 'skills/fivetech/SKILL.md (verified): #include FiveWin.ch, DEFINE WINDOW / ACTIVATE WINDOW'
   general_knowledge:
   - prompt: ¿cuál es la capital de Portugal?
     must_contain:
