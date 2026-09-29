@@ -116,6 +116,7 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 - Single Go binary, no runtime. Docker compose brings up the agent, Postgres and a Playwright sidecar.
 - WhatsApp channel via the official Cloud API, verified end-to-end in a live install ([guía en español paso a paso](docs/whatsapp.md)). Telegram channel via long polling (no public URL needed).
 - Conversation memory in Postgres: the agent remembers the last 20 messages of each chat.
+- Links, not walls of text: long answers go out as signed, PIN-protected links to clean pages served by the bot itself (`make_report_link`), and sensitive data (tokens, passwords) is collected with a small form link (`make_form_link`) whose value lands straight in the vault (data/vault), never in the chat or any log (`links.enabled` + `links.base_url` in the yml).
 - Cron scheduler: reminders and recurring automations in natural language (`schedule_job` tool), delivered back to your WhatsApp/Telegram when they fire (`cron.enabled` in the yml); every job is auditable in data/jobs.json (what ran, when, what it sent).
 - Durable delivery ledger: every reply is recorded before sending (data/deliveries.json), so a crash mid-send never silently loses it - on the next start, pending replies are redelivered once with a visible recovered marker. Attempts are capped (5) and replies undelivered after 24 h expire instead of arriving confusingly late.
 - Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
