@@ -148,6 +148,17 @@ type Cron struct {
 	Path string `yaml:"path,omitempty"`
 }
 
+// Identity holds the cross-channel linking settings (stage 36):
+// channel identities resolve to one user identity through an
+// explicit code flow, never guessed; unlinked senders stay separate.
+// Enabled by default - inert until a user links two channels; set
+// enabled: false to opt out.
+type Identity struct {
+	Enabled bool `yaml:"enabled"`
+	// Path is the identities JSON file; default data/identities.json.
+	Path string `yaml:"path,omitempty"`
+}
+
 // Proactive holds the source-subscription settings (stage 35):
 // adapters notify events, matching subscriptions wake the agent, and
 // replies land through the delivery ledger (stage 19). Time-based
@@ -210,6 +221,8 @@ type Config struct {
 	Cron Cron `yaml:"cron,omitempty"`
 	// Proactive is the source-subscription wake layer (stage 35).
 	Proactive Proactive `yaml:"proactive,omitempty"`
+	// Identity is cross-channel conversation unification (stage 36).
+	Identity Identity `yaml:"identity,omitempty"`
 	// Browser is the web browser tool (stage 23).
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
@@ -294,6 +307,7 @@ type GitHubIntegration struct {
 func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	c.Sandbox.Enabled = true
 	c.Memory.AutoIndex = true
+	c.Identity.Enabled = true
 	type plain Config
 	return value.Decode((*plain)(c))
 }
