@@ -66,6 +66,15 @@ memory:
 #   max_ram_mb: 512        # docker / jobobject only
 #   image: alpine          # docker only
 
+# mcp: local MCP server for external agents (e.g. your OpenCode). Off by
+# default. Needs sandbox.enabled: true - fiveagent_run_command is the point.
+# See docs/mcp.md for the client config and a curl smoke test.
+# mcp:
+#   enabled: true
+#   token: "pick-a-long-random-token"   # required; bearer token
+#   # listen_addr: "127.0.0.1:8090"     # default; keep it on loopback
+#   # user_key: "mcp"                   # sandbox folder for MCP calls
+
 # web_search: optional web_search tool for current facts. Off by default.
 # web_search:
 #   enabled: false         # set true to let the agent search the web
