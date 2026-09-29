@@ -148,6 +148,16 @@ type Cron struct {
 	Path string `yaml:"path,omitempty"`
 }
 
+// Proactive holds the source-subscription settings (stage 35):
+// adapters notify events, matching subscriptions wake the agent, and
+// replies land through the delivery ledger (stage 19). Time-based
+// wakes stay with cron (stage 22).
+type Proactive struct {
+	Enabled bool `yaml:"enabled"`
+	// Path is the subscriptions JSON file; default data/subscriptions.json.
+	Path string `yaml:"path,omitempty"`
+}
+
 // Workspace holds the file-tools settings (stage 21): the agent gets
 // read_file / write_file / edit_file scoped to a per-user folder, with
 // go-git snapshots before every write so every edit is undoable.
@@ -198,6 +208,8 @@ type Config struct {
 	Workspace Workspace `yaml:"workspace,omitempty"`
 	// Cron is the scheduler for reminders and automations (stage 22).
 	Cron Cron `yaml:"cron,omitempty"`
+	// Proactive is the source-subscription wake layer (stage 35).
+	Proactive Proactive `yaml:"proactive,omitempty"`
 	// Browser is the web browser tool (stage 23).
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
