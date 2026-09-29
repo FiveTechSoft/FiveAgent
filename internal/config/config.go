@@ -47,6 +47,14 @@ type Channel struct {
 	// ("3s", "1500ms"); empty defaults to 3s; "off" answers every message
 	// on arrival (the old parallel behavior).
 	Debounce string `yaml:"debounce,omitempty"`
+	// WhatsApp media processing (stage 25): transcriber_url points at a
+	// whisper.cpp server (voice notes -> text), describer_url at an
+	// OpenAI-compatible vision endpoint (images -> text). Empty disables
+	// that direction; inbound media is then announced without content.
+	TranscriberURL string `yaml:"transcriber_url,omitempty"`
+	DescriberURL   string `yaml:"describer_url,omitempty"`
+	DescriberModel string `yaml:"describer_model,omitempty"`
+	DescriberKey   string `yaml:"describer_key,omitempty"`
 }
 
 // Memory holds the storage settings. JSON is a file-backed store for local
