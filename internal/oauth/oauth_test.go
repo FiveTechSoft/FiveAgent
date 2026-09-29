@@ -176,3 +176,30 @@ func TestClientRefreshesExpiredToken(t *testing.T) {
 		t.Fatalf("saved %+v", saved)
 	}
 }
+
+// The GitHub quirk: the token endpoint needs an explicit Accept
+// header or it answers form-encoded. TokenHeaders carries it.
+func TestTokenHeadersSent(t *testing.T) {
+	var gotAccept string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAccept = r.Header.Get("Accept")
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"access_token":"gh-tok"}`))
+	}))
+	defer srv.Close()
+	cfg := Config{
+		ClientID: "id", ClientSecret: "secret",
+		TokenURL:     srv.URL,
+		TokenHeaders: map[string]string{"Accept": "application/json"},
+	}
+	tok, err := Exchange(context.Background(), cfg, "http://localhost/cb", "code")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.AccessToken != "gh-tok" {
+		t.Fatalf("token: %+v", tok)
+	}
+	if gotAccept != "application/json" {
+		t.Fatalf("Accept header not sent: %q", gotAccept)
+	}
+}
