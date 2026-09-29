@@ -71,7 +71,7 @@ Details and baseline numbers: evals/README.md.
 - `docs/ROADMAP.md` - phases, numbered stages, measurable done-criteria.
 - `docs/whatsapp.md` - WhatsApp Cloud API setup, paso a paso (Spanish).
 - `docs/deploy-linux.md` - Linux server deployment (bubblewrap, systemd).
-- `docs/fivetech-domain.md` - verified FiveTech/Harbour/FiveWin domain
+- `skills/fivetech/SKILL.md` - verified FiveTech/Harbour/FiveWin domain
   facts; the anti-confabulation seed.
 - `evals/README.md` - how the battery works and the baseline.
 - `deploy/` - systemd unit and the cross-compile helper.
