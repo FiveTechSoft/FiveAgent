@@ -489,27 +489,32 @@ evidence that counts.
     confirm: never on submit, never on a wrong token, never twice on
     the same token; the audit eval proves the password value appears
     in no log line. Live model side pending the next run.
-24. **Links** (planned) - the bot answers with links served by its own
-    HTTP server (the same listener as the webhook), not with
-    wall-of-text messages:
-    a) Reports: the bot generates a long report (battery results,
-       doctor output, analysis) and replies with a link to a clean HTML
-       page. First use case: the battery report with per-category
-       metrics compared against stored baselines.
-    b) Data collection: the bot sends a link to a small form for
-       sensitive data (tokens, passwords); what the user types goes
-       straight to the vault/config, never through WhatsApp messages
-       and never into logs.
-    Security by design: links are signed with a token and carry an
-    expiry; they are only generated for allowed senders; the form
-    handler never writes submitted values to logs; the server binds to
-    localhost by default and external access requires an explicit
-    tunnel.
-    Done when: the battery grows a "links" category proving that
-    (i) a report link renders the battery report and is rejected after
-    expiry or with a wrong signature, (ii) a form submission lands in
-    the vault/config and its value appears in no log line, (iii) a
-    link minted for one sender is rejected when opened by another.
+24. **Links** (implemented, CI-tested) - the bot answers with links
+    served by its own HTTP listener (mounted on the same mux as the
+    WhatsApp webhook, localhost-bound unless a tunnel exposes it),
+    not with wall-of-text messages:
+    a) Reports: make_report_link mints a signed link to a clean HTML
+       page. (The battery-report first use case arrives when the
+       runner generates its report through the tool.)
+    b) Data collection: make_form_link mints a signed link to a small
+       form; what the user types goes straight to the vault
+       (data/vault/<key>.secret, 0600), never through the chat and
+       never into any log line.
+    Security by design (implemented): every link is HMAC-signed
+    (secret generated once into data/links-secret), binds the sender
+    it was minted for, and expires in 24 h; the PIN that goes to the
+    sender's chat alongside the link is the second factor - another
+    sender opening the link does not have it; links are minted only
+    in a user context (the tool refuses without one); the form
+    handler never logs submitted values (audit lines say "never
+    logged").
+    Done when: (met) the battery's links cases
+    (evals/links_test.go) prove (i) a report link renders and is
+    rejected after expiry (410) or with a tampered signature (403),
+    (ii) a form submission lands in the vault and its value appears
+    in no log line, (iii) a link opened against another sender's
+    record fails signature verification (403) and a missing/wrong
+    PIN is rejected (403). Live model side pending the next run.
 25. **Media** (planned) - WhatsApp media pipeline in BOTH directions:
     the webhook receives image/audio/video/document with a media id,
     downloads it with an authenticated Graph API call, dispatches by
