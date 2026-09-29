@@ -208,10 +208,11 @@ func TestSkillMatches(t *testing.T) {
 
 func TestDomainPrefersRuntimeFile(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(dir, "docs"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(dir, "skills", "fivetech"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "docs", "fivetech-domain.md"), []byte("MARKER-DOMAIN-RUNTIME"), 0o600); err != nil {
+	skillMD := "name: fivetech-domain\ntrigger: t\nkeywords: x\n\nMARKER-DOMAIN-RUNTIME"
+	if err := os.WriteFile(filepath.Join(dir, "skills", "fivetech", "SKILL.md"), []byte(skillMD), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
