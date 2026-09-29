@@ -28,6 +28,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
 	"github.com/FiveTechSoft/FiveAgent/internal/slack"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
+	"github.com/FiveTechSoft/FiveAgent/internal/trajectory"
 )
 
 func main() {
@@ -180,6 +181,19 @@ func main() {
 		ws := tools.Workspace{Root: root}
 		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
 		log.Printf("workspace file tools: %s", root)
+	}
+	var trajLogger *trajectory.Logger
+	if cfg.Trajectory.Enabled {
+		dir := cfg.Trajectory.Dir
+		if dir == "" {
+			dir = "data/trajectories"
+		}
+		if tl12, err := trajectory.Open(dir, cfg.Trajectory.MaxMB, cfg.Trajectory.MaxFiles); err != nil {
+			log.Printf("trajectory logging disabled: %v", err)
+		} else {
+			trajLogger = tl12
+			log.Printf("trajectory logging: %s (redacted, rotation %d x %dMB)", dir, tl12.MaxFiles, tl12.MaxBytes>>20)
+		}
 	}
 	if cfg.MCP.Enabled {
 		// Stage 33: local, token-authenticated MCP server so the
@@ -461,6 +475,13 @@ func main() {
 		core.WithIdentities(ids)
 	}
 	core.WithSkills(agent.LoadSkillsDir(agent.DefaultSkillsDir)...)
+	if trajLogger != nil {
+		core.WithTrajectory(func(r trajectory.Record) {
+			if err := trajLogger.Log(r); err != nil {
+				log.Printf("trajectory log: %v", err)
+			}
+		})
+	}
 	if kn != nil {
 		core.WithKnowledge(kn)
 		if cfg.Memory.AutoIndex {
