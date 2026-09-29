@@ -4,6 +4,8 @@ model:
   api_key: ""            # empty for local Ollama
   name: llama3.1         # or gpt-4o-mini, deepseek-chat, ...
   # timeout: 120         # seconds per model call; local endpoints default to 600
+  # num_thread: 8        # Ollama only: cap inference threads (good neighbor on shared CPU hosts).
+                         # When set, requests go to Ollama's native /api/chat, so base_url must end in /v1.
 
 # Optional: a second model for code-heavy requests. When set, the agent
 # auto-routes: messages that look like code go here, everything else to
