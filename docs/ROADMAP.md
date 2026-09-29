@@ -281,16 +281,27 @@ evidence that counts.
 
 ## Phase 3 - v0.3: tools
 
-12. **Trajectory logging** (planned) - record every battery run (and
-    later, opt-in, real sessions) as JSONL trajectories: the turns
-    (user/assistant/tool, with the tool calls and their results), plus
-    per-tool usage stats (count/success/failure). A run of the battery
-    becomes a durable, comparable artifact: what the model did, not
-    just pass/fail. The data accrues value with every run.
-    Done when: a battery run writes one JSONL trajectory per case plus
-    a tool-stats summary, and a report compares two runs by their
-    artifacts; the battery grows a "trajectory" case verifying the
-    log's schema and the stats.
+12. **Trajectory logging** (implemented, 2026-09-29, CI-tested) -
+    every turn is recorded as a JSONL trajectory in the message shape
+    the fine-tuning dataset (stage 13) consumes: user/assistant/tool
+    messages with the tool calls and their results, the outcome
+    (reply, duration, tool rounds, error) and per-tool stats
+    (count/ok/fail). Real sessions opt in via trajectory.enabled in
+    fiveagent.yml (rotating trajectories.jsonl, bounded at MaxMB x
+    MaxFiles); battery runs write one JSONL per case plus a
+    tool-stats.json summary, and trajectory.Compare diffs two runs by
+    their artifacts (the battery rotates run dirs last/prev and logs
+    the comparison). Nothing sensitive lands on disk: every recorded
+    string is redacted (emails, phone-shaped numbers, bearer tokens,
+    token/secret key-values) before any sink sees it, and the record
+    carries the channel, never the user's identity. A run of the
+    battery becomes a durable, comparable artifact: what the model
+    did, not just pass/fail.
+    Done when: (met) the battery writes one JSONL trajectory per case
+    plus the stats summary and compares runs by artifacts;
+    evals/trajectory_test.go is the "trajectory" case - a scripted
+    turn produces a schema-valid trajectory (roles, tool calls,
+    outcome, stats) with a phone number redacted out of the record.
 13. **Fine-tuning dataset** (future) - turn the battery into a
     training-data factory: run the same battery with a stronger
     model, keep only the trajectories that PASS the rubric, and use
