@@ -133,6 +133,7 @@ channels:
     # tts_url: "http://localhost:8100/v1/audio/speech"     # Piper/Kokoro
     # tts_model: "piper"                                   # modelo del endpoint
     # tts_voice: "es-default"                              # voz del endpoint
+    # ffmpeg_path: "/usr/bin/ffmpeg"                       # vacío = PATH
 ```
 
 Las dos opciones llevan la misma idea: el bot sabe qué modelo usa y, si se
@@ -686,6 +687,14 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 - Saliente: texto, media por enlace (`SendMedia`), plantillas aprobadas
   para fuera de la ventana de 24 h (`SendTemplate`), subida de media
   (`UploadMedia`) + envío por id.
+- Vídeo entrante (etapa 25c): con ffmpeg disponible (herramienta
+  externa, `ffmpeg_path` en el yml o en el PATH) y los procesadores de
+  media configurados, un vídeo entrante se descarga, se extraen
+  fotogramas clave + pista de audio WAV 16kHz, y el agente recibe
+  `[video] audio: <transcripción> | frames: <descripciones>`. Sin
+  procesadores el agente recibe un aviso honesto y NO se descarga
+  nada; sin ffmpeg queda el `[video]` de siempre. Tests con ffmpeg
+  falsificado; pendiente de verificación en vivo con ffmpeg real.
 - Imágenes salientes hechas por código (etapa 25e): la herramienta
   `send_chart` dibuja gráficas de barras/líneas en Go puro y las envía
   como imagen nativa (`SendMediaBytes`: subida + envío por id, con
