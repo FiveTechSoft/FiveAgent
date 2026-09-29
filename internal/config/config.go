@@ -75,6 +75,14 @@ type Sandbox struct {
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
 }
 
+// Cron holds the scheduler settings (stage 22): one-shot reminders and
+// recurring automations, delivered back to the originating channel.
+type Cron struct {
+	Enabled bool `yaml:"enabled"`
+	// Path is the jobs JSON file; default data/jobs.json.
+	Path string `yaml:"path,omitempty"`
+}
+
 // Workspace holds the file-tools settings (stage 21): the agent gets
 // read_file / write_file / edit_file scoped to a per-user folder, with
 // go-git snapshots before every write so every edit is undoable.
@@ -123,6 +131,8 @@ type Config struct {
 	Delivery Delivery `yaml:"delivery,omitempty"`
 	// Workspace is the per-user file-tools folder (stage 21).
 	Workspace Workspace `yaml:"workspace,omitempty"`
+	// Cron is the scheduler for reminders and automations (stage 22).
+	Cron Cron `yaml:"cron,omitempty"`
 }
 
 // UnmarshalYAML defaults Sandbox.Enabled to true: the sandbox protects
