@@ -210,3 +210,64 @@ func TestChatNativeToolRoundTrip(t *testing.T) {
 		t.Fatalf("second call content: got %q", second.Content)
 	}
 }
+
+func TestChatTemplateKwargsOnV1Route(t *testing.T) {
+	var gotPath string
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotPath = r.URL.Path
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message": map[string]any{"role": "assistant", "content": "respuesta visible"},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewOpenAICompat(config.Model{
+		BaseURL:            srv.URL + "/v1",
+		Name:               "qwen3.8-27b",
+		ChatTemplateKwargs: map[string]any{"enable_thinking": false},
+	})
+	msg, err := c.Chat(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/v1/chat/completions" {
+		t.Fatalf("path: got %q, want /v1/chat/completions (no num_thread set)", gotPath)
+	}
+	kwargs, ok := gotBody["chat_template_kwargs"].(map[string]any)
+	if !ok {
+		t.Fatalf("request carries no chat_template_kwargs object: %v", gotBody)
+	}
+	if kwargs["enable_thinking"] != false {
+		t.Fatalf("chat_template_kwargs.enable_thinking: got %v, want false", kwargs["enable_thinking"])
+	}
+	if msg.Content != "respuesta visible" {
+		t.Fatalf("content: got %q", msg.Content)
+	}
+}
+
+func TestChatWithoutKwargsOmitsField(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message": map[string]any{"role": "assistant", "content": "ok"},
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	c := NewOpenAICompat(config.Model{BaseURL: srv.URL + "/v1", Name: "qwen3"})
+	if _, err := c.Chat(context.Background(), []Message{{Role: "user", Content: "hi"}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := gotBody["chat_template_kwargs"]; present {
+		t.Fatalf("chat_template_kwargs must be omitted when unset: %v", gotBody["chat_template_kwargs"])
+	}
+}
