@@ -599,8 +599,8 @@ evidence that counts.
     over WhatsApp; the battery grows a "vm" case that verifies both
     the screenshot and the action.
 27. **Integrations: Gmail, Google Calendar, Drive, Slack, GitHub**
-    (partially implemented, 2026-09-29: shared pattern, Gmail,
-    Calendar, Drive, Slack) -
+    (implemented, 2026-09-29: shared pattern + Gmail, Calendar,
+    Drive, Slack, GitHub copies) -
     the agent reads and acts on the user's real accounts,
     one integration per service behind a shared pattern (OAuth
     connect, read tools, write tools), so the next service is a
@@ -642,8 +642,11 @@ evidence that counts.
     non-Google copy: Slack channels/history/post tools, the
     ok:false-on-200 quirk handled in code, non-expiring bot tokens,
     same store/handler/honest-error shape - the pattern now stands
-    outside one vendor's API style. Remaining: GitHub as the last
-    planned copy.
+    outside one vendor's API style. 27e shipped as the last
+    planned copy: GitHub repos/issues/create-issue tools, PR marking,
+    per-provider token request headers (GitHub's form-encoded token
+    quirk), non-expiring tokens - the stage's done-when is fully met:
+    five providers, three API styles, one shared shape.
     Done when: one integration ships end-to-end (OAuth connect ->
     read -> write) with its battery case, and the second integration
     lands as a copy of the shape, proving the pattern.
