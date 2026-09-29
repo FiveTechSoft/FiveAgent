@@ -104,6 +104,15 @@ func main() {
 		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
 		log.Printf("workspace file tools: %s", root)
 	}
+	if cfg.Browser.Enabled {
+		auditDir := cfg.Browser.AuditDir
+		if auditDir == "" {
+			auditDir = "data/browser-audit"
+		}
+		br := &tools.Browser{AuditDir: auditDir}
+		tl = append(tl, tools.BrowsePage{B: br}, tools.BrowserAct{B: br})
+		log.Printf("browser tool: audit in %s", auditDir)
+	}
 	var kn *memory.Knowledge
 	if cfg.Memory.Knowledge != "" {
 		var err error
