@@ -166,16 +166,43 @@ func TestHandleIgnoresStoredSystemPrompt(t *testing.T) {
 	}
 }
 
-func TestSystemPromptIncludesDomainReference(t *testing.T) {
+func TestDomainReferenceRidesTheSkillNotThePrompt(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Model.Name = "qwen3"
 	cfg.Model.BaseURL = "http://localhost:11434/v1"
 	p := SystemPrompt(cfg)
-	if !strings.Contains(p, "FiveWin for Harbour") {
-		t.Error("system prompt must carry the embedded FiveTech domain reference")
+	// Stage 17: the base prompt no longer pays for the domain
+	// reference on every turn.
+	if strings.Contains(p, "FiveWin for Harbour") || strings.Contains(p, "AUTHORITATIVE") {
+		t.Error("system prompt must NOT carry the domain reference unconditionally (stage 17)")
 	}
-	if !strings.Contains(p, "AUTHORITATIVE") {
-		t.Error("system prompt must mark the domain reference as overriding general knowledge")
+	block := DomainSkill().Load()
+	if !strings.Contains(block, "FiveWin for Harbour") {
+		t.Error("the domain skill must carry the embedded FiveTech domain reference")
+	}
+	if !strings.Contains(block, "AUTHORITATIVE") {
+		t.Error("the domain skill must mark the reference as overriding general knowledge")
+	}
+}
+
+func TestSkillMatches(t *testing.T) {
+	sk := DomainSkill()
+	cases := []struct {
+		text string
+		want bool
+	}{
+		{"escríbeme un programa en Harbour que pida mi nombre", true},
+		{"¿qué es FWH?", true},
+		{"¿cómo se crea una ventana en FiveWin?", true},
+		{"migración de xHarbour a Harbour", true},
+		{"¿cuál es la capital de Portugal?", false},
+		{"fwhello no es un disparador", false},
+		{"", false},
+	}
+	for _, c := range cases {
+		if got := skillMatches(sk, c.text); got != c.want {
+			t.Errorf("skillMatches(%q) = %v, want %v", c.text, got, c.want)
+		}
 	}
 }
 
@@ -191,7 +218,7 @@ func TestDomainPrefersRuntimeFile(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Model.Name = "m"
 	cfg.Model.BaseURL = "http://x"
-	if p := SystemPrompt(cfg); !strings.Contains(p, "MARKER-DOMAIN-RUNTIME") {
+	if p := DomainSkill().Load(); !strings.Contains(p, "MARKER-DOMAIN-RUNTIME") {
 		t.Error("the runtime file must win over the embedded copy")
 	}
 }
@@ -201,7 +228,7 @@ func TestDomainFallsBackToEmbedded(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Model.Name = "m"
 	cfg.Model.BaseURL = "http://x"
-	if p := SystemPrompt(cfg); !strings.Contains(p, "FiveWin for Harbour") {
+	if p := DomainSkill().Load(); !strings.Contains(p, "FiveWin for Harbour") {
 		t.Error("a missing runtime file must fall back to the embedded copy")
 	}
 }
