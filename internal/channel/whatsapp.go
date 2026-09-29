@@ -565,7 +565,7 @@ func (w *whatsapp) sendReply(ctx context.Context, to, text, replyTo string, agen
 		return w.SendText(ctx, to, text, replyTo)
 	}
 	log.Printf("whatsapp: tts reply: %d bytes (%s)", len(audio), mimeType)
-	id, err := w.UploadMedia(ttsCtx, mimeType, "reply"+ttsExtFor(mimeType), audio)
+	id, err := w.UploadMedia(ttsCtx, mimeType, "reply"+extForMIME(mimeType), audio)
 	if err != nil {
 		log.Printf("whatsapp: voice upload failed (%v) - falling back to text", err)
 		return w.SendText(ctx, to, text, replyTo)
@@ -586,13 +586,20 @@ func (w *whatsapp) sendReply(ctx context.Context, to, text, replyTo string, agen
 	return nil
 }
 
-// ttsExtFor maps synthesized audio MIME types to a file extension.
-func ttsExtFor(mimeType string) string {
-	if strings.HasPrefix(mimeType, "audio/ogg") || strings.HasPrefix(mimeType, "audio/opus") {
+// extForMIME maps outbound media MIME types to a file extension for
+// the upload filename.
+func extForMIME(mimeType string) string {
+	switch {
+	case strings.HasPrefix(mimeType, "audio/ogg"), strings.HasPrefix(mimeType, "audio/opus"):
 		return ".ogg"
-	}
-	if strings.HasPrefix(mimeType, "audio/mpeg") {
+	case strings.HasPrefix(mimeType, "audio/mpeg"):
 		return ".mp3"
+	case mimeType == "image/png":
+		return ".png"
+	case mimeType == "image/jpeg":
+		return ".jpg"
+	case mimeType == "video/mp4":
+		return ".mp4"
 	}
 	return ".bin"
 }
@@ -689,6 +696,35 @@ func (w *whatsapp) UploadMedia(ctx context.Context, mimeType, filename string, d
 		return "", err
 	}
 	return out.ID, nil
+}
+
+// SendMediaBytes uploads raw media bytes and sends them by id, with an
+// optional caption (supported for images, documents and video). Stage
+// 25e: this is how code-made artifacts (charts) reach the chat.
+func (w *whatsapp) SendMediaBytes(ctx context.Context, to, mimeType, caption string, data []byte) error {
+	kind := "document"
+	switch {
+	case mimeType == "image/png" || mimeType == "image/jpeg":
+		kind = "image"
+	case mimeType == "audio/ogg" || mimeType == "audio/mpeg":
+		kind = "audio"
+	case mimeType == "video/mp4":
+		kind = "video"
+	}
+	id, err := w.UploadMedia(ctx, mimeType, "fiveagent"+extForMIME(mimeType), data)
+	if err != nil {
+		return err
+	}
+	body := map[string]any{"id": id}
+	if caption != "" && kind != "audio" {
+		body["caption"] = caption
+	}
+	return w.post(ctx, map[string]any{
+		"messaging_product": "whatsapp",
+		"to":                to,
+		"type":              kind,
+		kind:                body,
+	})
 }
 
 // DownloadMedia fetches inbound media bytes (e.g. a voice note) by media id.
