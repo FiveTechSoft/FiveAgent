@@ -759,17 +759,30 @@ evidence that counts.
     wake marker and the event summary, the reply lands delivered
     through the real ledger, and an identical event neither
     re-runs nor re-delivers.
-36. **Unified conversation** (planned) - one conversation per user
+36. **Unified conversation** (implemented, 2026-09-29, CI-tested) -
+    one conversation per user
     across channels, not one thread per channel: the user starts on
     WhatsApp, continues on Telegram, and the agent sees a single
     history and a single memory scope. Channel identities resolve to
     one user identity through an explicit linking flow, never
     guessed; each reply still lands on the channel the user wrote
-    from.
-    Done when: a scripted user writes from two channels and the
-    second channel's turn sees the first channel's context; the
-    battery grows a "unified" case proving the shared history, and
-    that unlinked senders stay separate by default.
+    from. internal/identity: a JSON-backed link store. The flow is
+    explicit and mechanical: link_channel mints a one-time code
+    (10-minute expiry) on the current channel, the user writes
+    "vincular <code>" from the other channel, and the agent redeems
+    it WITHOUT a model turn; a code from an already-linked identity
+    points at its root, so chains converge. Linked identities share
+    one history and one auto-indexed memory scope under the
+    canonical identity; unlinked senders key off their own channel
+    identity - separate by default, always. Delivery tools keep the
+    original channel+user, so replies and scheduled jobs land on
+    the channel the user wrote from. unlink_channel dissolves,
+    linked_channels audits.
+    Done when - MET: the "unified" battery links whatsapp+telegram
+    with the code flow (zero model calls at redemption), a fact
+    told on whatsapp surfaces in the telegram turn's history AND
+    indexed memory scope, and an unlinked sender on the same
+    channel sees none of it. This closes the gap list.
 
 ## Phase 5 - setup that does not need a manual
 
