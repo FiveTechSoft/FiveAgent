@@ -213,9 +213,32 @@ func (t *telegram) process(m *tgMessage) {
 	}
 }
 
-// Deliver sends an unquoted text, used by the scheduler (stage 22).
+// Deliver sends an unquoted text, used by the scheduler (stage 22)
+// and proactive subscriptions (stage 35). It goes through the
+// delivery ledger (stage 19) like the reply path: the obligation is
+// recorded BEFORE the send, so a crash redelivers it on the next
+// start with the recovered marker.
 func (t *telegram) Deliver(ctx context.Context, userID, text string) error {
-	return t.SendText(ctx, userID, text, 0)
+	var d *Delivery
+	if t.ledger != nil {
+		if dd, lerr := t.ledger.Add("telegram", userID, text); lerr != nil {
+			log.Printf("telegram: delivery ledger: %v", lerr)
+		} else {
+			d = dd
+			t.ledger.Attempting(d.ID)
+		}
+	}
+	err := t.SendText(ctx, userID, text, 0)
+	if err != nil {
+		if d != nil {
+			t.ledger.Failed(d.ID, err)
+		}
+		return err
+	}
+	if d != nil {
+		t.ledger.Delivered(d.ID)
+	}
+	return nil
 }
 
 // SendText sends a text message. replyToMessageID > 0 quotes that message.
