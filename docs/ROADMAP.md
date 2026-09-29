@@ -301,10 +301,14 @@ evidence that counts.
     unavailable) wrapped in model.Failure; internal/agent/recover.go
     runs the ladder per kind: transient kinds (timeout, rate-limit,
     malformed) retry with backoff, overflow prunes the context with
-    the stage-15 pruner and retries once, then any retryable failure
+    the stage-15 pruner and retries once, an empty reply (200 with no
+    content and no tool calls - a generation failure, not transport)
+    retries with a reinforced prompt, then any retryable failure
     falls back to the other configured model; auth aborts honestly
     naming the credential; when both models fail the error names both
-    kinds, and with no fallback configured the abort says so.
+    kinds, and with no fallback configured the abort says so. A reply
+    still empty after the whole ladder degrades to one fixed honest
+    line - never silence, never a turn-level error.
     Scope note: the model client is non-streaming request/response
     today, so the adaptive non-streaming degradation for endpoints
     that answer streams with empty keepalive frames has nothing to
@@ -317,10 +321,13 @@ evidence that counts.
     smaller (an overflow must be followed by a shrink - without
     pruning the case fails), auth aborts on the first 401 naming the
     credential with no retry storm, a dead main model falls back to
-    the healthy coder model, and a permanently slow endpoint aborts
-    naming the timeout. 13 classifier unit tests
+    the healthy coder model, a permanently slow endpoint aborts
+    naming the timeout, an empty reply recovers on a retry that must
+    carry the reinforced prompt (asserted from the request bodies),
+    and an always-empty model degrades to the fixed honest line in
+    exactly 6 model calls. 14 classifier unit tests
     (internal/model/classify_test.go) pin the status/body/network
-    mapping and errors.As survival through wrapping.
+    mapping, the kind names and errors.As survival through wrapping.
 17. **Keyword-triggered context** (planned, with Skills) - skill and
     domain instructions enter the context only when the message
     mentions their trigger words, never by default. Sibling of the
