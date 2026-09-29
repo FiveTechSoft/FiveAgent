@@ -22,6 +22,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
+	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
 	"github.com/FiveTechSoft/FiveAgent/internal/slack"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 )
@@ -130,7 +131,43 @@ func main() {
 		if tokenPath == "" {
 			tokenPath = "data/tokens.json"
 		}
-		store := &oauth.TokenStore{Path: tokenPath}
+		// Stage 8: encryption at rest. The environment is the
+		// strongest key source (key never touches the filesystem);
+		// the key file keeps zero-setup operation. "off" disables.
+		var cipher *secrets.Cipher
+		{
+			keyEnv := cfg.Secrets.KeyEnv
+			if keyEnv == "" {
+				keyEnv = "FIVEAGENT_MASTER_KEY"
+			}
+			if keyEnv != "off" {
+				if raw := os.Getenv(keyEnv); raw != "" {
+					key, err := secrets.ParseKey(raw)
+					if err != nil {
+						log.Printf("secrets: %s: %v - token store stays PLAINTEXT", keyEnv, err)
+					} else if c, err := secrets.NewCipher(key); err != nil {
+						log.Printf("secrets: %v - token store stays PLAINTEXT", err)
+					} else {
+						cipher = c
+						log.Printf("secrets: token store encrypted at rest (key from %s)", keyEnv)
+					}
+				} else {
+					keyFile := cfg.Secrets.KeyFile
+					if keyFile == "" {
+						keyFile = "data/master.key"
+					}
+					if key, err := secrets.LoadOrCreateKeyFile(keyFile); err != nil {
+						log.Printf("secrets: key file %s: %v - token store stays PLAINTEXT", keyFile, err)
+					} else if c, err := secrets.NewCipher(key); err != nil {
+						log.Printf("secrets: %v - token store stays PLAINTEXT", err)
+					} else {
+						cipher = c
+						log.Printf("secrets: token store encrypted at rest (key file %s - protects copies, not the live disk)", keyFile)
+					}
+				}
+			}
+		}
+		store := &oauth.TokenStore{Path: tokenPath, Cipher: cipher}
 		providers := map[string]oauth.Config{}
 		redirects := map[string]string{}
 		if cfg.Integrations.Gmail.Enabled {
