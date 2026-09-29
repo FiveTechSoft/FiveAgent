@@ -389,8 +389,8 @@ evidence that counts.
     fivetech/fivegui/xharbour): it used to ride in every system
     prompt (2.9KB per turn) and now enters only on matching turns.
     Scope note: skills are defined in code; the skills/ folder format
-    with one SKILL.md per skill stays at stage 32, and
-    docs/fivetech-domain.md migrates then as planned.
+    with one SKILL.md per skill landed at stage 32, and
+    docs/fivetech-domain.md migrated then as planned.
     Done when: (met) the scripted trigger cases (evals/trigger_test.go)
     capture the exact request the model receives and measure the
     injected bytes: an unrelated turn carries zero skill text, a
@@ -699,17 +699,26 @@ evidence that counts.
 
 ## Phase 4b - v0.4b: growing the small model
 
-32. **Skills** (planned) - a `skills/` folder with one SKILL.md per
-    domain: name, one-line trigger, concise procedure written for a
-    small model. Only the one-line index enters the system prompt; the
-    full skill loads on demand when the request matches (keywords or a
-    cheap classifier), with optional tools associated to the skill.
-    docs/fivetech-domain.md migrates to this format as the first skill.
-    This is how the small model "learns from the big ones": expertise is
-    written down once instead of re-derived per session. Done when: the
-    battery runs the same prompts with and without the matching skill
-    and reports the delta per category, and the domain answers pass only
-    with the skill loaded.
+32. **Skills** (implemented, 2026-09-29, CI-tested) - the `skills/`
+    folder holds one SKILL.md per skill in its own subfolder: a
+    `name:`/`trigger:`/`keywords:`/`tools:` header and a concise
+    procedure body written for a small model. Only the one-line index
+    (name + trigger per skill) enters the system prompt on every turn;
+    the full body loads on demand when a keyword matches (the stage 17
+    machinery), and a tool named in `tools:` is offered only on turns
+    where its skill triggered. docs/fivetech-domain.md migrated to
+    skills/fivetech/SKILL.md as the first skill; on-disk files win
+    over the build-time embedded copies (skills/embed.go), so the
+    library is editable without a rebuild, and one malformed file is
+    skipped with a log line instead of taking the library down. This
+    is how the small model "learns from the big ones": expertise is
+    written down once instead of re-derived per session. Done when:
+    (met) evals/skills_test.go runs the harbour_fivewin battery
+    prompts against a scripted player that answers with the verified
+    facts only when the turn carries the reference and confabulates
+    the live failure modes (FireWall Helper, cVar, Input()) when it
+    does not: 4/4 pass with the skill loaded, 0/4 without - the
+    wiring carries the skill and the skill carries the facts.
 33. **FiveAgent as MCP server** (planned) - expose a local,
     token-authenticated MCP endpoint so an external agent (e.g. the
     owner's OpenCode) can execute commands inside the sandbox and read
