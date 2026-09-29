@@ -167,8 +167,10 @@ type Agent struct {
 func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt string) *Agent {
 	a := &Agent{mdl: mdl, store: store, tools: reg, sysPrompt: sysPrompt}
 	// Stage 18: the agent self-registers run_subtask into the caller's
-	// registry; subturns exclude it (depth 1).
+	// registry; subturns exclude it (depth 1). Stage 34 adds its
+	// parallel sibling, excluded from subturns the same way.
 	reg.Add(subtaskTool{a: a})
+	reg.Add(runSubtasksTool{a: a})
 	return a
 }
 
