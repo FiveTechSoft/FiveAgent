@@ -468,6 +468,12 @@ func (w *whatsapp) markRead(ctx context.Context, messageID string) error {
 	})
 }
 
+// MountLinks serves the links handler (stage 24) on the same
+// listener as the webhook, under /l/.
+func (w *whatsapp) MountLinks(h http.Handler) {
+	w.mux.Handle("/l/", h)
+}
+
 // Deliver sends an unquoted text, used by the scheduler (stage 22).
 func (w *whatsapp) Deliver(ctx context.Context, userID, text string) error {
 	return w.SendText(ctx, userID, text, "")
