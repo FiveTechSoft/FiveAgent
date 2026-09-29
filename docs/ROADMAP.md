@@ -719,13 +719,25 @@ evidence that counts.
     the live failure modes (FireWall Helper, cVar, Input()) when it
     does not: 4/4 pass with the skill loaded, 0/4 without - the
     wiring carries the skill and the skill carries the facts.
-33. **FiveAgent as MCP server** (planned) - expose a local,
-    token-authenticated MCP endpoint so an external agent (e.g. the
-    owner's OpenCode) can execute commands inside the sandbox and read
-    files from the user's folder. Documented in docs/. Done when: an
-    integration test drives the endpoint with a fake client (auth
-    rejected without token, command runs confined to the sandbox), and
-    the doc page gets a reader from zero to first call in minutes.
+33. **FiveAgent as MCP server** (implemented, 2026-09-29, CI-tested) -
+    a local, token-authenticated MCP endpoint (POST /mcp, JSON-RPC
+    2.0, streamable-HTTP shape: initialize, ping, notifications,
+    tools/list, tools/call) so an external agent - the design
+    consumer is the owner's OpenCode - runs commands inside the
+    sandbox (fiveagent_run_command, raw argv, stdout+stderr+exit code
+    back, non-zero exit as an honest isError) and reads files from
+    the workspace folder (fiveagent_read_file, ".." escapes refused).
+    Confinement is by construction: the package's only execution path
+    is Sandbox.Run and it never execs directly. A missing or wrong
+    bearer token gets a 401 with a JSON-RPC error body. docs/mcp.md
+    takes a reader from zero to the first call (yml block, client
+    config snippet, curl smoke test) and the README carries the MCP
+    client snippet. Done when: (met) evals/mcp_test.go drives the
+    endpoint over real HTTP with a fake client and a fake sandbox -
+    auth refusals, the full protocol flow, commands reaching the
+    sandbox as argv under the mcp user key, reads confined, every
+    failure mode honest. The live check with the owner's OpenCode is
+    on the user's verification queue.
 
 34. **Multi-agent parallel execution** (implemented, 2026-09-29,
     CI-tested) - run_subtasks fans SEVERAL independent subtasks out
