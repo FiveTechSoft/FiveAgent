@@ -63,6 +63,17 @@ func (n *noop) Run(ctx context.Context) error {
 
 // Build returns the adapters enabled in config.
 func Build(cfg *config.Config, core Handler) []Channel {
+	// Stage 19: one ledger shared by every adapter. A corrupt or
+	// unreadable file disables the ledger, never the channels.
+	ledgerPath := cfg.Delivery.Path
+	if ledgerPath == "" {
+		ledgerPath = "data/deliveries.json"
+	}
+	ledger, err := OpenLedger(ledgerPath)
+	if err != nil {
+		log.Printf("delivery ledger disabled: %v", err)
+		ledger = nil
+	}
 	var out []Channel
 	for name, ch := range cfg.Channels {
 		if !ch.Enabled {
@@ -72,10 +83,12 @@ func Build(cfg *config.Config, core Handler) []Channel {
 		case "telegram":
 			t := NewTelegram(ch, core).(*telegram)
 			t.agentTimeout = agentBudget(cfg)
+			t.ledger = ledger
 			out = append(out, t)
 		case "whatsapp":
 			w := NewWhatsApp(ch, core).(*whatsapp)
 			w.agentTimeout = agentBudget(cfg)
+			w.ledger = ledger
 			out = append(out, w)
 		default:
 			out = append(out, &noop{name: name})
