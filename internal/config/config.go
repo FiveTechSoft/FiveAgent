@@ -79,6 +79,11 @@ type Memory struct {
 	// set, the agent recalls from it every turn and gets save_memory /
 	// forget_memory tools to curate it. Empty disables long-term memory.
 	Knowledge string `yaml:"knowledge,omitempty"`
+	// AutoIndex absorbs every non-trivial turn into a per-sender
+	// memory scope in the background (stage 7n). Default true when
+	// knowledge is set; auto_index: false opts out. Cost: one small
+	// model call per non-trivial turn.
+	AutoIndex bool `yaml:"auto_index"`
 }
 
 // Sandbox holds the per-user isolated execution settings. Enabled by
@@ -276,6 +281,7 @@ type GitHubIntegration struct {
 // the owner opts out. An explicit enabled: false in the yml wins.
 func (c *Config) UnmarshalYAML(value *yaml.Node) error {
 	c.Sandbox.Enabled = true
+	c.Memory.AutoIndex = true
 	type plain Config
 	return value.Decode((*plain)(c))
 }
