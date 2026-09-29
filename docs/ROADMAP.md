@@ -461,19 +461,34 @@ evidence that counts.
     cron: case measuring the model registering and confirming in
     vivo; the first real WhatsApp reminder end-to-end remains
     pending live verification on a live install.
-23. **Browser** (planned) - a headless Playwright browser as a native
-    tool, OUTSIDE the command sandbox (which stays offline): one isolated
-    browser profile per user, downloads land in the user's folder.
-    Automation by DOM / accessibility tree, never pixels: the agent gets
-    the page as a numbered list of elements and acts by id ("fill #3",
-    "click #7") - small models fail at vision-coordinate clicking but
-    handle structured DOM well. Safety by design: user confirmation
-    before submitting forms that spend money or send data, credentials
-    live in a local vault and never enter prompts or logs, optional
-    per-skill domain allowlist, and every click/fill is audit-logged.
-    Done when: the battery grows a "web" category that fills a local
-    test form end-to-end, and a confirmation-gate eval proves a purchase
-    form is never submitted without user approval.
+23. **Browser** (implemented, CI-tested; simple-first cut) - a web
+    browser as a native tool, OUTSIDE the command sandbox (which
+    stays offline). Simple first: a pure-Go engine (HTTP fetch +
+    golang.org/x/net/html, already a dependency) instead of a
+    Playwright sidecar - single binary, no runtime, fully CI-testable
+    end-to-end. Pages arrive as a numbered list of interactive
+    elements and the agent acts by id ("fill #3", "click #7") -
+    automation by structure, never pixels: small models fail at
+    vision-coordinate clicking but handle structured elements well.
+    No JavaScript: pages that need it are the Playwright upgrade,
+    which stays the documented path for JS-heavy sites. Safety by
+    design: EVERY form submit is gated - the tool returns a
+    single-use token and a summary, the model asks the user, and only
+    confirm(token) sends (tokens expire in 10 minutes, wrong or
+    reused tokens send nothing); password values are redacted from
+    tool results, the gate summary and the audit log; every
+    open/fill/click/submit lands in a per-user audit log
+    (data/browser-audit, browser.enabled in the yml); one browsing
+    session per user. Still pending from the original sketch: a real
+    credential vault (today: redaction only), per-skill domain
+    allowlist, downloads into the user's folder.
+    Done when: (met) the battery's web cases
+    (evals/browser_test.go) fill a local test form end-to-end -
+    browse, fill, gated submit, confirm - and the confirmation-gate
+    eval proves the purchase form reaches the server ONLY after
+    confirm: never on submit, never on a wrong token, never twice on
+    the same token; the audit eval proves the password value appears
+    in no log line. Live model side pending the next run.
 24. **Links** (planned) - the bot answers with links served by its own
     HTTP server (the same listener as the webhook), not with
     wall-of-text messages:
