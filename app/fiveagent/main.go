@@ -21,6 +21,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/oauth"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
+	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/proactive"
 	"github.com/FiveTechSoft/FiveAgent/internal/sched"
 	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
@@ -138,6 +139,26 @@ func main() {
 			tl = append(tl, tools.Subscribe{Subs: pm}, tools.Subscriptions{Subs: pm},
 				tools.PauseSubscription{Subs: pm}, tools.Unsubscribe{Subs: pm})
 			log.Printf("proactive subscriptions: %s", subPath)
+		}
+	}
+	// Stage 36: cross-channel identity links. Inert until a user
+	// explicitly links two channels; the tools let the model start
+	// the flow and audit it.
+	var ids *identity.Store
+	if cfg.Identity.Enabled {
+		idPath := cfg.Identity.Path
+		if idPath == "" {
+			idPath = "data/identities.json"
+		}
+		var err error
+		ids, err = identity.Open(idPath)
+		if err != nil {
+			log.Printf("identity linking disabled: %v", err)
+			ids = nil
+		} else {
+			tl = append(tl, tools.LinkChannel{IDs: ids}, tools.UnlinkChannel{IDs: ids},
+				tools.LinkedChannels{IDs: ids})
+			log.Printf("identity linking: %s", idPath)
 		}
 	}
 	if cfg.Sandbox.Enabled {
@@ -410,6 +431,9 @@ func main() {
 	tl = append(tl, tools.SendChart{Send: mediaSend})
 	reg := tools.NewRegistry(tl...)
 	core = agent.New(mdl, store, reg, agent.SystemPrompt(cfg))
+	if ids != nil {
+		core.WithIdentities(ids)
+	}
 	core.WithSkills(agent.DomainSkill())
 	if kn != nil {
 		core.WithKnowledge(kn)
