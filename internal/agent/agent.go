@@ -8,12 +8,14 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/identity"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
+	"github.com/FiveTechSoft/FiveAgent/internal/trajectory"
 )
 
 // maxToolRounds caps model-tool round trips per user message.
@@ -120,6 +122,7 @@ type Agent struct {
 	identities *identity.Store   // optional: cross-channel identity links (stage 36)
 	store      memory.Store
 	tools      *tools.Registry
+	trajSink   func(trajectory.Record)
 	sysPrompt  string
 	pruner     PruneConfig // context pruning (stage 15); zero value takes the defaults
 	skills     []Skill     // keyword-triggered context (stage 17)
@@ -140,6 +143,15 @@ func New(mdl *model.Client, store memory.Store, reg *tools.Registry, sysPrompt s
 // returns the agent for chaining.
 func (a *Agent) WithCoder(c *model.Client) *Agent {
 	a.coder = c
+	return a
+}
+
+// WithTrajectory installs the stage 12 trajectory sink: every turn
+// is recorded (redacted) and handed to the sink - the rotating
+// session Logger in real sessions, per-case files in battery runs.
+// Logging never fails the turn; a broken sink is a log line.
+func (a *Agent) WithTrajectory(sink func(trajectory.Record)) *Agent {
+	a.trajSink = sink
 	return a
 }
 
@@ -295,9 +307,36 @@ func wordRegexps(words ...string) []*regexp.Regexp {
 // Handle answers one inbound message, keeping history per channel+user.
 // Tool-call iterations stay in memory; only the user text and the final
 // reply are persisted.
-func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (string, error) {
+func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret string, rerr error) {
 	// Tools (e.g. the sandbox) scope their work per channel+user.
 	ctx = tools.WithRequestInfo(ctx, channel, userID)
+	// Stage 12: record the trajectory. Redaction happens here, before
+	// any sink sees the record, so no sink can leak a secret.
+	var traj *trajectory.Record
+	if a.trajSink != nil {
+		start := time.Now()
+		traj = &trajectory.Record{
+			ID:        fmt.Sprintf("%s-%d", channel, start.UnixNano()),
+			StartedAt: start,
+			Channel:   channel,
+			Messages:  []trajectory.Message{{Role: "user", Content: text}},
+		}
+		defer func() {
+			traj.EndedAt = time.Now()
+			traj.Outcome.DurationMs = time.Since(start).Milliseconds()
+			traj.Outcome.Reply = ret
+			if rerr != nil {
+				traj.Outcome.Error = rerr.Error()
+			}
+			for _, m := range traj.Messages {
+				if m.Role == "assistant" && len(m.ToolCalls) > 0 {
+					traj.Outcome.ToolRounds++
+				}
+			}
+			trajectory.RedactRecord(traj)
+			a.trajSink(*traj)
+		}()
+	}
 	// Ruta A (docs/memory-training.md): a message starting with
 	// "recuerda:" is stored directly, without asking the model to call
 	// save_memory. The small model sometimes replies "de acuerdo" and
@@ -442,6 +481,13 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			lastContent = c
 		}
 		msgs = append(msgs, ans)
+		if traj != nil && len(ans.ToolCalls) > 0 {
+			am := trajectory.Message{Role: "assistant", Content: ans.Content}
+			for _, call := range ans.ToolCalls {
+				am.ToolCalls = append(am.ToolCalls, trajectory.ToolCall{Name: call.Function.Name, Arguments: call.Function.Arguments})
+			}
+			traj.Messages = append(traj.Messages, am)
+		}
 		for _, call := range ans.ToolCalls {
 			args := call.Function.Arguments
 			if len(args) > 160 {
@@ -459,6 +505,10 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (strin
 			result, err := a.tools.Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
+			}
+			if traj != nil {
+				traj.Messages = append(traj.Messages, trajectory.Message{Role: "tool", Name: call.Function.Name, Content: result})
+				traj.AddToolCall(call.Function.Name, err == nil)
 			}
 			msgs = append(msgs, model.Message{
 				Role:       "tool",
