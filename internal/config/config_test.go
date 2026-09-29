@@ -213,3 +213,51 @@ model:
 		t.Fatalf("error must name num_thread: %v", err)
 	}
 }
+
+func TestLoadChatTemplateKwargs(t *testing.T) {
+	yml := `
+model:
+  base_url: http://localhost:8000/v1
+  name: qwen3.8-27b
+  chat_template_kwargs:
+    enable_thinking: false
+coder:
+  name: qwen3-coder
+`
+	path := filepath.Join(t.TempDir(), "fiveagent.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Model.ChatTemplateKwargs["enable_thinking"] != false {
+		t.Fatalf("model.chat_template_kwargs: got %v", cfg.Model.ChatTemplateKwargs)
+	}
+	if cfg.Coder.ChatTemplateKwargs["enable_thinking"] != false {
+		t.Fatalf("coder.chat_template_kwargs not inherited: got %v", cfg.Coder.ChatTemplateKwargs)
+	}
+}
+
+func TestLoadKwargsAndNumThreadConflict(t *testing.T) {
+	yml := `
+model:
+  base_url: http://localhost:11434/v1
+  name: qwen3
+  num_thread: 8
+  chat_template_kwargs:
+    enable_thinking: false
+`
+	path := filepath.Join(t.TempDir(), "fiveagent.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("num_thread + chat_template_kwargs on one model must fail loudly")
+	}
+	if !strings.Contains(err.Error(), "chat_template_kwargs") {
+		t.Fatalf("error must name chat_template_kwargs: %v", err)
+	}
+}
