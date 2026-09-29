@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
@@ -70,6 +71,19 @@ func (p *player) last() string {
 	}
 }
 
+// drainAll returns every request the player has seen, oldest first.
+func (p *player) drainAll() []string {
+	var out []string
+	for {
+		select {
+		case s := <-p.lastRequest.ch:
+			out = append(out, s)
+		default:
+			return out
+		}
+	}
+}
+
 func reply(content string) string {
 	return fmt.Sprintf(`{"choices":[{"message":{"role":"assistant","content":%q}}]}`, content)
 }
@@ -107,7 +121,19 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			extraction = true
 		}
 	}
+	// Stage 34: a subturn (stage 18 machinery) is recognizable by
+	// its system prompt; the player sleeps so the parallel battery
+	// proves real overlap from wall time, not from construction.
+	subturn := false
+	for _, m := range req.Messages {
+		if m.Role == "system" && strings.Contains(m.Content, "solving ONE small subtask") {
+			subturn = true
+		}
+	}
 	switch {
+	case subturn:
+		time.Sleep(250 * time.Millisecond)
+		io.WriteString(w, reply("hecho"))
 	case extraction && strings.Contains(string(body), "Celta"):
 		io.WriteString(w, reply("preferences: su equipo favorito es el Celta de Vigo desde siempre"))
 	case extraction:
@@ -145,6 +171,13 @@ func (p *player) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		default:
 			io.WriteString(w, reply("Corregido."))
 		}
+	case strings.HasPrefix(lastUser, "paralelo: "):
+		if toolResults == 0 {
+			io.WriteString(w, toolCall("run_subtasks",
+				`{"tasks":["tarea alfa independiente","tarea beta independiente","tarea gamma independiente"]}`))
+			return
+		}
+		io.WriteString(w, reply("listo"))
 	default:
 		io.WriteString(w, reply("respuesta"))
 	}
