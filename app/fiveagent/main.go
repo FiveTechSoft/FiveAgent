@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,6 +13,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/channel"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/links"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
@@ -57,6 +59,7 @@ func main() {
 	// exists.
 	var chans []channel.Channel
 	var sc *sched.Scheduler
+	var linkSvc *links.Service
 	if cfg.Cron.Enabled {
 		cronPath := cfg.Cron.Path
 		if cronPath == "" {
@@ -103,6 +106,30 @@ func main() {
 		ws := tools.Workspace{Root: root}
 		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
 		log.Printf("workspace file tools: %s", root)
+	}
+	if cfg.Links.Enabled {
+		secretPath := cfg.Links.SecretPath
+		if secretPath == "" {
+			secretPath = "data/links-secret"
+		}
+		storeDir := cfg.Links.StoreDir
+		if storeDir == "" {
+			storeDir = "data/links"
+		}
+		vaultDir := cfg.Links.VaultDir
+		if vaultDir == "" {
+			vaultDir = "data/vault"
+		}
+		ls, err := links.Open(secretPath, cfg.Links.BaseURL, storeDir, vaultDir, func(format string, args ...any) {
+			log.Printf("links: "+format, args...)
+		})
+		if err != nil {
+			log.Printf("links disabled: %v", err)
+		} else {
+			tl = append(tl, tools.MakeReportLink{S: ls}, tools.MakeFormLink{S: ls})
+			linkSvc = ls
+			log.Printf("links server: %s/l/ (reports and forms)", cfg.Links.BaseURL)
+		}
 	}
 	if cfg.Browser.Enabled {
 		auditDir := cfg.Browser.AuditDir
@@ -159,6 +186,18 @@ func main() {
 	defer stop()
 
 	chans = channel.Build(cfg, core)
+	if linkSvc != nil {
+		mounted := false
+		for _, ch := range chans {
+			if m, ok := ch.(interface{ MountLinks(http.Handler) }); ok {
+				m.MountLinks(linkSvc.Handler())
+				mounted = true
+			}
+		}
+		if !mounted {
+			log.Printf("links: no channel listener to mount on - links will not be reachable")
+		}
+	}
 	if sc != nil {
 		go sc.Run(ctx)
 	}
