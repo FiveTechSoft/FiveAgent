@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/FiveTechSoft/FiveAgent/internal/secrets"
 	"testing"
 	"time"
 )
@@ -206,5 +208,95 @@ func TestTokenHeadersSent(t *testing.T) {
 	}
 	if gotAccept != "application/json" {
 		t.Fatalf("Accept header not sent: %q", gotAccept)
+	}
+}
+
+// Stage 8 battery: encrypted store round-trip, plaintext migration
+// without loss, sealed store refusing a missing key.
+func TestTokenStoreEncryptedRoundTrip(t *testing.T) {
+	key, _ := secrets.GenerateKey()
+	c, err := secrets.NewCipher(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	store := &TokenStore{Path: path, Cipher: c}
+	tok := &Token{AccessToken: "sealed-a1", RefreshToken: "r1", Expiry: time.Now().Add(time.Hour)}
+	if err := store.Save("gmail", tok); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !secrets.IsSealed(raw) {
+		t.Fatal("store with cipher must write a sealed envelope")
+	}
+	if strings.Contains(string(raw), "sealed-a1") {
+		t.Fatal("ciphertext leaks the access token")
+	}
+	got, err := store.Load("gmail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AccessToken != "sealed-a1" || got.RefreshToken != "r1" {
+		t.Fatalf("loaded %+v", got)
+	}
+	// A second save through the same store keeps everything.
+	if err := store.Save("calendar", &Token{AccessToken: "cal-1"}); err != nil {
+		t.Fatal(err)
+	}
+	for name, want := range map[string]string{"gmail": "sealed-a1", "calendar": "cal-1"} {
+		got, err := store.Load(name)
+		if err != nil || got.AccessToken != want {
+			t.Fatalf("%s: %v %+v", name, err, got)
+		}
+	}
+}
+
+// The migration contract: an existing PLAINTEXT store is read
+// without loss and re-saved sealed, all in one load.
+func TestTokenStoreMigratesPlaintext(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	plain := `{"gmail":{"access_token":"legacy-token","refresh_token":"legacy-refresh","expiry":"2030-01-01T00:00:00Z"}}`
+	if err := os.WriteFile(path, []byte(plain), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	key, _ := secrets.GenerateKey()
+	c, _ := secrets.NewCipher(key)
+	store := &TokenStore{Path: path, Cipher: c}
+	got, err := store.Load("gmail")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AccessToken != "legacy-token" || got.RefreshToken != "legacy-refresh" {
+		t.Fatalf("migration lost token data: %+v", got)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !secrets.IsSealed(raw) {
+		t.Fatal("plaintext store was not re-saved sealed")
+	}
+	// And a fresh store with the same key still reads it.
+	again := &TokenStore{Path: path, Cipher: c}
+	if _, err := again.Load("gmail"); err != nil {
+		t.Fatalf("migrated store unreadable: %v", err)
+	}
+}
+
+// A sealed store without a configured key fails loudly, never
+// silently returns garbage or empty tokens.
+func TestSealedStoreWithoutKeyFailsLoud(t *testing.T) {
+	key, _ := secrets.GenerateKey()
+	c, _ := secrets.NewCipher(key)
+	path := filepath.Join(t.TempDir(), "tokens.json")
+	if err := (&TokenStore{Path: path, Cipher: c}).Save("gmail", &Token{AccessToken: "a1"}); err != nil {
+		t.Fatal(err)
+	}
+	bare := &TokenStore{Path: path}
+	if _, err := bare.Load("gmail"); err == nil || !strings.Contains(err.Error(), "no key is configured") {
+		t.Fatalf("sealed store without key must fail loud: %v", err)
 	}
 }
