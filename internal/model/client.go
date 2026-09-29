@@ -87,15 +87,60 @@ func ollamaNativeChatURL(base string) (string, bool) {
 	return strings.TrimSuffix(base, "/v1") + "/api/chat", true
 }
 
+// ollamaMessage is the native wire shape. Unlike the OpenAI-compatible
+// endpoint, the native API requires tool-call arguments as a JSON
+// OBJECT in the history (api.ToolCallFunctionArguments unmarshals into
+// an ordered map): sending our internal string form makes Ollama reject
+// the second turn with HTTP 400 ("can't find closing '}' symbol").
+type ollamaMessage struct {
+	Role       string           `json:"role"`
+	Content    string           `json:"content"`
+	ToolCalls  []ollamaToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+}
+
+type ollamaToolCall struct {
+	ID       string `json:"id,omitempty"`
+	Type     string `json:"type"` // "function"
+	Function struct {
+		Name      string          `json:"name"`
+		Arguments json.RawMessage `json:"arguments"`
+	} `json:"function"`
+}
+
+// toOllamaMessages converts the internal history to the native wire
+// shape, decoding each tool call's argument string into a JSON object.
+func toOllamaMessages(msgs []Message) ([]ollamaMessage, error) {
+	out := make([]ollamaMessage, 0, len(msgs))
+	for _, m := range msgs {
+		om := ollamaMessage{Role: m.Role, Content: m.Content, ToolCallID: m.ToolCallID}
+		for _, tc := range m.ToolCalls {
+			args := json.RawMessage(tc.Function.Arguments)
+			if len(args) == 0 {
+				args = json.RawMessage("{}")
+			}
+			if !json.Valid(args) {
+				return nil, fmt.Errorf("tool call %s: arguments are not valid JSON: %q", tc.Function.Name, cutRunes(tc.Function.Arguments, 100))
+			}
+			call := ollamaToolCall{ID: tc.ID, Type: "function"}
+			call.Function.Name = tc.Function.Name
+			call.Function.Arguments = args
+			om.ToolCalls = append(om.ToolCalls, call)
+		}
+		out = append(out, om)
+	}
+	return out, nil
+}
+
 // ollamaChatRequest is the native /api/chat payload. Options carries
 // the runner knobs - num_thread caps the inference threads so the
 // runner stays a good neighbor on shared CPU hosts.
 type ollamaChatRequest struct {
-	Model    string         `json:"model"`
-	Messages []Message      `json:"messages"`
-	Tools    []tools.Spec   `json:"tools,omitempty"`
-	Stream   bool           `json:"stream"`
-	Options  map[string]any `json:"options"`
+	Model    string          `json:"model"`
+	Messages []ollamaMessage `json:"messages"`
+	Tools    []tools.Spec    `json:"tools,omitempty"`
+	Stream   bool            `json:"stream"`
+	Options  map[string]any  `json:"options"`
 }
 
 // ollamaChatResponse is the native reply. Tool-call arguments arrive
@@ -144,9 +189,13 @@ func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs
 	if !ok {
 		return out, &Failure{Kind: FailureUnavailable, Err: fmt.Errorf("num_thread requires an Ollama base_url ending in /v1; got %q", c.cfg.BaseURL)}
 	}
+	nativeMsgs, err := toOllamaMessages(msgs)
+	if err != nil {
+		return out, &Failure{Kind: FailureMalformed, Err: err}
+	}
 	raw, err := c.post(ctx, url, ollamaChatRequest{
 		Model:    c.cfg.Name,
-		Messages: msgs,
+		Messages: nativeMsgs,
 		Tools:    toolSpecs,
 		Stream:   false,
 		Options:  map[string]any{"num_thread": c.cfg.NumThread},
