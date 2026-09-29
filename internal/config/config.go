@@ -153,6 +153,21 @@ type Cron struct {
 // explicit code flow, never guessed; unlinked senders stay separate.
 // Enabled by default - inert until a user links two channels; set
 // enabled: false to opt out.
+// Trajectory is the opt-in trajectory logger (stage 12 of
+// docs/ROADMAP.md): every turn is recorded redacted as a JSONL
+// trajectory, in the message shape the fine-tuning dataset (stage 13)
+// consumes. Rotation is bounded.
+type Trajectory struct {
+	Enabled bool `yaml:"enabled,omitempty"`
+	// Dir holds the rotating trajectories.jsonl (default
+	// data/trajectories).
+	Dir string `yaml:"dir,omitempty"`
+	// MaxMB caps each rotating file (default 10).
+	MaxMB int `yaml:"max_mb,omitempty"`
+	// MaxFiles caps how many rotated files are kept (default 5).
+	MaxFiles int `yaml:"max_files,omitempty"`
+}
+
 // MCP is the local MCP server for external agents such as the
 // owner's OpenCode (stage 33 of docs/ROADMAP.md). Token-authenticated,
 // loopback by default: it exposes fiveagent_run_command (executes
@@ -243,6 +258,8 @@ type Config struct {
 	Identity Identity `yaml:"identity,omitempty"`
 	// MCP is the local MCP server for external agents (stage 33).
 	MCP MCP `yaml:"mcp,omitempty"`
+	// Trajectory is the opt-in turn recorder (stage 12).
+	Trajectory Trajectory `yaml:"trajectory,omitempty"`
 	// Browser is the web browser tool (stage 23).
 	Browser Browser `yaml:"browser,omitempty"`
 	// Links is the link server for reports and forms (stage 24).
