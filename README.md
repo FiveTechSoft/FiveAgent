@@ -122,6 +122,18 @@ One service, three layers. See [docs/design.md](docs/design.md) for the full des
 - Any OpenAI-compatible model by config: Ollama, llama.cpp, vLLM, OpenAI, DeepSeek.
 - Tool calling: the model can call tools (OpenAI-style function calling). Built-in tools: current date/time, web_search (DuckDuckGo by default, Brave optional), memory save/forget, `run_subtask` (isolated subturn with fresh context for multi-step requests, depth 1), workspace file tools (`read_file` / `write_file` / `edit_file` with true diffs - the tool verifies old_text matches exactly once and returns the applied diff - scoped to a per-user folder with a go-git snapshot before every write, so every edit is undoable; `workspace.enabled` in the yml), a web browser (`browse_page` shows a page as a numbered list of elements, `browser_act` acts by id - fill/click - with every form submit gated behind explicit user confirmation and a per-user audit log where passwords are redacted; `browser.enabled` in the yml), `gmail_search`/`gmail_send` (OAuth-connected Gmail, stage 27a: connect at /oauth/gmail/start, tokens at data/tokens.json 0600, transparent refresh; live verification pending), `send_chart` (renders a small bar/line chart in pure Go and sends it as a native chat image - WhatsApp upload + send by id; send failures surface to the model as errors, never as a silent success), and `run_command`, which executes commands inside a per-user sandbox. Backends: bubblewrap on Linux (CI-tested: no network, only the user's folder writable), AppContainer on Windows (CI-tested, pending live verification on a real PC), Docker fallback. If AppContainer is unavailable the sandbox degrades to Job Objects - RAM cap and timeout only, NO network or filesystem isolation - with a loud WARNING in the log. Run `fiveagent doctor` to see what your machine supports.
 
+- MCP server: FiveAgent can expose a local, token-authenticated MCP endpoint so your OpenCode (or any MCP client) runs commands inside the sandbox and reads workspace files. Client config and smoke test in [docs/mcp.md](docs/mcp.md):
+
+```json
+{
+  "fiveagent": {
+    "type": "remote",
+    "url": "http://127.0.0.1:8090/mcp",
+    "headers": { "Authorization": "Bearer pick-a-long-random-token" }
+  }
+}
+```
+
 ## Roadmap
 
 Tracked as GitHub issues and milestones, in this order:
