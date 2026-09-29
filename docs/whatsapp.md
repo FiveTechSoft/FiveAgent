@@ -130,6 +130,9 @@ channels:
     # transcriber_url: "http://localhost:8090/inference"   # whisper.cpp
     # describer_url: "http://localhost:8091/v1/chat/completions"
     # describer_model: "qwen2.5-vl"                        # modelo VL del endpoint
+    # tts_url: "http://localhost:8100/v1/audio/speech"     # Piper/Kokoro
+    # tts_model: "piper"                                   # modelo del endpoint
+    # tts_voice: "es-default"                              # voz del endpoint
 ```
 
 Las dos opciones llevan la misma idea: el bot sabe qué modelo usa y, si se
@@ -683,6 +686,14 @@ comando ([issue #14](https://github.com/FiveTechSoft/FiveAgent/issues/14)).
 - Saliente: texto, media por enlace (`SendMedia`), plantillas aprobadas
   para fuera de la ventana de 24 h (`SendTemplate`), subida de media
   (`UploadMedia`) + envío por id.
+- Notas de voz salientes (etapa 25d): con `tts_url` apuntando a un
+  endpoint `/v1/audio/speech` compatible con OpenAI (openedai-speech
+  para Piper, kokoro-fastapi para Kokoro), las respuestas salen como
+  nota de voz nativa (sintetiza -> sube -> envía por id). Si la
+  síntesis o el envío fallan, el usuario recibe la respuesta en texto:
+  nunca silencio. Los mensajes de error del agente siempre van en
+  texto. Probado contra servidores TTS y Graph falsos; pendiente de
+  verificación en vivo con Piper/Kokoro reales.
 - Acuse de lectura + indicador de "escribiendo..." al recibir.
 - Las respuestas citan el mensaje original.
 - Estados de entrega (enviado/entregado/leído/fallido) en el registro.
