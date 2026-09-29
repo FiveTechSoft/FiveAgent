@@ -68,8 +68,8 @@ func TestBatteryFileValidates(t *testing.T) {
 			if strings.TrimSpace(p.Prompt) == "" {
 				t.Errorf("%s[%d]: empty prompt", cat, i)
 			}
-			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup {
-				t.Errorf("%s[%d]: no expectation (must_contain, must_not_contain, abstain_*, setup)", cat, i)
+			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup && p.AuditContains == "" && p.MemoryWrites == "" {
+				t.Errorf("%s[%d]: no expectation (must_contain, must_not_contain, abstain_*, setup, audit_contains, memory_writes)", cat, i)
 			}
 		}
 		total += len(ps)
@@ -168,6 +168,36 @@ func hallucinationToken(lowReply, lowPrompt string, mustNot []string, isAbstenti
 			continue
 		}
 		return tok
+	}
+	return ""
+}
+
+// inventedErrorNarration catches an error the reply narrates that the
+// tool's real audit trail does not contain. Pattern from the
+// 2026-09-29 run 4: the model answered "E_ACCESDENIED" /
+// "A c c e s o d e n e g a d o" when the sandbox's real error was
+// CreateProcess file-not-found - an invented error identity, scored
+// as a hallucination. Candidates are Windows-style E_ codes and the
+// common access-denied phrases, compared whitespace-free (the spaced
+// -letters degradation collapses away). The detector only fires when
+// a run_command audit line exists in the turn's delta: with no tool
+// run there is no observed error to compare against. Returns the
+// invented fragment as narrated, or "" when every narrated error is
+// backed by the audit or the reply narrates none.
+func inventedErrorNarration(lowReply, auditDelta string) string {
+	if !strings.Contains(auditDelta, "run_command audit") {
+		return ""
+	}
+	auditC := compact(foldAccent(auditDelta))
+	if m := regexp.MustCompile(`e_[a-z0-9_]{3,}`).FindString(lowReply); m != "" {
+		if !strings.Contains(auditC, compact(m)) {
+			return m
+		}
+	}
+	for _, phrase := range []string{"acceso denegado", "access denied", "permission denied", "permiso denegado"} {
+		if strings.Contains(compact(foldAccent(lowReply)), compact(phrase)) && !strings.Contains(auditC, compact(phrase)) {
+			return phrase
+		}
 	}
 	return ""
 }
@@ -464,9 +494,13 @@ func TestLiveBattery(t *testing.T) {
 				t.Logf("NO-ABSTENTION [%s] %q: should abstain, answered %q", cat, prompt, reply)
 			default:
 				delta := auditBuf.String()[auditStart:]
+				invented := inventedErrorNarration(low, delta)
 				auditMiss := p.AuditContains != "" &&
 					!(strings.Contains(delta, "run_command audit") && strings.Contains(delta, p.AuditContains))
 				switch {
+				case invented != "":
+					halluc++
+					t.Errorf("ERROR-HALLUCINATION [%s] %q: narrated error %q absent from the tool audit %q", cat, prompt, invented, delta)
 				case auditMiss:
 					fail++
 					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q", cat, prompt, p.AuditContains)
@@ -619,6 +653,34 @@ func TestMatchTokenAnyOf(t *testing.T) {
 	for _, c := range cases {
 		if got := containsAll(c.reply, []string{c.tok}); got != c.want {
 			t.Errorf("containsAll(%q, %q) = %v, want %v", c.reply, c.tok, got, c.want)
+		}
+	}
+}
+
+func TestInventedErrorNarration(t *testing.T) {
+	audit := `run_command audit cmd="echo" error=sandbox: CreateProcess: The system cannot find the file specified`
+	cases := []struct {
+		name  string
+		reply string
+		audit string
+		want  string // "" means nothing invented
+	}{
+		{"run4 echo case: invented E_ code",
+			`El comando falló con E_ACCESDENIED al ejecutarlo`, audit, "e_accesdenied"},
+		{"run4 echo case: spaced-letters degradation",
+			`El sistema respondió A c c e s o d e n e g a d o`, audit, "acceso denegado"},
+		{"honest narration of the observed error",
+			`El error fue CreateProcess: The system cannot find the file specified`, audit, ""},
+		{"observed access-denied is not invented",
+			`El comando devolvió access denied`, `run_command audit cmd="x" error=sandbox: access denied`, ""},
+		{"no tool run, nothing to compare",
+			`Me dio acceso denegado`, "", ""},
+		{"invented denial over a clean run",
+			`Falló con acceso denegado`, `run_command audit cmd="echo" exit=0`, "acceso denegado"},
+	}
+	for _, c := range cases {
+		if got := inventedErrorNarration(strings.ToLower(c.reply), c.audit); got != c.want {
+			t.Errorf("%s: inventedErrorNarration = %q, want %q", c.name, got, c.want)
 		}
 	}
 }
