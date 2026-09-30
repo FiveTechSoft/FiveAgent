@@ -41,7 +41,7 @@ func TestOpenKnowledgeCreatesDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"people.md", "preferences.md", "workstreams.md"} {
+	for _, name := range []string{"people.md", "preferences.md", "workstreams.md", "learnings.md"} {
 		if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 			t.Errorf("missing default file %s", name)
 		}
