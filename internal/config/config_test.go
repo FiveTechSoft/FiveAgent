@@ -261,3 +261,38 @@ model:
 		t.Fatalf("error must name chat_template_kwargs: %v", err)
 	}
 }
+
+func TestSamplingValidation(t *testing.T) {
+	dir := t.TempDir()
+	write := func(body string) {
+		if err := os.WriteFile(filepath.Join(dir, "c.yml"), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("model:\n  base_url: http://x\n  name: m\nsampling:\n  tool_temperature: 3.0\n")
+	if _, err := Load(filepath.Join(dir, "c.yml")); err == nil || !strings.Contains(err.Error(), "sampling") {
+		t.Fatalf("tool_temperature 3.0 must fail validation, got %v", err)
+	}
+	write("model:\n  base_url: http://x\n  name: m\nsampling:\n  presence_penalty: -3.0\n")
+	if _, err := Load(filepath.Join(dir, "c.yml")); err == nil {
+		t.Fatal("presence_penalty -3.0 must fail validation")
+	}
+	write("model:\n  base_url: http://x\n  name: m\nsampling:\n  tool_temperature: 0.1\n  chat_temperature: 0.6\n  presence_penalty: 0.3\n")
+	cfg, err := Load(filepath.Join(dir, "c.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Sampling.ToolTemperature == nil || *cfg.Sampling.ToolTemperature != 0.1 ||
+		cfg.Sampling.ChatTemperature == nil || *cfg.Sampling.ChatTemperature != 0.6 ||
+		cfg.Sampling.PresencePenalty == nil || *cfg.Sampling.PresencePenalty != 0.3 {
+		t.Fatalf("sampling not parsed: %+v", cfg.Sampling)
+	}
+	write("model:\n  base_url: http://x\n  name: m\n")
+	cfg, err = Load(filepath.Join(dir, "c.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Sampling.ToolTemperature != nil || cfg.Sampling.ChatTemperature != nil || cfg.Sampling.PresencePenalty != nil {
+		t.Fatalf("unset sampling must stay nil: %+v", cfg.Sampling)
+	}
+}
