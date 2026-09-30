@@ -66,6 +66,11 @@ type chatRequest struct {
 	Model    string       `json:"model"`
 	Messages []Message    `json:"messages"`
 	Tools    []tools.Spec `json:"tools,omitempty"`
+	// Temperature and PresencePenalty are the stage 11a per-call
+	// sampling knobs; nil leaves them out of the body so the
+	// provider's defaults apply.
+	Temperature     *float64 `json:"temperature,omitempty"`
+	PresencePenalty *float64 `json:"presence_penalty,omitempty"`
 	// ChatTemplateKwargs carries template switches such as
 	// enable_thinking:false for reasoning models on SGLang/vLLM.
 	// Set it only for endpoints that accept it: strict servers may
@@ -163,15 +168,33 @@ type ollamaChatResponse struct {
 	} `json:"message"`
 }
 
+// CallOptions carries the per-call sampling knobs (stage 11a). Nil
+// fields are not sent.
+type CallOptions struct {
+	Temperature     *float64
+	PresencePenalty *float64
+}
+
 // Chat sends the conversation (and optional tool specs) and returns the
 // assistant message, which may carry content, tool calls, or both.
 func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spec) (Message, error) {
+	return c.ChatWithOptions(ctx, msgs, toolSpecs, nil)
+}
+
+// ChatWithOptions is Chat with per-call sampling (stage 11a): tool
+// rounds run cooler, final answers warmer. On Ollama's native route the
+// values ride the options map next to num_thread.
+func (c *Client) ChatWithOptions(ctx context.Context, msgs []Message, toolSpecs []tools.Spec, opts *CallOptions) (Message, error) {
 	if c.cfg.NumThread > 0 {
-		return c.ollamaNativeChat(ctx, msgs, toolSpecs)
+		return c.ollamaNativeChat(ctx, msgs, toolSpecs, opts)
 	}
 	var out Message
-	raw, err := c.post(ctx, c.cfg.BaseURL+"/chat/completions",
-		chatRequest{Model: c.cfg.Name, Messages: msgs, Tools: toolSpecs, ChatTemplateKwargs: c.cfg.ChatTemplateKwargs})
+	req := chatRequest{Model: c.cfg.Name, Messages: msgs, Tools: toolSpecs, ChatTemplateKwargs: c.cfg.ChatTemplateKwargs}
+	if opts != nil {
+		req.Temperature = opts.Temperature
+		req.PresencePenalty = opts.PresencePenalty
+	}
+	raw, err := c.post(ctx, c.cfg.BaseURL+"/chat/completions", req)
 	if err != nil {
 		return out, err
 	}
@@ -188,7 +211,7 @@ func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spe
 // ollamaNativeChat serves Chat when num_thread is set: only Ollama's
 // native /api/chat honors per-request options, so the request goes
 // there instead of the OpenAI-compatible endpoint.
-func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs []tools.Spec) (Message, error) {
+func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs []tools.Spec, opts *CallOptions) (Message, error) {
 	var out Message
 	url, ok := ollamaNativeChatURL(c.cfg.BaseURL)
 	if !ok {
@@ -198,12 +221,21 @@ func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs
 	if err != nil {
 		return out, &Failure{Kind: FailureMalformed, Err: err}
 	}
+	nativeOpts := map[string]any{"num_thread": c.cfg.NumThread}
+	if opts != nil {
+		if opts.Temperature != nil {
+			nativeOpts["temperature"] = *opts.Temperature
+		}
+		if opts.PresencePenalty != nil {
+			nativeOpts["presence_penalty"] = *opts.PresencePenalty
+		}
+	}
 	raw, err := c.post(ctx, url, ollamaChatRequest{
 		Model:    c.cfg.Name,
 		Messages: nativeMsgs,
 		Tools:    toolSpecs,
 		Stream:   false,
-		Options:  map[string]any{"num_thread": c.cfg.NumThread},
+		Options:  nativeOpts,
 	})
 	if err != nil {
 		return out, err
