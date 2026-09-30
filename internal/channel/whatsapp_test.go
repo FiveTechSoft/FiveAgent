@@ -7,10 +7,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -623,5 +626,70 @@ func TestSecurityWarnings(t *testing.T) {
 	w.cfg.AppSecret = "s"
 	if out := capture(w); strings.Contains(out, "WARNING") {
 		t.Errorf("unexpected WARNING when locked down: %q", out)
+	}
+}
+
+// Stage 7f: a 👎 reaction on a reply we sent is recorded as a learning
+// in the SENDER's memory scope, attributing the exact reply text; a
+// reaction to a message we did not send records nothing; a reaction
+// never runs the agent. The test fails if the learning never lands on
+// disk.
+func TestReactionFeedback(t *testing.T) {
+	root := t.TempDir()
+	w := newTestWhatsApp(t, quickCore{})
+	w.WithLearnings(root)
+	// The fake Graph API answers every send with id "wamid.fake", so
+	// sending a reply maps wamid.fake -> "ahí va".
+	w.process("34600111222", "wamid.inbound", "hola", "")
+
+	react := func(msgID, emoji string) {
+		body := fmt.Sprintf(`{"entry":[{"changes":[{"value":{"messages":[{"from":"34600111222","id":"wamid.r1","type":"reaction","reaction":{"message_id":%q,"emoji":%q}}]}}]}]}`, msgID, emoji)
+		req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
+		rec := httptest.NewRecorder()
+		w.mux.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("reaction webhook: got %d", rec.Code)
+		}
+	}
+	// A reaction to an unknown wamid records nothing.
+	react("wamid.stranger", "\U0001F44E")
+	if _, err := os.Stat(filepath.Join(root, "users")); !os.IsNotExist(err) {
+		t.Fatal("a reaction to an unknown message created a memory scope")
+	}
+	// A 👎 on the reply we sent lands as a negative learning.
+	react("wamid.fake", "\U0001F44E")
+	raw, err := os.ReadFile(filepath.Join(root, "users", "34600111222", "learnings.md"))
+	if err != nil {
+		t.Fatalf("no learnings.md in the sender scope: %v", err)
+	}
+	if !strings.Contains(string(raw), "negativo") || !strings.Contains(string(raw), "ahí va") {
+		t.Fatalf("learning missing feedback kind or reply excerpt:\n%s", raw)
+	}
+	// A 👍 on the same reply lands as positive feedback.
+	react("wamid.fake", "\U0001F44D")
+	raw, _ = os.ReadFile(filepath.Join(root, "users", "34600111222", "learnings.md"))
+	if !strings.Contains(string(raw), "positivo") {
+		t.Fatalf("positive feedback not recorded:\n%s", raw)
+	}
+	// An unrelated emoji records nothing new.
+	before := string(raw)
+	react("wamid.fake", "🐧")
+	raw, _ = os.ReadFile(filepath.Join(root, "users", "34600111222", "learnings.md"))
+	if string(raw) != before {
+		t.Fatal("an unrelated emoji changed the learnings file")
+	}
+}
+
+// Stage 7f: with no learnings root configured the capture is off and
+// reactions stay log-only (and never crash the webhook).
+func TestReactionFeedbackDisabled(t *testing.T) {
+	w := newTestWhatsApp(t, quickCore{})
+	w.process("34600111222", "wamid.inbound", "hola", "")
+	body := `{"entry":[{"changes":[{"value":{"messages":[{"from":"34600111222","id":"wamid.r1","type":"reaction","reaction":{"message_id":"wamid.fake","emoji":"👎"}}]}}]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/webhook/whatsapp", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	w.mux.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
 	}
 }
