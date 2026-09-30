@@ -91,6 +91,16 @@ aliases: [trabajo, proyectos, projects, tasks, tareas, work, ongoing]
 
 Ongoing work and its current state.
 `,
+	"learnings.md": `---
+id: learnings
+aliases: [aprendizajes, lessons, errores, mistakes, corrections, correcciones, feedback]
+---
+# Learnings
+
+Short self-critiques the agent writes when a task fails or the user
+corrects it (roadmap stage 7f), plus explicit reaction feedback. Read
+as data in later turns so the same mistake is not repeated.
+`,
 }
 
 // OpenKnowledge opens (or creates) the memory folder at dir. Missing
@@ -125,6 +135,9 @@ func OpenKnowledge(dir string) (*Knowledge, error) {
 	}
 	return k, nil
 }
+
+// Dir returns the knowledge folder path (the global scope root).
+func (k *Knowledge) Dir() string { return k.dir }
 
 // Append adds one bullet to the file with the given id and commits the
 // change. The id is the file name without extension ("people",
@@ -351,4 +364,19 @@ func nonEmptyLines(s string, n int) []string {
 		}
 	}
 	return out
+}
+
+// SafeUserDir maps a sender id (e.g. "34612345678" or a chat id) to a
+// folder name without path separators, for per-user memory scopes.
+func SafeUserDir(userID string) string {
+	r := strings.NewReplacer("/", "_", "\\", "_", "..", "_", ":", "_")
+	return r.Replace(userID)
+}
+
+// OpenUserScope opens the per-sender knowledge folder under
+// <root>/users/<safe-userID>: one sender's facts never surface for
+// another (stages 7n and 7g). The global scope root itself is opened
+// with OpenKnowledge.
+func OpenUserScope(root, userID string) (*Knowledge, error) {
+	return OpenKnowledge(filepath.Join(root, "users", SafeUserDir(userID)))
 }
