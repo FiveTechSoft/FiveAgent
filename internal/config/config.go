@@ -112,6 +112,10 @@ type Memory struct {
 	// knowledge is set; auto_index: false opts out. Cost: one small
 	// model call per non-trivial turn.
 	AutoIndex bool `yaml:"auto_index"`
+	// ConsolidateIdleMin is the stage 7l idle-time consolidation: after
+	// this many minutes without a turn, a background pass merges
+	// near-duplicate memory facts. 0 disables it.
+	ConsolidateIdleMin int `yaml:"consolidate_idle_minutes,omitempty"`
 }
 
 // Sandbox holds the per-user isolated execution settings. Enabled by
