@@ -211,3 +211,53 @@ func TestPruneReportsUnprunableConversation(t *testing.T) {
 		t.Fatalf("expected the honest note, got %v", notes)
 	}
 }
+
+// (8) Stage 7g: a successful compaction reports its summary to the
+// DigestSink exactly once; the marker fallback paths (no summarizer,
+// failing summarizer, under budget) never call it - writing "N turns
+// omitted" down would be noise, not memory.
+func TestPruneDigestSink(t *testing.T) {
+	var gotSummary string
+	var gotTurns, calls int
+	cfg := PruneConfig{
+		MaxChars:       8000,
+		ToolOutputKeep: 200,
+		Summarize: func(context.Context, []model.Message) (string, error) {
+			return "resumen de prueba", nil
+		},
+		DigestSink: func(summary string, turns int) {
+			calls++
+			gotSummary, gotTurns = summary, turns
+		},
+	}
+	cfg.Prune(context.Background(), scriptedConversation(60, "mi perro se llama Toby", 4000))
+	if calls != 1 {
+		t.Fatalf("digest sink calls = %d, want 1", calls)
+	}
+	if gotSummary != "resumen de prueba" || gotTurns == 0 {
+		t.Fatalf("digest sink got (%q, %d turns)", gotSummary, gotTurns)
+	}
+
+	// No summarizer: compaction happens via the marker, sink silent.
+	calls = 0
+	cfg.Summarize = nil
+	_, notes := cfg.Prune(context.Background(), scriptedConversation(60, "mi perro se llama Toby", 4000))
+	if calls != 0 {
+		t.Fatal("digest sink fired on the marker fallback")
+	}
+	joined := ""
+	for _, n := range notes {
+		joined += n
+	}
+	if !strings.Contains(joined, "omitted") {
+		t.Fatalf("expected the omission path, got %v", notes)
+	}
+
+	// Under budget: no pruning at all, sink silent.
+	calls = 0
+	PruneConfig{MaxChars: 1 << 20, DigestSink: cfg.DigestSink}.Prune(
+		context.Background(), scriptedConversation(5, "x", 100))
+	if calls != 0 {
+		t.Fatal("digest sink fired under budget")
+	}
+}
