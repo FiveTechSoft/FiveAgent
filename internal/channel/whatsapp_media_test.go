@@ -209,7 +209,7 @@ func TestMediaUploadAndSendByID(t *testing.T) {
 	}
 	graph.mu.Unlock()
 
-	if err := w.post(context.Background(), map[string]any{
+	if _, err := w.post(context.Background(), map[string]any{
 		"messaging_product": "whatsapp",
 		"to":                "34600123456",
 		"type":              "image",
