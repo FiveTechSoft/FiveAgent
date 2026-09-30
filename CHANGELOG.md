@@ -28,6 +28,12 @@ that run passes, the tag is cut and prebuilt binaries are published.
 - Tool calling through the OpenAI function-calling protocol.
 - Per-task model routing (first version): optional model override per
   request kind.
+- Per-request-kind sampling (stage 11a): `sampling.tool_temperature`
+  cools tool-calling rounds, `sampling.chat_temperature` warms the
+  final-answer retry, `sampling.presence_penalty` fights repetition
+  loops. Unset fields are not sent (provider defaults apply); values
+  outside the provider range fail config validation. On Ollama's native
+  route they ride the options map next to num_thread.
 - Tool-call repair and repetition guard: malformed calls get one
   corrected retry; repeated identical calls are refused.
 - Error-recovery classifier: one classified retry, then an honest
