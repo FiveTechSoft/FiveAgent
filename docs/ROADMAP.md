@@ -115,27 +115,35 @@ evidence that counts.
       data/memory, encryption at rest, and a full-person wipe path
       ("forget everything about me") - forget_memory removes single
       notes, but erasing a person entirely deserves its own flow.
-   k. **Frozen memory snapshot** (planned) - today recall runs per
-      turn (keyword/alias/FTS queries against the files). Add the
-      complementary path: at session start, inject the memory files
-      (or their digest) as a FROZEN snapshot in the system prompt -
-      mid-session writes hit disk but do not rewrite the prompt, so
-      the prefix stays byte-stable and cacheable, and the model keeps
-      a coherent "who is this person" picture without a recall hit.
-      Done when: a session starts with the snapshot injected, a
-      save_memory mid-session is recalled by query (not by prompt
-      rewrite), and the prefix hash of the system prompt is unchanged
-      after the write; the battery grows a "snapshot" case verifying
-      both.
-   l. **Idle-time consolidation** (planned) - when the agent is idle,
-      a background pass consolidates memory: merge near-duplicate
-      facts, re-file misplaced ones, age out stale entries, and
-      refresh the session digests. Zero latency cost in the user's
-      turn; the files stay the source of truth.
-      Done when: after a scripted day of conversations, an idle pass
-      merges the seeded duplicates and the next recall returns the
-      merged fact once; the battery grows an "idle-consolidation"
-      case verifying the merge and that no fact was lost.
+   k. **Frozen memory snapshot** (implemented, 2026-09-30, CI-tested) -
+      recall still runs per turn (keyword/alias queries against the
+      files), and the complementary path is live: at session start the
+      memory files are injected as a FROZEN snapshot in the system
+      prompt - mid-session writes hit disk but do not rewrite the
+      prompt, so the prefix stays byte-stable and cacheable, and the
+      model keeps a coherent "who is this person" picture without a
+      recall hit. The snapshot is capped (40 most recent bullets per
+      file, 6000 chars total: the same bounded-cost rule as recall)
+      and covers the global scope plus the sender's own scope, never
+      another sender's. Done when: (met) the battery's "snapshot" case
+      (evals/snapshot_test.go) proves a session starts with the
+      snapshot injected, a save_memory mid-session is recalled by
+      query, and the system-prompt prefix is BYTE-IDENTICAL after the
+      write (the M5 hard gate), plus a fresh session picks the new
+      fact up.
+   l. **Idle-time consolidation** (rules slice implemented, 2026-09-30,
+      CI-tested) - when the agent is idle (consolidate_idle_minutes in
+      the yml), a background pass consolidates memory: near-duplicate
+      bullets merge (a bullet whose normalized form is contained in a
+      longer one goes away; the longer one already says everything, so
+      no fact is lost), in the global scope and every open sender
+      scope. Zero latency cost in the user's turn; the files stay the
+      source of truth. Pending: aging out stale entries, re-filing
+      misplaced ones, digest refresh and the model summary pass.
+      Done when: (met for the rules slice) the battery's
+      "idle-consolidation" case (evals/consolidation_test.go) proves
+      an idle pass merges the seeded duplicates on its own, the next
+      recall returns the merged fact once, and no fact was lost.
    m. **Memory effectiveness metrics** (designed 2026-09-28, partially
       implemented) - memory quality as numbers, not anecdotes. Six
       metrics: M1 write-through rate (every recuerda: setup must leave
