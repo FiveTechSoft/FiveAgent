@@ -123,6 +123,26 @@ func (s *Service) MintReport(sender, title, content string) (link, pin string, e
 	return s.url(rec), pin, nil
 }
 
+// MintReportHTML is MintReport for runner-generated reports: the page
+// is trusted HTML built by the bot itself (tables, embedded charts),
+// never model- or user-supplied markup. Same signing, PIN and expiry
+// machinery; the model-facing make_report_link tool keeps the escaped
+// plain-text path.
+func (s *Service) MintReportHTML(sender, title, page string) (link, pin string, err error) {
+	rec, pin, err := s.newRecord("report", sender, title, "")
+	if err != nil {
+		return "", "", err
+	}
+	if err := os.WriteFile(s.pagePath(rec.ID), []byte(page), 0o600); err != nil {
+		return "", "", err
+	}
+	if err := s.saveRecord(rec); err != nil {
+		return "", "", err
+	}
+	s.logf("mint html report %q for %s (id %s)", title, sender, rec.ID)
+	return s.url(rec), pin, nil
+}
+
 // MintForm creates a sensitive-data form landing in vaultKey and
 // returns the link and its PIN for sender.
 func (s *Service) MintForm(sender, title, vaultKey string) (link, pin string, err error) {
