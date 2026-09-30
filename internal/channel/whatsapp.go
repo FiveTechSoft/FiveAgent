@@ -20,6 +20,7 @@ import (
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 	"github.com/FiveTechSoft/FiveAgent/internal/media"
+	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 )
 
 // whatsapp is the official WhatsApp Cloud API adapter.
@@ -53,6 +54,17 @@ type whatsapp struct {
 	// video extracts frames+audio from inbound videos (stage 25c);
 	// nil keeps the plain "[video]" announcement.
 	video media.VideoExtractor
+	// learningsRoot is the knowledge root for reaction feedback
+	// (stage 7f): a 👎/👍/❤️ on a reply is recorded as a learning in
+	// the SENDER's scope (users/<sender>/learnings.md), so one user's
+	// feedback never surfaces for another. Empty disables the capture.
+	learningsRoot string
+	// sent maps the wamid of each reply we sent to its text, so an
+	// inbound reaction can be attributed to the exact reply. Bounded:
+	// oldest entries are dropped past 500.
+	sentMu    sync.Mutex
+	sent      map[string]string
+	sentOrder []string
 }
 
 // queuedMsg is one inbound message waiting in a sender's burst.
@@ -282,10 +294,12 @@ func (w *whatsapp) inbound(rw http.ResponseWriter, r *http.Request) {
 				if m.Type == "reaction" {
 					// A reaction is feedback on a message, not a turn:
 					// never run the agent for it (it used to answer with
-					// a full model run). Structured capture is roadmap
-					// stage f (learnings).
+					// a full model run). 👎/👍/❤️ on a reply we sent are
+					// recorded as a learning in the sender's scope
+					// (stage 7f).
 					if m.Reaction != nil {
 						log.Printf("whatsapp: reaction %q to %s from %s (not a turn)", m.Reaction.Emoji, m.Reaction.MessageID, m.From)
+						w.recordFeedback(m.From, m.Reaction.Emoji, m.Reaction.MessageID)
 					}
 					continue
 				}
@@ -564,27 +578,98 @@ func (w *whatsapp) processBatch(from string, msgs []queuedMsg) {
 	}
 }
 
+// WithLearnings points the adapter at the knowledge root used for
+// reaction feedback (stage 7f). The method name is asserted through an
+// interface in main, so channels without the concept need nothing.
+func (w *whatsapp) WithLearnings(root string) { w.learningsRoot = root }
+
+// rememberSent records the wamid->text mapping of one outbound reply so
+// a later reaction can be attributed to it (stage 7f).
+func (w *whatsapp) rememberSent(id, text string) {
+	if id == "" {
+		return
+	}
+	w.sentMu.Lock()
+	defer w.sentMu.Unlock()
+	if w.sent == nil {
+		w.sent = map[string]string{}
+	}
+	if _, dup := w.sent[id]; !dup {
+		w.sentOrder = append(w.sentOrder, id)
+	}
+	w.sent[id] = text
+	for len(w.sentOrder) > 500 {
+		delete(w.sent, w.sentOrder[0])
+		w.sentOrder = w.sentOrder[1:]
+	}
+}
+
+// recordFeedback turns an inbound reaction into a learning (stage 7f):
+// 👎 is negative feedback, 👍/❤️ positive, on the exact reply the
+// reaction points at. Other emojis and reactions to messages we did not
+// send are not feedback we can attribute, so they are only logged. The
+// note lands in the sender's own memory scope, never the global one.
+func (w *whatsapp) recordFeedback(from, emoji, messageID string) {
+	var kind string
+	switch emoji {
+	case "👎":
+		kind = "negativo"
+	case "👍", "❤️", "❤":
+		kind = "positivo"
+	default:
+		return
+	}
+	if w.learningsRoot == "" {
+		return
+	}
+	w.sentMu.Lock()
+	excerpt, ok := w.sent[messageID]
+	w.sentMu.Unlock()
+	if !ok {
+		log.Printf("whatsapp: reaction %q to unknown message %s - no feedback recorded", emoji, messageID)
+		return
+	}
+	excerpt = strings.Join(strings.Fields(excerpt), " ")
+	if len(excerpt) > 120 {
+		excerpt = excerpt[:120] + "…"
+	}
+	kn, err := memory.OpenUserScope(w.learningsRoot, from)
+	if err != nil {
+		log.Printf("whatsapp: reaction feedback scope: %v", err)
+		return
+	}
+	entry := fmt.Sprintf("El usuario marcó mi respuesta como %s (%s): %q",
+		kind, time.Now().Format("2006-01-02"), excerpt)
+	if _, err := kn.Append("learnings", entry); err != nil {
+		log.Printf("whatsapp: reaction feedback: %v", err)
+		return
+	}
+	log.Printf("whatsapp: reaction feedback recorded (%s) for %s", kind, from)
+}
+
 // React sets the agent's reaction on a message. WhatsApp keeps one
 // reaction per user per message: a second reaction on the same message
 // replaces the first, and an empty emoji removes it.
 func (w *whatsapp) React(ctx context.Context, to, messageID, emoji string) error {
-	return w.post(ctx, map[string]any{
+	_, err := w.post(ctx, map[string]any{
 		"messaging_product": "whatsapp",
 		"recipient_type":    "individual",
 		"to":                to,
 		"type":              "reaction",
 		"reaction":          map[string]string{"message_id": messageID, "emoji": emoji},
 	})
+	return err
 }
 
 // markRead marks a message as read and shows the typing indicator.
 func (w *whatsapp) markRead(ctx context.Context, messageID string) error {
-	return w.post(ctx, map[string]any{
+	_, err := w.post(ctx, map[string]any{
 		"messaging_product": "whatsapp",
 		"status":            "read",
 		"message_id":        messageID,
 		"typing_indicator":  map[string]string{"type": "text"},
 	})
+	return err
 }
 
 // MountLinks serves the links handler (stage 24) on the same
@@ -659,10 +744,12 @@ func (w *whatsapp) sendReply(ctx context.Context, to, text, replyTo string, agen
 	if replyTo != "" {
 		payload["context"] = map[string]string{"message_id": replyTo}
 	}
-	if err := w.post(ctx, payload); err != nil {
+	msgID, err := w.post(ctx, payload)
+	if err != nil {
 		log.Printf("whatsapp: voice send failed (%v) - falling back to text", err)
 		return w.SendText(ctx, to, text, replyTo)
 	}
+	w.rememberSent(msgID, text)
 	return nil
 }
 
@@ -685,6 +772,8 @@ func extForMIME(mimeType string) string {
 }
 
 // SendText sends a text message. replyTo (a wamid) quotes that message.
+// A successful send is remembered (stage 7f) so a later reaction on it
+// can be attributed to this exact reply.
 func (w *whatsapp) SendText(ctx context.Context, to, text, replyToMessageID string) error {
 	payload := map[string]any{
 		"messaging_product": "whatsapp",
@@ -695,7 +784,12 @@ func (w *whatsapp) SendText(ctx context.Context, to, text, replyToMessageID stri
 	if replyToMessageID != "" {
 		payload["context"] = map[string]string{"message_id": replyToMessageID}
 	}
-	return w.post(ctx, payload)
+	id, err := w.post(ctx, payload)
+	if err != nil {
+		return err
+	}
+	w.rememberSent(id, text)
+	return nil
 }
 
 // SendMedia sends an image, audio, document or video hosted at link,
@@ -705,12 +799,13 @@ func (w *whatsapp) SendMedia(ctx context.Context, to, mediaType, link, caption s
 	if caption != "" && (mediaType == "image" || mediaType == "document" || mediaType == "video") {
 		body["caption"] = caption
 	}
-	return w.post(ctx, map[string]any{
+	_, err := w.post(ctx, map[string]any{
 		"messaging_product": "whatsapp",
 		"to":                to,
 		"type":              mediaType,
 		mediaType:           body,
 	})
+	return err
 }
 
 // SendTemplate sends an approved template (required outside the 24 h window).
@@ -729,12 +824,13 @@ func (w *whatsapp) SendTemplate(ctx context.Context, to, templateName, lang stri
 			"parameters": params,
 		}}
 	}
-	return w.post(ctx, map[string]any{
+	_, err := w.post(ctx, map[string]any{
 		"messaging_product": "whatsapp",
 		"to":                to,
 		"type":              "template",
 		"template":          tmpl,
 	})
+	return err
 }
 
 // UploadMedia uploads media bytes and returns the media id to send by id.
@@ -799,12 +895,13 @@ func (w *whatsapp) SendMediaBytes(ctx context.Context, to, mimeType, caption str
 	if caption != "" && kind != "audio" {
 		body["caption"] = caption
 	}
-	return w.post(ctx, map[string]any{
+	_, err = w.post(ctx, map[string]any{
 		"messaging_product": "whatsapp",
 		"to":                to,
 		"type":              kind,
 		kind:                body,
 	})
+	return err
 }
 
 // DownloadMedia fetches inbound media bytes (e.g. a voice note) by media id.
@@ -828,28 +925,38 @@ func (w *whatsapp) DownloadMedia(ctx context.Context, mediaID string) ([]byte, s
 }
 
 // post sends one payload to the messages endpoint.
-func (w *whatsapp) post(ctx context.Context, payload map[string]any) error {
+// post sends one payload to /messages and returns the wamid the Graph
+// API assigned ("" when the response carries none, e.g. mark-read).
+func (w *whatsapp) post(ctx context.Context, payload map[string]any) (string, error) {
 	b, err := json.Marshal(payload)
 	if err != nil {
-		return err
+		return "", err
 	}
 	url := fmt.Sprintf("%s/%s/messages", w.baseURL, w.cfg.PhoneNumberID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(b))
 	if err != nil {
-		return err
+		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+w.cfg.AccessToken)
 	resp, err := w.http.Do(req)
 	if err != nil {
-		return err
+		return "", err
 	}
 	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
 	if resp.StatusCode >= 300 {
-		raw, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("graph api: %s: %s", resp.Status, raw)
+		return "", fmt.Errorf("graph api: %s: %s", resp.Status, raw)
 	}
-	return nil
+	var ack struct {
+		Messages []struct {
+			ID string `json:"id"`
+		} `json:"messages"`
+	}
+	if err := json.Unmarshal(raw, &ack); err == nil && len(ack.Messages) > 0 {
+		return ack.Messages[0].ID, nil
+	}
+	return "", nil
 }
 
 // graphGet does an authenticated GET against the Graph API.
