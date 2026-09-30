@@ -42,6 +42,7 @@ type Knowledge struct {
 	mu   sync.Mutex
 	dir  string
 	repo *git.Repository
+	ix *ftsIndex // stage 7c: rebuildable FTS5 cache; nil = keyword path only
 }
 
 // File is one parsed memory file.
@@ -143,6 +144,9 @@ func OpenKnowledge(dir string) (*Knowledge, error) {
 			return nil, err
 		}
 	}
+	// Stage 7c: open the FTS5 cache (rebuilding it when the files
+	// drifted). A failure leaves ix nil and the keyword path serving.
+	k.openFTS()
 	return k, nil
 }
 
@@ -178,7 +182,10 @@ func (k *Knowledge) Append(id, entry string) (bool, error) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return false, err
 	}
-	return true, k.commit("memory: note in "+id, name)
+	if err := k.commit("memory: note in "+id, name); err != nil {
+		return true, err
+	}
+	return true, k.reindexLocked()
 }
 
 // Forget removes every bullet containing match (case-insensitive) from
@@ -210,7 +217,10 @@ func (k *Knowledge) Forget(id, match string) (int, error) {
 	if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
 		return 0, err
 	}
-	return removed, k.commit("memory: forget in "+id, name)
+	if err := k.commit("memory: forget in "+id, name); err != nil {
+		return removed, err
+	}
+	return removed, k.reindexLocked()
 }
 
 // Consolidate merges near-duplicate bullets in every file of the scope
@@ -270,6 +280,11 @@ func (k *Knowledge) Consolidate() (int, error) {
 		}
 		merged += len(drop)
 	}
+	if merged > 0 {
+		if err := k.reindexLocked(); err != nil {
+			return merged, err
+		}
+	}
 	return merged, nil
 }
 
@@ -297,6 +312,11 @@ func (k *Knowledge) Recall(query string) ([]FileHit, error) {
 	terms := queryTerms(query)
 	if len(terms) == 0 {
 		return nil, nil
+	}
+	// Stage 7c: the FTS5 cache serves first; on any index error the
+	// keyword path below answers, never worse than no index.
+	if hits, err := k.ftsHits(query, terms); err == nil {
+		return hits, nil
 	}
 	var hits []FileHit
 	for _, name := range k.fileNames() {
