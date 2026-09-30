@@ -55,6 +55,13 @@ type PruneConfig struct {
 	// Summarize compacts the middle turns into a short brief. When nil
 	// (or on error) the middle is replaced by an omission marker.
 	Summarize func(ctx context.Context, turns []model.Message) (string, error)
+	// DigestSink, when set, receives the summary each time step 2
+	// compacts middle turns successfully: the rolling session digest
+	// (stage 7g) persists it to memory, so detail dropped from the
+	// live history survives as recallable data. Never called on the
+	// marker fallback - nothing is summarized then, and writing down
+	// "N turns omitted" would be noise, not memory.
+	DigestSink func(summary string, turns int)
 }
 
 func (cfg PruneConfig) withDefaults() PruneConfig {
@@ -172,6 +179,9 @@ func (cfg PruneConfig) Prune(ctx context.Context, msgs []model.Message) ([]model
 			replacement = fmt.Sprintf("[Summary of %d earlier turns, made to fit the context budget: %s]",
 				len(middle), strings.TrimSpace(sum))
 			notes = append(notes, fmt.Sprintf("summarized %d middle turns (%d chars) with the auxiliary pass", len(middle), midChars))
+			if cfg.DigestSink != nil {
+				cfg.DigestSink(strings.TrimSpace(sum), len(middle))
+			}
 		} else {
 			notes = append(notes, "summarizer unavailable or failed; middle turns omitted instead")
 		}
