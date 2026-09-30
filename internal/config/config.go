@@ -37,6 +37,18 @@ type Model struct {
 	NumThread int `yaml:"num_thread,omitempty"`
 }
 
+// Sampling holds the stage 11a per-request-kind sampling parameters.
+// Small models need precision when they call tools and fluency when
+// they chat: ToolTemperature serves tool-calling rounds, ChatTemperature
+// the final answer. PresencePenalty pushes small models out of the
+// repetition loops they fall into. Unset fields are not sent, so the
+// provider's own defaults apply (adopt or drop by evals, never vibes).
+type Sampling struct {
+	ToolTemperature *float64 `yaml:"tool_temperature,omitempty"`
+	ChatTemperature *float64 `yaml:"chat_temperature,omitempty"`
+	PresencePenalty *float64 `yaml:"presence_penalty,omitempty"`
+}
+
 // Channel is one messaging channel's settings. The fields used depend on
 // the adapter: telegram uses bot_token; whatsapp (official Cloud API) uses
 // access_token, phone_number_id, verify_token and listen_addr.
@@ -259,6 +271,9 @@ type Config struct {
 	// Model for everything else. It inherits model.base_url, model.provider
 	// and model.api_key when omitted.
 	Coder Model `yaml:"coder,omitempty"`
+	// Sampling is the stage 11a per-request-kind sampling. Unset fields
+	// are not sent; the provider's defaults apply.
+	Sampling Sampling `yaml:"sampling,omitempty"`
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
@@ -409,6 +424,14 @@ func Load(path string) (*Config, error) {
 		}
 		if m.m.NumThread > 0 && len(m.m.ChatTemplateKwargs) > 0 {
 			return nil, fmt.Errorf("%s sets both num_thread (Ollama native route) and chat_template_kwargs (/v1 route); they travel on separate paths, keep one per model", m.label)
+		}
+		for _, t := range []*float64{c.Sampling.ToolTemperature, c.Sampling.ChatTemperature} {
+			if t != nil && (*t < 0 || *t > 2) {
+				return nil, fmt.Errorf("sampling temperatures must be between 0 and 2, got %g", *t)
+			}
+		}
+		if p := c.Sampling.PresencePenalty; p != nil && (*p < -2 || *p > 2) {
+			return nil, fmt.Errorf("sampling.presence_penalty must be between -2 and 2, got %g", *p)
 		}
 	}
 	return &c, nil
