@@ -40,8 +40,10 @@ evidence that counts.
    beyond the last 20 messages using plain markdown files with git as
    the source of truth: readable, versioned, no extra infrastructure,
    and an LLM reads markdown natively. It grows in stages:
-   a. **Minimal memory** (working) - three files: people.md,
-      preferences.md, workstreams.md, with a git commit on every write.
+   a. **Minimal memory** (working) - the files people.md,
+      preferences.md and workstreams.md, with a git commit on every
+      write (stages f and g later add learnings.md and digests.md to
+      the set).
       The model curates them through save_memory / forget_memory tools
       (duplicates are skipped) and every turn recalls from the files:
       memories are injected labeled as data, never instructions, and
@@ -59,16 +61,22 @@ evidence that counts.
       enters if real scale one day demands it.
    e. **Consolidation** - merge near-duplicate facts and age out stale
       ones; starts as rules plus a summary pass with the model itself.
-   f. **Episodic memory** - a learnings.md where the agent writes a
-      short self-critique in plain words when a task fails or the user
-      corrects it ("no, the other Taylor"), recalled as data in later
-      turns. User corrections are the evaluation signal, and in a chat
-      bot they come for free. Inbound emoji reactions are free feedback
-      too: keep the wamid-to-reply mapping at send time, record 👍/❤️
-      as positive and 👎 as negative feedback on that exact reply, and
-      feed it to learnings and eval scenarios. (Inbound reactions are
-      already intercepted before the agent: they never trigger a
-      turn.)
+   f. **Episodic memory** (implemented, 2026-09-30, CI-tested) - a
+      learnings.md where the agent writes a short self-critique in
+      plain words when a task fails or the user corrects it ("no, the
+      other Taylor"), recalled as data in later turns. User
+      corrections are the evaluation signal, and in a chat bot they
+      come for free. Shipped slice: the save_learning tool writes the
+      lesson through Knowledge.Append (deduped, capped, one plain
+      bullet); inbound emoji reactions are recorded too: the adapter
+      keeps the wamid-to-reply mapping at send time (bounded at 500),
+      a 👎/👍/❤️ on a reply we sent lands as a learning in the
+      SENDER's own scope (users/<sender>/learnings.md - one user's
+      feedback never surfaces for another), and reactions to messages
+      we did not send or with other emojis are logged only. (Inbound
+      reactions are intercepted before the agent: they never trigger
+      a turn.) Feeding learnings back into eval scenarios stays
+      pending.
    g. **Rolling session digest** - today the conversation history
       truncates to the last 20 messages, so old detail is lost unless
       the agent stored it. Before truncating, summarize the outgoing
