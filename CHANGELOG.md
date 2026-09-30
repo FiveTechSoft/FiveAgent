@@ -28,6 +28,14 @@ that run passes, the tag is cut and prebuilt binaries are published.
 - Tool calling through the OpenAI function-calling protocol.
 - Per-task model routing (first version): optional model override per
   request kind.
+- Battery run-6 packaging (stages 24a, 25e, 7m): the live runner
+  mints its run report through the make_report_link machinery
+  (MintReportHTML: signed link + PIN in the run log), the report's
+  pass-rate chart is the send_chart renderer's output embedded in the
+  page, and the runner supports the M2 deferred (pad_turns) and
+  restart (restart_before) recall depths plus the M2c post-restart
+  resurrection check and M3 on-disk erase metric. Battery grows to
+  113 prompts.
 - Per-request-kind sampling (stage 11a): `sampling.tool_temperature`
   cools tool-calling rounds, `sampling.chat_temperature` warms the
   final-answer retry, `sampling.presence_penalty` fights repetition
