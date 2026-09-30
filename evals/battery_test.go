@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
+	"github.com/FiveTechSoft/FiveAgent/internal/batteryreport"
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
+	"github.com/FiveTechSoft/FiveAgent/internal/links"
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
@@ -36,6 +38,9 @@ type batteryPrompt struct {
 	NeedsSandbox    bool     `yaml:"needs_sandbox"`  // needs a run_command backend; skipped when unavailable
 	AuditContains   string   `yaml:"audit_contains"` // after the turn, the audit log must hold a run_command line with this token
 	MemoryWrites    string   `yaml:"memory_writes"`  // after the turn, the memory files on disk must hold this token (metric M1, write-through)
+	MemoryErased    string   `yaml:"memory_erased"`  // after the turn, the memory files on disk must NOT hold this token (metric M3, effective forgetting on disk)
+	RestartBefore   bool     `yaml:"restart_before"` // rebuild the agent (fresh history, same memory) before this prompt (metric M2, restart depth)
+	PadTurns        int      `yaml:"pad_turns"`      // unscored filler turns before this prompt, pushing earlier setups past the history window (metric M2, deferred depth)
 	Source          string   `yaml:"source"`
 }
 
@@ -70,7 +75,7 @@ func TestBatteryFileValidates(t *testing.T) {
 			if strings.TrimSpace(p.Prompt) == "" {
 				t.Errorf("%s[%d]: empty prompt", cat, i)
 			}
-			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup && p.AuditContains == "" && p.MemoryWrites == "" {
+			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup && p.AuditContains == "" && p.MemoryWrites == "" && p.MemoryErased == "" {
 				t.Errorf("%s[%d]: no expectation (must_contain, must_not_contain, abstain_*, setup, audit_contains, memory_writes)", cat, i)
 			}
 		}
@@ -479,6 +484,16 @@ func (j *judgeConfig) score(ctx context.Context, prompt, reference, candidate st
 // model server and prints the per-category report. Env-gated: needs a
 // running model. The gate fails ONLY on hallucinations (invented
 // tokens); misses and abstentions are reported as metrics.
+// fillerPrompts pad the session before a pad_turns recall prompt:
+// short, memory-neutral turns whose only job is to push earlier setups
+// past the 20-message history window (metric M2, deferred depth).
+var fillerPrompts = []string{
+	"¿cuánto es 2 + 2?", "¿cuánto es 3 + 5?", "¿cuánto es 6 x 7?",
+	"dime una vocal", "¿cuánto es 10 - 4?", "¿cuánto es 9 + 1?",
+	"di un día de la semana", "¿cuánto es 8 / 2?", "di un mes del año",
+	"¿cuánto es 5 + 5?", "di un color primario", "¿cuánto es 12 - 3?",
+}
+
 func TestLiveBattery(t *testing.T) {
 	if os.Getenv("FIVEAGENT_EVAL_LIVE") != "1" {
 		t.Skip("live battery: set FIVEAGENT_EVAL_LIVE=1 (needs a running model server)")
@@ -514,11 +529,6 @@ func TestLiveBattery(t *testing.T) {
 	// grounded answers beat both guessing and needless abstention.
 	tl = append(tl, tools.WebSearch{P: tools.DuckDuckGo{}})
 
-	a := agent.New(model.NewOpenAICompat(cfg.Model), store,
-		tools.NewRegistry(tl...),
-		agent.SystemPrompt(cfg))
-	a.WithKnowledge(kn)
-	a.WithSkills(agent.DomainSkill())
 	// Stage 12: every battery run writes one JSONL trajectory per case
 	// plus a tool-stats summary, and the previous run's artifacts are
 	// compared with this one's. The live run's dataset accrues value
@@ -531,24 +541,10 @@ func TestLiveBattery(t *testing.T) {
 	_ = os.RemoveAll(runDir)
 	curCase := ""
 	runStats := map[string]*trajectory.Stat{}
-	if tl12, err := trajectory.Open(runDir, 0, 0); err != nil {
-		t.Logf("trajectory logging disabled: %v", err)
+	tl12, tlerr := trajectory.Open(runDir, 0, 0)
+	if tlerr != nil {
+		t.Logf("trajectory logging disabled: %v", tlerr)
 	} else {
-		a.WithTrajectory(func(r trajectory.Record) {
-			if err := tl12.LogCase(curCase, r); err != nil {
-				t.Logf("trajectory log: %v", err)
-			}
-			for name, st := range r.ToolStats {
-				acc := runStats[name]
-				if acc == nil {
-					acc = &trajectory.Stat{}
-					runStats[name] = acc
-				}
-				acc.Calls += st.Calls
-				acc.OK += st.OK
-				acc.Fail += st.Fail
-			}
-		})
 		t.Cleanup(func() {
 			if b, err := json.MarshalIndent(runStats, "", "  "); err == nil {
 				if err := os.WriteFile(filepath.Join(runDir, "tool-stats.json"), b, 0o600); err != nil {
@@ -575,12 +571,45 @@ func TestLiveBattery(t *testing.T) {
 	// measures the same thing; summarizer QUALITY is covered in CI by
 	// the stage-15 scripted test (61 turns). What stops being measured
 	// live is summary quality drift.
-	if os.Getenv("FIVEAGENT_EVAL_NO_SUMMARIZER") == "1" {
-		a.WithPruning(agent.PruneConfig{Summarize: func(ctx context.Context, turns []model.Message) (string, error) {
-			return "", fmt.Errorf("summarizer disabled by FIVEAGENT_EVAL_NO_SUMMARIZER (battery runner knob)")
-		}})
+	noSummarizer := os.Getenv("FIVEAGENT_EVAL_NO_SUMMARIZER") == "1"
+	if noSummarizer {
 		t.Logf("FIVEAGENT_EVAL_NO_SUMMARIZER=1: middle compaction uses the deterministic omission marker")
 	}
+	// buildAgent constructs a fully wired agent on the given history
+	// store. A restart_before prompt calls it with a FRESH store (and
+	// the same knowledge dir): a real session restart - the history is
+	// gone, only what reached the memory files survives (metric M2).
+	buildAgent := func(st memory.Store) *agent.Agent {
+		na := agent.New(model.NewOpenAICompat(cfg.Model), st,
+			tools.NewRegistry(tl...),
+			agent.SystemPrompt(cfg))
+		na.WithKnowledge(kn)
+		na.WithSkills(agent.DomainSkill())
+		if tl12 != nil {
+			na.WithTrajectory(func(r trajectory.Record) {
+				if err := tl12.LogCase(curCase, r); err != nil {
+					t.Logf("trajectory log: %v", err)
+				}
+				for name, st := range r.ToolStats {
+					acc := runStats[name]
+					if acc == nil {
+						acc = &trajectory.Stat{}
+						runStats[name] = acc
+					}
+					acc.Calls += st.Calls
+					acc.OK += st.OK
+					acc.Fail += st.Fail
+				}
+			})
+		}
+		if noSummarizer {
+			na.WithPruning(agent.PruneConfig{Summarize: func(ctx context.Context, turns []model.Message) (string, error) {
+				return "", fmt.Errorf("summarizer disabled by FIVEAGENT_EVAL_NO_SUMMARIZER (battery runner knob)")
+			}})
+		}
+		return na
+	}
+	a := buildAgent(store)
 
 	// Capture the run_command audit lines so audit_contains cases can
 	// prove the execution left its line; keep them on stderr too.
@@ -599,13 +628,35 @@ func TestLiveBattery(t *testing.T) {
 	weekday := spanishWeekdays[time.Now().Weekday()]
 
 	hallucinations := 0
+	var stats []batteryreport.CategoryStat
+	restarts := 0
 	for _, cat := range cats {
 		pass, abst, halluc, fail := 0, 0, 0, 0
 		writes, writeTotal := 0, 0
+		erased, eraseTotal := 0, 0
 		jscore, jcount := 0, 0
 		for i, p := range bf.Categories[cat] {
 			curCase = fmt.Sprintf("%s-%d", cat, i)
 			prompt := strings.ReplaceAll(p.Prompt, "{{weekday}}", weekday)
+			// M2 restart depth: a fresh session over the same memory.
+			// Nothing but the memory files survives.
+			if p.RestartBefore {
+				restarts++
+				rs, err := memory.OpenJSON(filepath.Join(dir, fmt.Sprintf("history-restart-%d.json", restarts)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				a = buildAgent(rs)
+				t.Logf("RESTART [%s] %q: fresh history, same memory (M2 restart depth)", cat, prompt)
+			}
+			// M2 deferred depth: unscored filler turns push earlier
+			// setups past the history window, so recall has to come
+			// from the memory files, not from the live context.
+			for f := 0; f < p.PadTurns; f++ {
+				if _, err := a.Handle(t.Context(), "whatsapp", "battery", fillerPrompts[f%len(fillerPrompts)]); err != nil {
+					t.Fatalf("pad turn %d before %q: %v", f, prompt, err)
+				}
+			}
 			mustContain := make([]string, len(p.MustContain))
 			for i, m := range p.MustContain {
 				mustContain[i] = strings.ToLower(strings.ReplaceAll(m, "{{weekday}}", weekday))
@@ -626,6 +677,16 @@ func TestLiveBattery(t *testing.T) {
 					writes++
 				} else {
 					t.Logf("WRITE-MISS [%s] %q: memory files hold no %q after the turn", cat, prompt, p.MemoryWrites)
+				}
+			}
+			// M3 on disk: after an olvida: turn the fact must be GONE
+			// from the files, not just from the reply. Metric, like M1.
+			if p.MemoryErased != "" {
+				eraseTotal++
+				if memoryFilesContain(filepath.Join(dir, "memory"), p.MemoryErased) {
+					t.Logf("ERASE-MISS [%s] %q: memory files still hold %q after the turn", cat, prompt, p.MemoryErased)
+				} else {
+					erased++
 				}
 			}
 			if p.Setup {
@@ -693,11 +754,48 @@ func TestLiveBattery(t *testing.T) {
 		if writeTotal > 0 {
 			t.Logf("METRIC memory-write %s: %d/%d setups reached the disk (M1 write-through)", cat, writes, writeTotal)
 		}
+		if eraseTotal > 0 {
+			t.Logf("METRIC memory-erase %s: %d/%d olvida: turns left the disk clean (M3 effective forgetting)", cat, erased, eraseTotal)
+		}
+		stats = append(stats, batteryreport.CategoryStat{
+			Name: cat, Pass: pass, Abstention: abst, Miss: fail, Halluc: halluc,
+			Total: len(bf.Categories[cat]), Writes: writes, WriteTotal: writeTotal,
+			JudgeScore: jscore, JudgeCount: jcount,
+		})
 		if judge != nil && jcount > 0 {
 			t.Logf("METRIC judge %s: %d/%d points (%.0f%% of reference model %s)",
 				cat, jscore, 2*jcount, 100*float64(jscore)/float64(2*jcount), judge.name)
 		}
 	}
+	// Stage 24a first use case + stage 25e battery charts: the run
+	// report is minted through the SAME signed-link machinery the
+	// make_report_link tool uses, with the pass-rate chart rendered by
+	// the send_chart renderer. The operator gets link + PIN in the log.
+	title := fmt.Sprintf("Batería FiveAgent - %s", time.Now().Format("2006-01-02 15:04"))
+	page, err := batteryreport.RenderHTML(title, modelName, time.Now(), stats)
+	if err != nil {
+		t.Fatalf("battery report: %v", err)
+	}
+	linksDir := os.Getenv("FIVEAGENT_EVAL_LINKS_DIR")
+	if linksDir == "" {
+		linksDir = "data/links"
+	}
+	linksBase := os.Getenv("FIVEAGENT_EVAL_LINKS_BASE_URL")
+	if linksBase == "" {
+		linksBase = "http://localhost:8080"
+	}
+	lsvc, err := links.Open(filepath.Join(linksDir, "secret"), linksBase,
+		filepath.Join(linksDir, "pages"), filepath.Join(linksDir, "vault"), log.Printf)
+	if err != nil {
+		t.Fatalf("links service: %v", err)
+	}
+	link, pin, err := lsvc.MintReportHTML("battery", title, page)
+	if err != nil {
+		t.Fatalf("mint battery report: %v", err)
+	}
+	t.Logf("REPORT link: %s", link)
+	t.Logf("REPORT pin: %s", pin)
+	fmt.Printf("battery report: %s (PIN %s)\n", link, pin)
 	fmt.Printf("battery done, hallucinations: %d\n", hallucinations)
 }
 
