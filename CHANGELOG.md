@@ -28,6 +28,11 @@ that run passes, the tag is cut and prebuilt binaries are published.
 - Tool calling through the OpenAI function-calling protocol.
 - Per-task model routing (first version): optional model override per
   request kind.
+- Memory stage 7c: recall runs on an embedded SQLite FTS5 index
+  (modernc.org/sqlite, pure Go, cgo-free releases) as a rebuildable
+  cache over the markdown files - the files stay the source of truth,
+  the index rebuilds on drift and on every write, and any index
+  failure falls back to the keyword path.
 - Memory stages 7k and 7l: a session starts with a frozen memory
   snapshot in the system prompt (byte-stable prefix; mid-session
   writes reach the model through recall, never a prompt rewrite - the
