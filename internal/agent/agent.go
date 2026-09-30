@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
@@ -126,6 +129,12 @@ type Agent struct {
 	sysPrompt  string
 	pruner     PruneConfig // context pruning (stage 15); zero value takes the defaults
 	skills     []Skill     // keyword-triggered context (stage 17)
+	// scopes caches per-sender knowledge folders (same users/<id>
+	// layout as the stage 7n indexer) for the rolling session digest
+	// (stage 7g). When the indexer runs it owns the scope instances;
+	// without it the agent opens them itself, on first real use.
+	scopeMu sync.Mutex
+	scopes  map[string]*memory.Knowledge
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
@@ -212,6 +221,41 @@ func (a *Agent) summarizeTurns(ctx context.Context, turns []model.Message) (stri
 		return "", err
 	}
 	return ans.Content, nil
+}
+
+// userScope returns the sender's per-user memory scope, sharing the
+// indexer's instances when it runs (one writer per folder). With no
+// indexer, create=false opens the scope only when it already exists -
+// recall never creates empty folders; create=true is the stage 7g
+// digest write path, where the folder appearing on first real use is
+// the design, not debt.
+func (a *Agent) userScope(userID string, create bool) (*memory.Knowledge, error) {
+	if a.indexer != nil {
+		return a.indexer.userScope(userID)
+	}
+	a.scopeMu.Lock()
+	defer a.scopeMu.Unlock()
+	if k, ok := a.scopes[userID]; ok {
+		return k, nil
+	}
+	if a.knowledge == nil {
+		return nil, fmt.Errorf("no knowledge store")
+	}
+	dir := filepath.Join(a.knowledge.Dir(), "users", memory.SafeUserDir(userID))
+	if !create {
+		if _, err := os.Stat(dir); err != nil {
+			return nil, err
+		}
+	}
+	k, err := memory.OpenKnowledge(dir)
+	if err != nil {
+		return nil, err
+	}
+	if a.scopes == nil {
+		a.scopes = map[string]*memory.Knowledge{}
+	}
+	a.scopes[userID] = k
+	return k, nil
 }
 
 // recallNote builds the memory block injected next to the system prompt.
@@ -432,14 +476,15 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	}
 	if a.knowledge != nil {
 		hits, _ := a.knowledge.Recall(text)
-		// Stage 7n: the sender's own auto-indexed scope merges into
-		// recall. Another sender's scope is never opened here - one
-		// user's indexed facts never surface for another.
-		if a.indexer != nil {
-			if uk, err := a.indexer.userScope(canonUser); err == nil {
-				if uhits, err := uk.Recall(text); err == nil {
-					hits = append(hits, uhits...)
-				}
+		// The sender's own scope merges into recall (stage 7n indexed
+		// facts, stage 7f reaction feedback, stage 7g digests). Another
+		// sender's scope is never opened here - one user's memories
+		// never surface for another. With the indexer off, the scope is
+		// opened only when it already exists: recall never creates
+		// empty folders.
+		if uk, err := a.userScope(canonUser, a.indexer != nil); err == nil {
+			if uhits, err := uk.Recall(text); err == nil {
+				hits = append(hits, uhits...)
 			}
 		}
 		if note := recallNote(hits); note != "" {
