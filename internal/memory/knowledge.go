@@ -213,6 +213,66 @@ func (k *Knowledge) Forget(id, match string) (int, error) {
 	return removed, k.commit("memory: forget in "+id, name)
 }
 
+// Consolidate merges near-duplicate bullets in every file of the scope
+// (stage 7l, rules slice): when one normalized bullet contains another,
+// the longer one already says everything the shorter one says, so the
+// shorter one goes and no fact is lost. Headings and headers are never
+// touched. One commit per changed file. Returns the bullets merged away.
+// Aging out, re-filing and the model summary pass stay pending.
+func (k *Knowledge) Consolidate() (int, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	merged := 0
+	for _, name := range k.fileNames() {
+		raw, err := os.ReadFile(filepath.Join(k.dir, name))
+		if err != nil {
+			continue
+		}
+		lines := strings.Split(string(raw), "\n")
+		type bullet struct {
+			idx  int
+			norm string
+		}
+		var bs []bullet
+		for i, ln := range lines {
+			if t := strings.TrimSpace(ln); strings.HasPrefix(t, "- ") {
+				bs = append(bs, bullet{i, normalizeNote(strings.TrimPrefix(t, "- "))})
+			}
+		}
+		drop := map[int]bool{}
+		for i := 0; i < len(bs); i++ {
+			for j := 0; j < len(bs); j++ {
+				if i == j || bs[i].norm == "" || bs[j].norm == "" || drop[bs[j].idx] {
+					continue
+				}
+				switch {
+				case bs[i].norm == bs[j].norm && i < j:
+					drop[bs[j].idx] = true // exact duplicate: the first stays
+				case len(bs[i].norm) > len(bs[j].norm) && strings.Contains(bs[i].norm, bs[j].norm):
+					drop[bs[j].idx] = true // the longer one already says it all
+				}
+			}
+		}
+		if len(drop) == 0 {
+			continue
+		}
+		var kept []string
+		for i, ln := range lines {
+			if !drop[i] {
+				kept = append(kept, ln)
+			}
+		}
+		if err := os.WriteFile(filepath.Join(k.dir, name), []byte(strings.Join(kept, "\n")), 0o600); err != nil {
+			return merged, err
+		}
+		if err := k.commit("memory: consolidate "+name, name); err != nil {
+			return merged, err
+		}
+		merged += len(drop)
+	}
+	return merged, nil
+}
+
 // normalizeNote reduces a note to a comparable form: lowercase, single
 // spaces, no trailing punctuation.
 func normalizeNote(s string) string {
@@ -289,6 +349,43 @@ func (k *Knowledge) Recall(query string) ([]FileHit, error) {
 		hits = hits[:5]
 	}
 	return hits, nil
+}
+
+// Snapshot renders the whole scope as one frozen block for the stage
+// 7k session snapshot: every file's most recent bullets (maxPerFile
+// per file - the same bounded-cost rule as recall), capped at maxChars
+// total. Empty files are skipped; empty memory yields "". Deterministic:
+// same files on disk, same block, byte for byte (the M5 gate relies on
+// it). Only bullets ride: headers and alias lines are scaffolding.
+func (k *Knowledge) Snapshot(maxPerFile, maxChars int) string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	var b strings.Builder
+	for _, name := range k.fileNames() {
+		f, err := k.readFile(name)
+		if err != nil {
+			continue
+		}
+		var lines []string
+		for _, ln := range strings.Split(f.Body, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(ln), "- ") {
+				lines = append(lines, strings.TrimSpace(ln))
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		if len(lines) > maxPerFile {
+			lines = lines[len(lines)-maxPerFile:]
+		}
+		for _, ln := range lines {
+			if b.Len()+len(ln)+len(f.ID)+8 > maxChars {
+				return b.String()
+			}
+			b.WriteString("[" + f.ID + "] " + ln + "\n")
+		}
+	}
+	return b.String()
 }
 
 // commit stages the named files and commits them as the agent.
