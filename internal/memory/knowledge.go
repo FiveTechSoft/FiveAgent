@@ -101,6 +101,16 @@ Short self-critiques the agent writes when a task fails or the user
 corrects it (roadmap stage 7f), plus explicit reaction feedback. Read
 as data in later turns so the same mistake is not repeated.
 `,
+	"digests.md": `---
+id: digests
+aliases: [resumen, resúmenes, summaries, digest, sesiones, sessions, conversaciones]
+---
+# Session digests
+
+Rolling summaries of the conversation turns that context pruning
+compacted away (roadmap stage 7g): detail dropped from the live
+history survives here as data, recallable in later turns.
+`,
 }
 
 // OpenKnowledge opens (or creates) the memory folder at dir. Missing
