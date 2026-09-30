@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 )
@@ -105,4 +106,59 @@ func (t ForgetMemory) Execute(_ context.Context, args json.RawMessage) (string, 
 		return "nothing matched", nil
 	}
 	return fmt.Sprintf("forgot %d entries", n), nil
+}
+
+// SaveLearning lets the model record one short self-critique in the
+// learnings file (roadmap stage 7f): when a task fails or the user
+// corrects the agent, the lesson is written down in plain words so the
+// same mistake is not repeated in later turns.
+type SaveLearning struct {
+	K *memory.Knowledge
+}
+
+func (t SaveLearning) Name() string { return "save_learning" }
+
+func (t SaveLearning) Description() string {
+	return "Record one short lesson about your own behavior in long-term memory. " +
+		"Use it when a task fails or the user corrects you: write in plain words " +
+		"what went wrong and what to do differently, so the same mistake is not " +
+		"repeated. Not for facts about the user (use save_memory for those). " +
+		"Duplicates are skipped automatically."
+}
+
+func (t SaveLearning) Parameters() json.RawMessage {
+	return json.RawMessage(`{
+		"type": "object",
+		"properties": {
+			"entry": {
+				"type": "string",
+				"description": "One short lesson, e.g. 'When asked for the other Taylor, ask which one instead of guessing'."
+			}
+		},
+		"required": ["entry"]
+	}`)
+}
+
+func (t SaveLearning) Execute(_ context.Context, args json.RawMessage) (string, error) {
+	var a struct {
+		Entry string `json:"entry"`
+	}
+	if err := json.Unmarshal(args, &a); err != nil {
+		return "", fmt.Errorf("save_learning: bad arguments: %w", err)
+	}
+	entry := strings.Join(strings.Fields(a.Entry), " ")
+	if len(entry) < 8 {
+		return "error: a lesson needs at least a few words", nil
+	}
+	if len(entry) > 300 {
+		entry = entry[:300]
+	}
+	added, err := t.K.Append("learnings", entry)
+	if err != nil {
+		return "", err
+	}
+	if !added {
+		return "already stored", nil
+	}
+	return "saved", nil
 }
