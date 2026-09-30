@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/agent"
 	"github.com/FiveTechSoft/FiveAgent/internal/channel"
@@ -485,6 +486,10 @@ func main() {
 	}
 	if kn != nil {
 		core.WithKnowledge(kn)
+		if cfg.Memory.ConsolidateIdleMin > 0 {
+			core.WithConsolidation(time.Duration(cfg.Memory.ConsolidateIdleMin) * time.Minute)
+			log.Printf("memory idle consolidation: every %d min of idle (stage 7l)", cfg.Memory.ConsolidateIdleMin)
+		}
 		if cfg.Memory.AutoIndex {
 			core.WithIndexer(agent.NewIndexer(mdl, cfg.Memory.Knowledge))
 			log.Printf("memory auto-indexing: on (per-sender scopes under %s/users/)", cfg.Memory.Knowledge)
