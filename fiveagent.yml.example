@@ -13,6 +13,10 @@ model:
 # Optional: a second model for code-heavy requests. When set, the agent
 # auto-routes: messages that look like code go here, everything else to
 # model above. base_url, provider and api_key are inherited from model if omitted.
+# sampling:                # Stage 11a: per-request-kind sampling. Unset fields keep provider defaults.
+#   tool_temperature: 0.1  # tool-calling rounds run cooler: precision over variety for JSON arguments.
+#   chat_temperature: 0.6  # final answers run warmer: fluency for the user-facing reply.
+#   presence_penalty: 0.3  # pushes small models out of repetition loops; range -2..2.
 # coder:
 #   name: qwen3.8:27b    # or deepseek-chat, gpt-4o-mini, ...
 
