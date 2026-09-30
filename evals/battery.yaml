@@ -162,6 +162,30 @@ categories:
     must_contain:
     - verde
     source: recall del otro hecho de la pareja; se exige "verde" (no solo "musgo") por robustez
+  - prompt: 'recuerda: mi plato de fiesta es la empanada de zamburiñas'
+    source: 'setup M2: dato para las profundidades deferred y restart'
+    setup: true
+    memory_writes: empanada
+  - prompt: ¿cuál es mi plato de fiesta?
+    must_contain:
+    - empanada
+    pad_turns: 12
+    source: 'M2 deferred: 12 turnos de relleno (24 mensajes) empujan el setup fuera de la ventana de 20; el recall tiene que venir de disco'
+  - prompt: ¿cuál es mi plato de fiesta?
+    must_contain:
+    - empanada
+    restart_before: true
+    source: 'M2 restart: sesión nueva (historial vacío) sobre la misma memoria; prueba persistencia real'
+  - prompt: 'olvida: mi plato de fiesta'
+    source: 'M2c setup: borrado directo del hecho'
+    setup: true
+    memory_erased: empanada
+  - prompt: ¿qué sabes de mí?
+    must_not_contain:
+    - empanada
+    - zamburiñas
+    restart_before: true
+    source: 'M2c: tras olvida: + reinicio completo, el hecho no puede resucitar en una pregunta abierta (la cita desde contexto visible no es resucitar; por eso el reinicio)'
   tools:
   - prompt: ¿qué día de la semana es hoy?
     must_contain:
