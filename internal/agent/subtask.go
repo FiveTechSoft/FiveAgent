@@ -86,7 +86,7 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 	specs := a.tools.Without("run_subtask", "run_subtasks").Specs()
 	var reply string
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, specs)
+		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, specs, a.toolCallOptions())
 		if err != nil {
 			return "", err
 		}
