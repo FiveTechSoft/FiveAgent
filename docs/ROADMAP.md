@@ -268,12 +268,17 @@ evidence that counts.
       the battery - prompts the local model used to fail pass after
       their example enters the library, and examples that do not move
       the number are removed.
-11. **Model tuning** (planned) - get the most out of the local model,
+11. **Model tuning** (in progress) - get the most out of the local model,
    each step adopted or dropped by evals, never vibes, roughly in
    cost/benefit order:
-   a. **Sampling parameters** - low temperature for tool calls and
-      facts, higher for chat; presence_penalty against the repetition
-      loops small models fall into.
+   a. **Sampling parameters** (done) - low temperature for tool calls
+      and facts, higher for chat; presence_penalty against the
+      repetition loops small models fall into. Config `sampling:` with
+      `tool_temperature` / `chat_temperature` / `presence_penalty`;
+      unset fields are not sent, so provider defaults apply. The
+      battery proves the wire-up: tool rounds carry tool_temperature,
+      the no-tools answer retry carries chat_temperature, and a config
+      without sampling sends neither key.
    b. **Structured outputs** - force a JSON schema on tool calls
       (Ollama supports it): turns "almost always parses" into
       "always parses" for a small model.
