@@ -456,6 +456,23 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	if pruner.Summarize == nil {
 		pruner.Summarize = a.summarizeTurns
 	}
+	// Stage 7g: when pruning compacts middle turns, the summary also
+	// lands in the sender's digests.md - detail dropped from the live
+	// history survives as recallable memory.
+	if a.knowledge != nil {
+		pruner.DigestSink = func(summary string, turns int) {
+			uk, err := a.userScope(canonUser, true)
+			if err != nil {
+				log.Printf("agent: session digest scope: %v", err)
+				return
+			}
+			entry := fmt.Sprintf("Session digest %s (%d compacted turns): %s",
+				time.Now().Format("2006-01-02"), turns, cutRunes(summary, 800))
+			if _, err := uk.Append("digests", entry); err != nil {
+				log.Printf("agent: session digest: %v", err)
+			}
+		}
+	}
 	hmsgs, pruneNotes := pruner.Prune(ctx, hmsgs)
 	for _, n := range pruneNotes {
 		log.Printf("agent: context pruning: %s", n)
