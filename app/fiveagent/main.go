@@ -427,7 +427,7 @@ func main() {
 			log.Printf("long-term memory disabled: %v", err)
 			kn = nil
 		} else {
-			tl = append(tl, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn})
+			tl = append(tl, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn}, tools.SaveLearning{K: kn})
 			log.Printf("long-term memory: %s", cfg.Memory.Knowledge)
 		}
 	}
@@ -498,6 +498,16 @@ func main() {
 	defer stop()
 
 	chans = channel.Build(cfg, core)
+	// Stage 7f: reaction feedback (👎/👍/❤️ on a reply) is recorded as
+	// a learning in the sender's own memory scope. Only channels with
+	// the concept get the root; the rest need nothing.
+	if kn != nil {
+		for _, ch := range chans {
+			if wl, ok := ch.(interface{ WithLearnings(string) }); ok {
+				wl.WithLearnings(cfg.Memory.Knowledge)
+			}
+		}
+	}
 	if linkSvc != nil {
 		mounted := false
 		for _, ch := range chans {
