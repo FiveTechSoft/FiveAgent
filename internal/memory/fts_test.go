@@ -92,7 +92,7 @@ func TestFTSIndexServesRecall(t *testing.T) {
 
 	// Fallback: a broken index never breaks recall - the keyword path
 	// answers with the same fact.
-	k2.ix.db.Close()
+	k2.ix.path = filepath.Join(dir, "gone", "missing.db")
 	hits, err = k2.Recall("¿cuál es mi comida favorita?")
 	if err != nil {
 		t.Fatal(err)
