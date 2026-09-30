@@ -28,6 +28,13 @@ that run passes, the tag is cut and prebuilt binaries are published.
 - Tool calling through the OpenAI function-calling protocol.
 - Per-task model routing (first version): optional model override per
   request kind.
+- Memory stages 7k and 7l: a session starts with a frozen memory
+  snapshot in the system prompt (byte-stable prefix; mid-session
+  writes reach the model through recall, never a prompt rewrite - the
+  M5 gate is CI-proved), and idle-time consolidation merges
+  near-duplicate facts in the background after
+  `memory.consolidate_idle_minutes` of no turns (rules slice; aging,
+  re-filing and the model pass stay pending).
 - Battery run-6 packaging (stages 24a, 25e, 7m): the live runner
   mints its run report through the make_report_link machinery
   (MintReportHTML: signed link + PIN in the run log), the report's
