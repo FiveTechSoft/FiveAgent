@@ -144,14 +144,14 @@ evidence that counts.
       never reached disk even when the reply claimed they did -
       implemented), M2 recall at three depths (immediate, deferred past
       the 20-message history window, and after a full session restart;
-      the deferred and restart depths need runner support), M3
+      runner support implemented 2026-09-30: pad_turns pads unscored filler turns, restart_before rebuilds the agent on a fresh history over the same memory), M3
       effective forgetting (after olvida:: honest abstention -
       implemented - plus the fact gone from disk and never resurfacing
       in open questions like "what do you know about me?"; 2026-09-29
       refinement: a model quoting the forgotten fact from the
       still-visible session context is a context citation, not a
       resurrection - the true resurrection check is the post-restart
-      M2c depth, pending runner support), M4
+      M2c depth, in the battery since 2026-09-30), M4
       cross-user non-contamination (one sender's facts never surface
       for another; defined but DISABLED until 7i decides the scoping
       model - we do not measure what the design does not yet require),
@@ -555,9 +555,11 @@ evidence that counts.
     served by its own HTTP listener (mounted on the same mux as the
     WhatsApp webhook, localhost-bound unless a tunnel exposes it),
     not with wall-of-text messages:
-    a) Reports: make_report_link mints a signed link to a clean HTML
-       page. (The battery-report first use case arrives when the
-       runner generates its report through the tool.)
+    a) Reports (implemented, CI-tested, 2026-09-30): make_report_link
+       mints a signed link to a clean HTML page, and the battery
+       runner generates its run report through the same machinery
+       (MintReportHTML) - link and PIN land in the run log, the page
+       behind the PIN gate.
     b) Data collection: make_form_link mints a signed link to a small
        form; what the user types goes straight to the vault
        (data/vault/<key>.secret, 0600), never through the chat and
@@ -605,9 +607,11 @@ evidence that counts.
     x/image bitmap font, no cgo, no services) and sends them as native
     images (upload + send by id, optional caption) on media-capable
     channels; channels without media support answer the model with an
-    honest error, and send failures never report success. Battery
-    report charts and diagrams remain pending variations of the same
-    renderer. Phase c) first cut: with ffmpeg available (external
+    honest error, and send failures never report success. Diagrams
+    remain a pending variation of the same renderer; the battery
+    report's pass-rate chart is that renderer's
+    output embedded in the report page (2026-09-30, CI-proved byte
+    for byte). Phase c) first cut: with ffmpeg available (external
     tool, ffmpeg_path in the yml or on PATH) inbound videos are
     downloaded and split into key frames + a 16kHz WAV track, then the
     EXISTING transcriber and describer processors turn them into
