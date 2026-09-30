@@ -127,8 +127,9 @@ type Agent struct {
 	tools      *tools.Registry
 	trajSink   func(trajectory.Record)
 	sysPrompt  string
-	pruner     PruneConfig // context pruning (stage 15); zero value takes the defaults
-	skills     []Skill     // keyword-triggered context (stage 17)
+	pruner     PruneConfig     // context pruning (stage 15); zero value takes the defaults
+	skills     []Skill         // keyword-triggered context (stage 17)
+	sampling   config.Sampling // stage 11a per-kind sampling; unset fields keep provider defaults
 	// scopes caches per-sender knowledge folders (same users/<id>
 	// layout as the stage 7n indexer) for the rolling session digest
 	// (stage 7g). When the indexer runs it owns the scope instances;
@@ -196,6 +197,32 @@ func (a *Agent) WithIndexer(ix *Indexer) *Agent {
 func (a *Agent) WithPruning(cfg PruneConfig) *Agent {
 	a.pruner = cfg
 	return a
+}
+
+// WithSampling sets the stage 11a per-request-kind sampling and returns
+// the agent for chaining. Tool-calling rounds run at ToolTemperature,
+// final answers at ChatTemperature; PresencePenalty applies to both.
+// Unset fields are not sent, so the provider's defaults apply.
+func (a *Agent) WithSampling(s config.Sampling) *Agent {
+	a.sampling = s
+	return a
+}
+
+// toolCallOptions are the sampling knobs for a tool-calling round:
+// precision matters more than variety when emitting JSON arguments.
+func (a *Agent) toolCallOptions() *model.CallOptions {
+	if a.sampling.ToolTemperature == nil && a.sampling.PresencePenalty == nil {
+		return nil
+	}
+	return &model.CallOptions{Temperature: a.sampling.ToolTemperature, PresencePenalty: a.sampling.PresencePenalty}
+}
+
+// chatOptions are the sampling knobs for the final answer.
+func (a *Agent) chatOptions() *model.CallOptions {
+	if a.sampling.ChatTemperature == nil && a.sampling.PresencePenalty == nil {
+		return nil
+	}
+	return &model.CallOptions{Temperature: a.sampling.ChatTemperature, PresencePenalty: a.sampling.PresencePenalty}
 }
 
 // summarizeTurns is the default auxiliary pass for the pruner's step 2:
@@ -523,7 +550,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 		fallback = a.mdl
 	}
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.toolSpecsFor(triggered))
+		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.toolSpecsFor(triggered), a.toolCallOptions())
 		if err != nil {
 			return "", err
 		}
@@ -587,7 +614,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 		// tool-call turn, and only then to a fixed honest line: a flaky
 		// answer must degrade one reply, never fail the whole turn.
 		for attempt := 1; attempt <= 3 && reply == ""; attempt++ {
-			ans, err := mdl.Chat(ctx, msgs, nil)
+			ans, err := mdl.ChatWithOptions(ctx, msgs, nil, a.chatOptions())
 			if err != nil {
 				return "", fmt.Errorf("agent: no final answer after %d tool rounds: %w", maxToolRounds, err)
 			}
