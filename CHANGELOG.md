@@ -54,9 +54,14 @@ that run passes, the tag is cut and prebuilt binaries are published.
 ### Memory and secrets
 
 - File-based long-term memory: plain markdown files with git as the
-  source of truth. save_memory/forget_memory tools, per-turn recall
-  injected as data (never instructions), keyword and alias retrieval,
-  session digests, episodic learnings. CI evals cover recall past the
+  source of truth. save_memory/forget_memory/save_learning tools,
+  per-turn recall injected as data (never instructions), keyword and
+  alias retrieval. Session digests: when context pruning compacts the
+  middle of a long conversation, the summary lands in the sender's own
+  digests.md and stays recallable. Episodic learnings: the agent
+  records short self-critiques through save_learning, and a 👎/👍/❤️
+  reaction on a reply is recorded as feedback on that exact reply -
+  both in the sender's own scope. CI evals cover recall past the
   20-message truncation window, corrections, dedup and injection cost.
 - Memory effectiveness metrics M1-M7. The 2026-09-28 baseline caught
   4/7 memory setups that claimed to store a fact but never reached
