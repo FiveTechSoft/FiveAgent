@@ -47,10 +47,10 @@ FIVEAGENT_EVAL_LIVE=1 FIVEAGENT_EVAL_MODEL=qwen3.5:9b go test ./evals/ -run Live
 
 ## The comparative battery
 
-`battery.yaml` holds 104 prompts in 17 categories (harbour_fivewin,
+`battery.yaml` holds 108 prompts in 20 categories (harbour_fivewin,
 general_knowledge, code, abstention, memory, tools, shell, c,
 lenguajes, geografia, historia, instrucciones_compuestas, ciencia,
-literatura, arte, logica,
+literatura, arte, logica, subordinate, files, cron,
 web_search), each with a
 grounded reference and a scoring rubric: must_contain / must_not_contain
 / abstain_ok / abstain_expected / setup. A setup turn carrying `memory_writes: <token>` is scored on the
