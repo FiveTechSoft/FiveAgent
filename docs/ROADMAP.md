@@ -52,9 +52,16 @@ evidence that counts.
       when real use demands it.
    b. **Keyword and alias retrieval** (working) - recall by exact words
       and curated aliases kept in each memory file's header.
-   c. **SQLite FTS5 index** - an embedded full-text index as a
-      rebuildable cache. The files stay the source of truth; the index
-      is disposable. Database speed, zero infrastructure.
+   c. **SQLite FTS5 index** (implemented, 2026-09-30, CI-tested) - an
+      embedded full-text index (modernc.org/sqlite, pure Go: the
+      binary and the release workflow stay cgo-free) as a rebuildable
+      cache. The files stay the source of truth; the index is
+      disposable: it rebuilds on open whenever the files' content hash
+      drifted, reindexLocked keeps it current on every write, and any
+      index error degrades recall to the keyword path, never to a
+      wrong answer. The CI proof reads the index's served-query
+      counter, so a recall that silently fell back to keywords fails.
+      Database speed, zero infrastructure.
    d. **Organic growth and links** - new files and folders appear when
       they hurt; [[id]] links connect related records (a plain-text
       graph, parsed when needed). A graph or vector database only
