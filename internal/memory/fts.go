@@ -7,6 +7,11 @@ package memory
 // path on any index error, so a broken or missing index is never
 // worse than no index. The driver is modernc.org/sqlite (pure Go):
 // the agent binary and the release workflow stay cgo-free.
+//
+// The database is opened per operation and closed right after: no
+// persistent handle, so the file is never locked between operations
+// (Windows refuses to delete a locked file, and t.TempDir cleanup
+// must work everywhere).
 
 import (
 	"crypto/sha256"
@@ -22,28 +27,37 @@ import (
 )
 
 type ftsIndex struct {
-	db *sql.DB
+	path string
 	// queries counts the recalls served through FTS5; tests read it to
 	// prove the index path really fires (a recall that silently fell
 	// back to keywords would leave it at zero).
 	queries int
 }
 
+// withDB runs fn against a freshly opened index database, always
+// closing it. Open errors degrade the caller to the keyword path.
+func (ix *ftsIndex) withDB(fn func(*sql.DB) error) error {
+	db, err := sql.Open("sqlite", ix.path)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	return fn(db)
+}
+
 // openFTS opens (and when needed rebuilds) the index for the knowledge
 // dir. A failure is not fatal: the caller keeps the keyword path.
 func (k *Knowledge) openFTS() {
-	db, err := sql.Open("sqlite", filepath.Join(k.dir, "fts5.index.db"))
-	if err != nil {
-		return
-	}
-	ix := &ftsIndex{db: db}
-	if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`); err != nil {
-		db.Close()
-		return
-	}
-	if _, err := db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS bullets USING fts5(file_id UNINDEXED, pos UNINDEXED, body)`); err != nil {
+	ix := &ftsIndex{path: filepath.Join(k.dir, "fts5.index.db")}
+	err := ix.withDB(func(db *sql.DB) error {
+		if _, err := db.Exec(`CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)`); err != nil {
+			return err
+		}
 		// No FTS5 in this build: keyword recall stays the only path.
-		db.Close()
+		_, err := db.Exec(`CREATE VIRTUAL TABLE IF NOT EXISTS bullets USING fts5(file_id UNINDEXED, pos UNINDEXED, body)`)
+		return err
+	})
+	if err != nil {
 		return
 	}
 	k.ix = ix
@@ -71,9 +85,9 @@ func (k *Knowledge) filesHash() string {
 
 func (ix *ftsIndex) storedHash() string {
 	var v string
-	if err := ix.db.QueryRow(`SELECT value FROM meta WHERE key='hash'`).Scan(&v); err != nil {
-		return ""
-	}
+	_ = ix.withDB(func(db *sql.DB) error {
+		return db.QueryRow(`SELECT value FROM meta WHERE key='hash'`).Scan(&v)
+	})
 	return v
 }
 
@@ -84,34 +98,36 @@ func (k *Knowledge) reindexLocked() error {
 	if k.ix == nil {
 		return nil
 	}
-	tx, err := k.ix.db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-	if _, err := tx.Exec(`DELETE FROM bullets`); err != nil {
-		return err
-	}
-	for _, name := range k.fileNames() {
-		f, err := k.readFile(name)
+	return k.ix.withDB(func(db *sql.DB) error {
+		tx, err := db.Begin()
 		if err != nil {
-			continue
+			return err
 		}
-		pos := 0
-		for _, ln := range strings.Split(f.Body, "\n") {
-			if t := strings.TrimSpace(ln); strings.HasPrefix(t, "- ") {
-				if _, err := tx.Exec(`INSERT INTO bullets (file_id, pos, body) VALUES (?, ?, ?)`, f.ID, pos, t); err != nil {
-					return err
+		defer tx.Rollback()
+		if _, err := tx.Exec(`DELETE FROM bullets`); err != nil {
+			return err
+		}
+		for _, name := range k.fileNames() {
+			f, err := k.readFile(name)
+			if err != nil {
+				continue
+			}
+			pos := 0
+			for _, ln := range strings.Split(f.Body, "\n") {
+				if t := strings.TrimSpace(ln); strings.HasPrefix(t, "- ") {
+					if _, err := tx.Exec(`INSERT INTO bullets (file_id, pos, body) VALUES (?, ?, ?)`, f.ID, pos, t); err != nil {
+						return err
+					}
+					pos++
 				}
-				pos++
 			}
 		}
-	}
-	if _, err := tx.Exec(`INSERT INTO meta (key, value) VALUES ('hash', ?)
-		ON CONFLICT(key) DO UPDATE SET value=excluded.value`, k.filesHash()); err != nil {
-		return err
-	}
-	return tx.Commit()
+		if _, err := tx.Exec(`INSERT INTO meta (key, value) VALUES ('hash', ?)
+			ON CONFLICT(key) DO UPDATE SET value=excluded.value`, k.filesHash()); err != nil {
+			return err
+		}
+		return tx.Commit()
+	})
 }
 
 // ftsRecall returns the bullets matching the query terms through FTS5,
@@ -128,22 +144,25 @@ func (k *Knowledge) ftsRecall(terms []string) (map[string][]string, error) {
 	for _, t := range terms {
 		quoted = append(quoted, `"`+strings.ReplaceAll(t, `"`, `""`)+`"`)
 	}
-	rows, err := k.ix.db.Query(`SELECT file_id, pos, body FROM bullets WHERE bullets MATCH ? ORDER BY file_id, pos`,
-		strings.Join(quoted, " OR "))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
 	out := map[string][]string{}
-	for rows.Next() {
-		var id, body string
-		var pos int
-		if err := rows.Scan(&id, &pos, &body); err != nil {
-			return nil, err
+	err := k.ix.withDB(func(db *sql.DB) error {
+		rows, err := db.Query(`SELECT file_id, pos, body FROM bullets WHERE bullets MATCH ? ORDER BY file_id, pos`,
+			strings.Join(quoted, " OR "))
+		if err != nil {
+			return err
 		}
-		out[id] = append(out[id], body)
-	}
-	if err := rows.Err(); err != nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id, body string
+			var pos int
+			if err := rows.Scan(&id, &pos, &body); err != nil {
+				return err
+			}
+			out[id] = append(out[id], body)
+		}
+		return rows.Err()
+	})
+	if err != nil {
 		return nil, err
 	}
 	k.ix.queries++
