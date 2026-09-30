@@ -42,7 +42,7 @@ evidence that counts.
    and an LLM reads markdown natively. It grows in stages:
    a. **Minimal memory** (working) - the files people.md,
       preferences.md and workstreams.md, with a git commit on every
-      write (stages f and g later add learnings.md and digests.md to
+      write (stages f and g later added learnings.md and digests.md to
       the set).
       The model curates them through save_memory / forget_memory tools
       (duplicates are skipped) and every turn recalls from the files:
@@ -77,11 +77,20 @@ evidence that counts.
       reactions are intercepted before the agent: they never trigger
       a turn.) Feeding learnings back into eval scenarios stays
       pending.
-   g. **Rolling session digest** - today the conversation history
-      truncates to the last 20 messages, so old detail is lost unless
-      the agent stored it. Before truncating, summarize the outgoing
-      messages into a session digest file, also recalled as data in
-      later turns.
+   g. **Rolling session digest** (implemented, 2026-09-30, CI-tested) -
+      the stage 15 pruner compacts the middle turns of an over-budget
+      conversation into a summary; that summary now ALSO lands in the
+      sender's own digests.md (users/<sender>/), recalled as data in
+      later turns, so detail dropped from the live history survives as
+      memory. The pruner reports the summary through a DigestSink hook,
+      called only when the summarizer pass succeeds - the omission-
+      marker fallback writes nothing ("N turns omitted" is noise, not
+      memory). The digest lives in the per-sender scope, never the
+      global memory: one sender's compacted conversation cannot leak
+      into another sender's recall. evals/digest_test.go drives 24
+      verbose turns through the real agent, proves the bullet lands on
+      disk, proves a later query recalls it, and proves a second
+      sender asking the same question sees no digest.
    h. **Memory evals** (working in CI) - evals/ runs scripted
       conversations in CI: a fact stored on turn 1 is recalled on turn
       32 (past truncation), corrections remove the old value, dedup
