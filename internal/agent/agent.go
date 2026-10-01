@@ -499,6 +499,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			Channel:   channel,
 			Messages:  []trajectory.Message{{Role: "user", Content: text}},
 		}
+		ctx = model.WithNativeObserver(ctx, traj.AddModelAttempt)
 		defer func() {
 			traj.EndedAt = time.Now()
 			traj.Outcome.DurationMs = time.Since(start).Milliseconds()
@@ -731,7 +732,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 		// tool-call turn, and only then to a fixed honest line: a flaky
 		// answer must degrade one reply, never fail the whole turn.
 		for attempt := 1; attempt <= 3 && reply == ""; attempt++ {
-			ans, err := mdl.ChatWithOptions(ctx, msgs, nil, a.chatOptions())
+			ans, err := mdl.ChatWithOptions(model.WithModelPurpose(ctx, "forced-answer"), msgs, nil, a.chatOptions())
 			if err != nil {
 				return "", fmt.Errorf("agent: no final answer after %d tool rounds: %w", maxToolRounds, err)
 			}
