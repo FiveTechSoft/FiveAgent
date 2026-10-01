@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	stdlibstrconv "strconv"
 	"strings"
 	"testing"
 	"time"
@@ -515,7 +516,19 @@ func TestLiveBattery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg := &config.Config{Model: config.Model{BaseURL: baseURL, Name: modelName}}
+	numCtx, err := evalNativeInt("FIVEAGENT_EVAL_NUM_CTX")
+	if err != nil {
+		t.Fatal(err)
+	}
+	numThread, err := evalNativeInt("FIVEAGENT_EVAL_NUM_THREAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := &config.Config{Model: config.Model{BaseURL: baseURL, Name: modelName, NumCtx: numCtx, NumThread: numThread}}
+	if (numCtx > 0 || numThread > 0) && !strings.HasSuffix(baseURL, "/v1") {
+		t.Fatal("native battery options require a base_url ending in /v1")
+	}
+	t.Logf("battery model=%s requested num_ctx=%d num_thread=%d (0 = server default)", modelName, numCtx, numThread)
 	tl := []tools.Tool{tools.Datetime{}, tools.SaveMemory{K: kn}, tools.ForgetMemory{K: kn}}
 	sandboxOK := false
 	if sb, err := sandbox.New(config.Sandbox{Enabled: true, Root: filepath.Join(dir, "sandbox")}); err == nil {
@@ -995,4 +1008,18 @@ func TestInventedErrorNarration(t *testing.T) {
 			t.Errorf("%s: inventedErrorNarration = %q, want %q", c.name, got, c.want)
 		}
 	}
+}
+
+// evalNativeInt shares the client's native option semantics: absent/0 means
+// omitted, positive means explicit, invalid values fail before model calls.
+func evalNativeInt(name string) (int, error) {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return 0, nil
+	}
+	n, err := stdlibstrconv.Atoi(raw)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s must be a nonnegative integer, got %q", name, raw)
+	}
+	return n, nil
 }
