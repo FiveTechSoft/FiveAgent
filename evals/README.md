@@ -340,3 +340,16 @@ Runs at a glance: 81/95 (run 1) -> 83/96 (run 3, first gate PASS) ->
 
 Source: owner's live-run report, 2026-09-29 (OpenCode, tree 29c52b9
 detached; report archived as 2026-09-29-fiveagent-battery-run5).
+
+### Explicit native Ollama capacity
+
+The battery normally leaves server context/thread defaults untouched. Set
+`FIVEAGENT_EVAL_NUM_CTX` and/or `FIVEAGENT_EVAL_NUM_THREAD` to a positive integer
+to send the same `options.num_ctx` / `options.num_thread` supported by the
+client's `model.num_ctx` / `model.num_thread`. Either selects native `/api/chat`
+and requires `FIVEAGENT_EVAL_BASE_URL` to end in `/v1`. Absent or zero omits the
+option; invalid or negative values fail before inference. No source patch is
+needed to run with four threads. These knobs do not prune history or guarantee
+that a requested capacity is available on the host. Measure actual prompt and
+generation counts, termination reason, memory use and latency before adopting
+a capacity. No live improvement is claimed by the fixture tests.
