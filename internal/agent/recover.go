@@ -54,7 +54,7 @@ const (
 // classified failure. fallback is the other configured model (nil when
 // only one exists).
 func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client, msgs []model.Message, specs []tools.Spec, opts *model.CallOptions) (model.Message, error) {
-	ans, err := mdl.ChatWithOptions(ctx, msgs, specs, opts)
+	ans, err := mdl.ChatWithOptions(model.WithModelPurpose(ctx, "tool-round"), msgs, specs, opts)
 	if err == nil && strings.TrimSpace(ans.Content) == "" && len(ans.ToolCalls) == 0 {
 		// A 200 with nothing in it is a generation failure, not a
 		// success: classify it so the ladder below applies.
@@ -71,6 +71,10 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 	log.Printf("agent: model failure classified as %s, starting recovery", kind)
 
 	switch kind {
+	case model.FailureGenerationLimit:
+		// Budget-changing recovery is a separate policy. Do not retry the
+		// identical full request or execute truncated calls as an empty reply.
+		return ans, fmt.Errorf("agent: generation limit requires context/output headroom: %w", err)
 	case model.FailureAuth:
 		// Rotate credential: there is no second credential to rotate
 		// to, so the honest outcome is a clear abort.
@@ -87,12 +91,15 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 				return ans, ctx.Err()
 			case <-time.After(backoff):
 			}
-			ans, err = mdl.ChatWithOptions(ctx, msgs, specs, opts)
+			ans, err = mdl.ChatWithOptions(model.WithModelPurpose(ctx, "failure-retry"), msgs, specs, opts)
 			if err == nil {
 				log.Printf("agent: recovered from %s on retry %d", kind, attempt)
 				return ans, nil
 			}
 			if !errors.As(err, &f) {
+				return ans, err
+			}
+			if f.Kind == model.FailureGenerationLimit {
 				return ans, err
 			}
 		}
@@ -106,12 +113,15 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 			log.Printf("agent: overflow recovery pruning: %s", n)
 		}
 		if len(compressed) < len(msgs) || totalChars(compressed) < totalChars(msgs) {
-			ans, err = mdl.ChatWithOptions(ctx, compressed, specs, opts)
+			ans, err = mdl.ChatWithOptions(model.WithModelPurpose(ctx, "overflow-retry"), compressed, specs, opts)
 			if err == nil {
 				log.Printf("agent: recovered from context overflow after pruning (%d -> %d chars)", totalChars(msgs), totalChars(compressed))
 				return ans, nil
 			}
 			if !errors.As(err, &f) {
+				return ans, err
+			}
+			if f.Kind == model.FailureGenerationLimit {
 				return ans, err
 			}
 		}
@@ -125,10 +135,13 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 			Content: "Tu última respuesta llegó vacía. Responde ahora directamente a la petición del usuario, con contenido real.",
 		})
 		for attempt := 1; attempt <= maxRecoveryRounds; attempt++ {
-			ans, err = mdl.ChatWithOptions(ctx, reinforced, specs, opts)
+			ans, err = mdl.ChatWithOptions(model.WithModelPurpose(ctx, "empty-retry"), reinforced, specs, opts)
 			if err == nil && (strings.TrimSpace(ans.Content) != "" || len(ans.ToolCalls) > 0) {
 				log.Printf("agent: recovered from empty reply on reinforced retry %d", attempt)
 				return ans, nil
+			}
+			if err != nil && errors.As(err, &f) && f.Kind == model.FailureGenerationLimit {
+				return ans, err
 			}
 			if err != nil && !errors.As(err, &f) {
 				return ans, err
@@ -141,7 +154,7 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 		// (nil error) so the agent's honest-guard path owns the
 		// final outcome.
 		if fallback != nil && fallback != mdl {
-			ans, err = fallback.ChatWithOptions(ctx, reinforced, specs, opts)
+			ans, err = fallback.ChatWithOptions(model.WithModelPurpose(ctx, "empty-fallback"), reinforced, specs, opts)
 			if err == nil {
 				if strings.TrimSpace(ans.Content) != "" || len(ans.ToolCalls) > 0 {
 					log.Printf("agent: recovered from empty reply via the fallback model")
@@ -162,7 +175,7 @@ func (a *Agent) recoverableChat(ctx context.Context, mdl, fallback *model.Client
 
 	// Shared last rung: the other configured model.
 	if fallback != nil && fallback != mdl {
-		ans, err = fallback.ChatWithOptions(ctx, msgs, specs, opts)
+		ans, err = fallback.ChatWithOptions(model.WithModelPurpose(ctx, "failure-fallback"), msgs, specs, opts)
 		if err == nil {
 			log.Printf("agent: recovered from %s via the fallback model", kind)
 			return ans, nil
