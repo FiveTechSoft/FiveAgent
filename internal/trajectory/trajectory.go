@@ -27,6 +27,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/FiveTechSoft/FiveAgent/internal/model"
 )
 
 // Message is one turn message in dataset shape.
@@ -58,16 +60,26 @@ type Outcome struct {
 	Error      string `json:"error,omitempty"`
 }
 
+// ModelAttempt is one native HTTP attempt, separate from tool-round accounting.
+type ModelAttempt struct {
+	Sequence int `json:"sequence"`
+	model.NativeObservation
+	ThinkingChars     int  `json:"thinking_bytes"`
+	ThinkingTruncated bool `json:"thinking_truncated,omitempty"`
+	ContentTruncated  bool `json:"content_truncated,omitempty"`
+}
+
 // Record is one trajectory. User identity is deliberately absent:
 // the dataset needs behavior, not people.
 type Record struct {
-	ID        string           `json:"id"`
-	StartedAt time.Time        `json:"started_at"`
-	EndedAt   time.Time        `json:"ended_at"`
-	Channel   string           `json:"channel"`
-	Messages  []Message        `json:"messages"`
-	Outcome   Outcome          `json:"outcome"`
-	ToolStats map[string]*Stat `json:"tool_stats"`
+	ModelAttempts []ModelAttempt   `json:"model_attempts,omitempty"`
+	ID            string           `json:"id"`
+	StartedAt     time.Time        `json:"started_at"`
+	EndedAt       time.Time        `json:"ended_at"`
+	Channel       string           `json:"channel"`
+	Messages      []Message        `json:"messages"`
+	Outcome       Outcome          `json:"outcome"`
+	ToolStats     map[string]*Stat `json:"tool_stats"`
 }
 
 // AddToolCall tallies one executed tool call.
@@ -109,6 +121,15 @@ func Redact(s string) string {
 
 // RedactRecord applies Redact to every free-text field of a record.
 func RedactRecord(r *Record) {
+	for i := range r.ModelAttempts {
+		o := &r.ModelAttempts[i]
+		o.Model = Redact(o.Model)
+		o.Purpose = Redact(o.Purpose)
+		o.Thinking = Redact(o.Thinking)
+		o.DoneReason = Redact(o.DoneReason)
+		o.Content = Redact(o.Content)
+		o.Error = Redact(o.Error)
+	}
 	for i := range r.Messages {
 		r.Messages[i].Content = Redact(r.Messages[i].Content)
 		for j := range r.Messages[i].ToolCalls {
@@ -279,4 +300,23 @@ func readDirStats(dir string) (map[string]string, error) {
 		out[strings.TrimSuffix(filepath.Base(m), ".jsonl")] = fmt.Sprintf("%d turns, %d tool calls, %d failures", turns, calls, fails)
 	}
 	return out, nil
+}
+
+// AddModelAttempt bounds retained text and strips private values before storage.
+// Counts describe original response bytes, not tokenizer counts.
+func (r *Record) AddModelAttempt(o model.NativeObservation) {
+	a := ModelAttempt{Sequence: len(r.ModelAttempts) + 1, NativeObservation: o, ThinkingChars: len(o.Thinking)}
+	a.Thinking, a.ThinkingTruncated = boundedTelemetry(Redact(o.Thinking), 4096)
+	a.Content, a.ContentTruncated = boundedTelemetry(Redact(o.Content), 4096)
+	a.Error, _ = boundedTelemetry(Redact(o.Error), 1024)
+	r.ModelAttempts = append(r.ModelAttempts, a)
+}
+func boundedTelemetry(s string, n int) (string, bool) {
+	if len(s) <= n {
+		return s, false
+	}
+	for n > 0 && (s[n]&0xC0) == 0x80 {
+		n--
+	}
+	return s[:n], true
 }
