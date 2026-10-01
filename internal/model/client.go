@@ -195,7 +195,7 @@ func (c *Client) Chat(ctx context.Context, msgs []Message, toolSpecs []tools.Spe
 // rounds run cooler, final answers warmer. On Ollama's native route the
 // values ride the options map next to num_thread.
 func (c *Client) ChatWithOptions(ctx context.Context, msgs []Message, toolSpecs []tools.Spec, opts *CallOptions) (Message, error) {
-	if c.cfg.NumThread > 0 {
+	if c.cfg.NumThread > 0 || c.cfg.NumCtx > 0 {
 		return c.ollamaNativeChat(ctx, msgs, toolSpecs, opts)
 	}
 	var out Message
@@ -225,13 +225,19 @@ func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs
 	var out Message
 	url, ok := ollamaNativeChatURL(c.cfg.BaseURL)
 	if !ok {
-		return out, &Failure{Kind: FailureUnavailable, Err: fmt.Errorf("num_thread requires an Ollama base_url ending in /v1; got %q", c.cfg.BaseURL)}
+		return out, &Failure{Kind: FailureUnavailable, Err: fmt.Errorf("num_thread/num_ctx requires an Ollama base_url ending in /v1; got %q", c.cfg.BaseURL)}
 	}
 	nativeMsgs, err := toOllamaMessages(msgs)
 	if err != nil {
 		return out, &Failure{Kind: FailureMalformed, Err: err}
 	}
-	nativeOpts := map[string]any{"num_thread": c.cfg.NumThread}
+	nativeOpts := map[string]any{}
+	if c.cfg.NumThread > 0 {
+		nativeOpts["num_thread"] = c.cfg.NumThread
+	}
+	if c.cfg.NumCtx > 0 {
+		nativeOpts["num_ctx"] = c.cfg.NumCtx
+	}
 	if opts != nil {
 		if opts.Temperature != nil {
 			nativeOpts["temperature"] = *opts.Temperature
