@@ -156,9 +156,19 @@ type ollamaChatRequest struct {
 // ollamaChatResponse is the native reply. Tool-call arguments arrive
 // as a JSON object, not a string, and calls carry no id.
 type ollamaChatResponse struct {
-	Message struct {
+	Model              string `json:"model"`
+	Done               bool   `json:"done"`
+	DoneReason         string `json:"done_reason"`
+	PromptEvalCount    int    `json:"prompt_eval_count"`
+	EvalCount          int    `json:"eval_count"`
+	TotalDuration      int64  `json:"total_duration"`
+	LoadDuration       int64  `json:"load_duration"`
+	PromptEvalDuration int64  `json:"prompt_eval_duration"`
+	EvalDuration       int64  `json:"eval_duration"`
+	Message            struct {
 		Role      string `json:"role"`
 		Content   string `json:"content"`
+		Thinking  string `json:"thinking"`
 		ToolCalls []struct {
 			Function struct {
 				Name      string         `json:"name"`
@@ -230,19 +240,47 @@ func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs
 			nativeOpts["presence_penalty"] = *opts.PresencePenalty
 		}
 	}
-	raw, err := c.post(ctx, url, ollamaChatRequest{
+	observation := NativeObservation{Model: c.cfg.Name, Purpose: modelPurpose(ctx)}
+	if n, ok := nativeOpts["num_ctx"].(int); ok {
+		observation.RequestedNumCtx = &n
+	}
+	if n, ok := nativeOpts["num_predict"].(int); ok {
+		observation.RequestedNumPredict = &n
+	}
+	defer func() { observeNative(ctx, observation) }()
+	raw, status, err := c.postWithStatus(ctx, url, ollamaChatRequest{
 		Model:    c.cfg.Name,
 		Messages: nativeMsgs,
 		Tools:    toolSpecs,
 		Stream:   false,
 		Options:  nativeOpts,
 	})
+	observation.HTTPStatus = status
 	if err != nil {
+		observation.Error = err.Error()
 		return out, err
 	}
 	var parsed ollamaChatResponse
 	if err := json.Unmarshal(raw, &parsed); err != nil {
+		observation.Error = err.Error()
 		return out, &Failure{Kind: FailureMalformed, Err: err}
+	}
+	observation.Model = parsed.Model
+	observation.Done = parsed.Done
+	observation.DoneReason = parsed.DoneReason
+	observation.Thinking = parsed.Message.Thinking
+	observation.Content = parsed.Message.Content
+	observation.ToolCalls = len(parsed.Message.ToolCalls)
+	observation.PromptEvalCount = parsed.PromptEvalCount
+	observation.EvalCount = parsed.EvalCount
+	observation.TotalDuration = parsed.TotalDuration
+	observation.LoadDuration = parsed.LoadDuration
+	observation.PromptEvalDuration = parsed.PromptEvalDuration
+	observation.EvalDuration = parsed.EvalDuration
+	if parsed.DoneReason == "length" {
+		err := &Failure{Kind: FailureGenerationLimit, Err: fmt.Errorf("native generation ended at length limit (prompt=%d, generated=%d)", parsed.PromptEvalCount, parsed.EvalCount)}
+		observation.Error = err.Error()
+		return out, err // never deliver or execute a possibly truncated response
 	}
 	out.Role = parsed.Message.Role
 	out.Content = parsed.Message.Content
@@ -262,13 +300,18 @@ func (c *Client) ollamaNativeChat(ctx context.Context, msgs []Message, toolSpecs
 // post sends one JSON chat payload and returns the raw response body,
 // mapping transport and status failures onto Failure.
 func (c *Client) post(ctx context.Context, url string, payload any) ([]byte, error) {
+	raw, _, err := c.postWithStatus(ctx, url, payload)
+	return raw, err
+}
+
+func (c *Client) postWithStatus(ctx context.Context, url string, payload any) ([]byte, int, error) {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.cfg.APIKey != "" {
@@ -276,21 +319,21 @@ func (c *Client) post(ctx context.Context, url string, payload any) ([]byte, err
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, &Failure{Kind: classifyNetError(err), Err: err}
+		return nil, 0, &Failure{Kind: classifyNetError(err), Err: err}
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, &Failure{Kind: FailureUnavailable, Status: resp.StatusCode, Err: err}
+		return nil, resp.StatusCode, &Failure{Kind: FailureUnavailable, Status: resp.StatusCode, Err: err}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, &Failure{
+		return nil, resp.StatusCode, &Failure{
 			Kind:   classifyStatus(resp.StatusCode, raw),
 			Status: resp.StatusCode,
 			Err:    fmt.Errorf("%s: %s", resp.Status, cutRunes(string(raw), 200)),
 		}
 	}
-	return raw, nil
+	return raw, resp.StatusCode, nil
 }
 
 // cutRunes truncates s to at most n bytes without splitting a UTF-8
