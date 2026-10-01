@@ -41,6 +41,9 @@ const (
 	// answered 200 with empty content and no tool calls. The agent
 	// layer synthesizes it so the same recovery ladder handles it.
 	FailureEmpty
+	// FailureGenerationLimit is a completed native response with done_reason=length.
+	// It is not an HTTP context-overflow rejection or an ordinary empty reply.
+	FailureGenerationLimit
 )
 
 func (k FailureKind) String() string {
@@ -59,6 +62,8 @@ func (k FailureKind) String() string {
 		return "unavailable"
 	case FailureEmpty:
 		return "empty-reply"
+	case FailureGenerationLimit:
+		return "generation-limit"
 	}
 	return "unknown"
 }
