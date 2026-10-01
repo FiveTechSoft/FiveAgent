@@ -35,6 +35,10 @@ type Model struct {
 	// set, requests go to /api/chat instead of /v1/chat/completions, so
 	// base_url must end in /v1 (validated at Load).
 	NumThread int `yaml:"num_thread,omitempty"`
+	// NumCtx is the explicitly requested Ollama context capacity, not a
+	// history budget. 0 leaves the server default. It selects /api/chat,
+	// independently of num_thread; no silent forwarding through /v1.
+	NumCtx int `yaml:"num_ctx,omitempty"`
 }
 
 // Sampling holds the stage 11a per-request-kind sampling parameters.
@@ -416,6 +420,9 @@ func Load(path string) (*Config, error) {
 	if c.Coder.Name != "" && c.Coder.NumThread == 0 {
 		c.Coder.NumThread = c.Model.NumThread
 	}
+	if c.Coder.Name != "" && c.Coder.NumCtx == 0 && c.Coder.BaseURL == c.Model.BaseURL {
+		c.Coder.NumCtx = c.Model.NumCtx
+	}
 	if c.Coder.Name != "" && c.Coder.ChatTemplateKwargs == nil {
 		c.Coder.ChatTemplateKwargs = c.Model.ChatTemplateKwargs
 	}
@@ -423,11 +430,14 @@ func Load(path string) (*Config, error) {
 		label string
 		m     Model
 	}{{"model", c.Model}, {"coder", c.Coder}} {
-		if m.m.NumThread > 0 && !strings.HasSuffix(m.m.BaseURL, "/v1") {
-			return nil, fmt.Errorf("%s.num_thread is honored only through Ollama's native API; %s.base_url must end in /v1 so the native endpoint can be derived", m.label, m.label)
+		if m.m.NumThread < 0 || m.m.NumCtx < 0 {
+			return nil, fmt.Errorf("%s.num_thread and num_ctx must be nonnegative", m.label)
 		}
-		if m.m.NumThread > 0 && len(m.m.ChatTemplateKwargs) > 0 {
-			return nil, fmt.Errorf("%s sets both num_thread (Ollama native route) and chat_template_kwargs (/v1 route); they travel on separate paths, keep one per model", m.label)
+		if (m.m.NumThread > 0 || m.m.NumCtx > 0) && !strings.HasSuffix(m.m.BaseURL, "/v1") {
+			return nil, fmt.Errorf("%s.num_thread/num_ctx are honored only through Ollama's native API; %s.base_url must end in /v1 so the native endpoint can be derived", m.label, m.label)
+		}
+		if (m.m.NumThread > 0 || m.m.NumCtx > 0) && len(m.m.ChatTemplateKwargs) > 0 {
+			return nil, fmt.Errorf("%s sets num_thread/num_ctx (Ollama native route) and chat_template_kwargs (/v1 route); they travel on separate paths, keep one per model", m.label)
 		}
 		for _, t := range []*float64{c.Sampling.ToolTemperature, c.Sampling.ChatTemperature} {
 			if t != nil && (*t < 0 || *t > 2) {
