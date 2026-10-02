@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/FiveTechSoft/FiveAgent/internal/memory"
 	"github.com/FiveTechSoft/FiveAgent/internal/model"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 
@@ -121,6 +122,17 @@ func (f *fakeStore) Append(_ context.Context, _, _, role, content string) error 
 
 func (f *fakeStore) Recent(_ context.Context, _, _ string, _ int) ([][2]string, error) {
 	return f.hist, nil
+}
+
+func (f *fakeStore) Scrub(_ context.Context, _, _ string, words []string) (int, error) {
+	changed := 0
+	for i := range f.hist {
+		if next, did := memory.RedactWords(f.hist[i][1], words); did {
+			f.hist[i][1] = next
+			changed++
+		}
+	}
+	return changed, nil
 }
 
 func (f *fakeStore) Close() error { return nil }

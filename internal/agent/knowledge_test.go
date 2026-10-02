@@ -292,3 +292,91 @@ func TestHandleOlvidaPurgesAfterThisTurnPruning(t *testing.T) {
 		t.Errorf("digest re-written by this turn's pruning survived the olvida: %v", paths)
 	}
 }
+
+// Battery run 9: the files were clean after the forget and the model
+// still wrote "hay registros previos que mencionaban pulpo" - it was
+// reading the stored history. An olvida: that only reaches the files is
+// not a forget: the context has to lose the fact too.
+func TestHandleOlvidaScrubsStoredHistory(t *testing.T) {
+	kn := openTestKnowledge(t)
+	const fact = "mi plato de fiesta es la empanada de zamburiñas"
+	if _, err := kn.Append("preferences", fact); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"Borrado."}}]}`)
+	}))
+	defer srv.Close()
+
+	store := &fakeStore{hist: [][2]string{
+		{"user", "recuerda: " + fact},
+		{"assistant", "anotado: tu plato de fiesta es la empanada de zamburiñas"},
+	}}
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), store, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1", "olvida: mi plato de fiesta"); err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range store.hist {
+		if strings.Contains(strings.ToLower(h[1]), "empanada") {
+			t.Fatalf("stored history still quotes the forgotten fact: %q", h[1])
+		}
+	}
+	if paths := memoryFilesHolding(kn.Dir(), "empanada"); len(paths) != 0 {
+		t.Errorf("files still hold the forgotten fact: %v", paths)
+	}
+}
+
+// The other forget path: the model calls forget_memory itself (no
+// "olvida:" marker, so Ruta A never runs). The tool cleans the files;
+// the agent has to clean the history around it, or the next turn reads
+// the fact back out of the conversation it just deleted.
+func TestForgetMemoryToolScrubsStoredHistory(t *testing.T) {
+	kn := openTestKnowledge(t)
+	if _, err := kn.Append("preferences", "Mi comida favorita es el pulpo a la gallega"); err != nil {
+		t.Fatal(err)
+	}
+	called := false
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Tools json.RawMessage `json:"tools"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		w.Header().Set("Content-Type", "application/json")
+		if len(req.Tools) > 0 && !called {
+			called = true
+			io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"","tool_calls":[`+
+				`{"id":"c1","type":"function","function":{"name":"forget_memory","arguments":`+
+				`"{\"file\":\"preferences\",\"match\":\"pulpo a la gallega\"}"}}]}}]}`)
+			return
+		}
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"hecho"}}]}`)
+	}))
+	defer srv.Close()
+
+	store := &fakeStore{hist: [][2]string{
+		{"user", "recuerda: Mi comida favorita es el pulpo a la gallega"},
+		{"assistant", "guardado: el pulpo a la gallega es tu plato favorito"},
+	}}
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), store,
+		tools.NewRegistry(tools.ForgetMemory{K: kn}), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1",
+		"olvida todo lo que sepas sobre mi comida favorita"); err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("the model never called forget_memory")
+	}
+	for _, h := range store.hist {
+		if strings.Contains(strings.ToLower(h[1]), "pulpo") {
+			t.Fatalf("stored history still quotes the forgotten fact: %q", h[1])
+		}
+	}
+	if paths := memoryFilesHolding(kn.Dir(), "pulpo"); len(paths) != 0 {
+		t.Errorf("files still hold the forgotten fact: %v", paths)
+	}
+}

@@ -229,13 +229,41 @@ func memoryFilesContain(dir, token string) bool {
 // ERASE-MISS names the file that kept the fact instead of only the fact.
 func memoryFilesWith(dir, token string) []string {
 	var out []string
+	for _, l := range memoryLinesWith(dir, token) {
+		if i := strings.Index(l, ":"); i > 0 {
+			out = append(out, l[:i])
+		}
+	}
+	return out
+}
+
+// memoryLinesWith goes one step further and prints the LINES that kept
+// the token, file:line included. The digest summarizer paraphrases, so
+// "which file" is not enough to design the purge rule - run 9 still had
+// empanada in digests.md and no way to see the text that survived.
+func memoryLinesWith(dir, token string) []string {
+	var out []string
+	low := strings.ToLower(token)
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
 		}
 		b, err := os.ReadFile(path)
-		if err == nil && strings.Contains(strings.ToLower(string(b)), strings.ToLower(token)) {
-			out = append(out, path)
+		if err != nil {
+			return nil
+		}
+		for i, ln := range strings.Split(string(b), "\n") {
+			if strings.Contains(strings.ToLower(ln), low) {
+				rel := path
+				if r, err := filepath.Rel(dir, path); err == nil {
+					rel = r
+				}
+				s := strings.TrimSpace(ln)
+				if len(s) > 200 {
+					s = s[:200] + "..."
+				}
+				out = append(out, fmt.Sprintf("%s:%d: %s", rel, i+1, s))
+			}
 		}
 		return nil
 	})
@@ -734,8 +762,9 @@ func TestLiveBattery(t *testing.T) {
 			// from the files, not just from the reply. Metric, like M1.
 			if p.MemoryErased != "" {
 				eraseTotal++
-				if holders := memoryFilesWith(filepath.Join(dir, "memory"), p.MemoryErased); len(holders) > 0 {
-					t.Logf("ERASE-MISS [%s] %q: memory files still hold %q after the turn: %v", cat, prompt, p.MemoryErased, holders)
+				if holders := memoryLinesWith(filepath.Join(dir, "memory"), p.MemoryErased); len(holders) > 0 {
+					t.Logf("ERASE-MISS [%s] %q: memory files still hold %q after the turn:\n  %s",
+						cat, prompt, p.MemoryErased, strings.Join(holders, "\n  "))
 				} else {
 					erased++
 				}

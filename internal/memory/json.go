@@ -95,6 +95,29 @@ func (s *jsonStore) Recent(ctx context.Context, channel, userID string, limit in
 // Close is a no-op: nothing to release for a plain file.
 func (s *jsonStore) Close() error { return nil }
 
+// Scrub redacts words out of the stored messages of one conversation.
+func (s *jsonStore) Scrub(_ context.Context, channel, userID string, words []string) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(words) == 0 {
+		return 0, nil
+	}
+	changed := 0
+	for i := range s.msgs {
+		if s.msgs[i].Channel != channel || s.msgs[i].UserID != userID {
+			continue
+		}
+		if next, did := RedactWords(s.msgs[i].Content, words); did {
+			s.msgs[i].Content = next
+			changed++
+		}
+	}
+	if changed == 0 {
+		return 0, nil
+	}
+	return changed, s.save()
+}
+
 // save writes the full array atomically (temp file + rename). Caller holds mu.
 func (s *jsonStore) save() error {
 	if dir := filepath.Dir(s.path); dir != "" {

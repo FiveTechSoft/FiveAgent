@@ -3,6 +3,7 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
@@ -350,6 +351,63 @@ func (a *Agent) userScope(userID string, create bool) (*memory.Knowledge, error)
 	return k, nil
 }
 
+// factSeeds returns the fact's own words as the global scope and the
+// sender's scope hold them: the query alone says "mi plato de fiesta",
+// the stored fact says "empanada de zamburiñas", and a purge (or a
+// scrub) that only knows the query misses every paraphrase of it.
+func (a *Agent) factSeeds(match, userID string) []string {
+	if a.knowledge == nil {
+		return nil
+	}
+	seeds := a.knowledge.FactTokens(match)
+	if uk, err := a.userScope(userID, false); err == nil && uk != nil {
+		seeds = append(seeds, uk.FactTokens(match)...)
+	}
+	return seeds
+}
+
+// forgetWords are the words an "olvida:" has to erase from the live
+// context: the query's own content words plus the fact's words learned
+// from the scope that still holds the stored fact.
+func forgetWords(match string, seeds ...string) []string {
+	words := memory.ContentTokens(match)
+	seen := map[string]bool{}
+	for _, w := range words {
+		seen[w] = true
+	}
+	for _, s := range seeds {
+		s = strings.ToLower(strings.TrimSpace(s))
+		if s == "" || seen[s] {
+			continue
+		}
+		seen[s] = true
+		words = append(words, s)
+	}
+	return words
+}
+
+// scrubHistory redacts a forgotten fact out of the stored conversation,
+// so the next turn cannot quote it back from context. Battery run 9:
+// forget_memory("pulpo a la gallega") cleaned the files, and two turns
+// later the model still answered "hay registros previos que mencionaban
+// pulpo" - it was reading the save_memory turn that history still held.
+// The files are the memory; the history is the context, and a forget
+// that only reaches one of them is not a forget.
+func (a *Agent) scrubHistory(ctx context.Context, channel, userID, match string, seeds ...string) {
+	words := forgetWords(match, seeds...)
+	if len(words) == 0 {
+		return
+	}
+	n, err := a.store.Scrub(ctx, channel, userID, words)
+	if err != nil {
+		log.Printf("agent: history scrub: %v", err)
+		return
+	}
+	if n > 0 {
+		log.Printf("agent: history scrub: redacted the forgotten fact in %d stored messages", n)
+	}
+}
+
 const (
 	snapshotMaxPerFile = 40   // most recent bullets per file (bounded cost, same rule as recall)
 	snapshotMaxChars   = 6000 // total block cap: the snapshot rides every turn of the session
@@ -616,14 +674,20 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			}
 		case len(text) >= len(forgetPrefix) && strings.EqualFold(text[:len(forgetPrefix)], forgetPrefix):
 			if match := strings.TrimSpace(text[len(forgetPrefix):]); match != "" {
-				if _, err := a.knowledge.ForgetAll(match); err != nil {
+				// The fact's own words travel with the query: the digest
+				// that copied this fact paraphrases it, so "mi plato de
+				// fiesta" alone matches nothing in the sender's scope
+				// (battery run 9, M3 still 0/1 with empanada in digests.md).
+				seeds := a.factSeeds(match, canonUser)
+				if _, err := a.knowledge.ForgetAll(match, seeds...); err != nil {
 					log.Printf("memory: olvida: %v", err)
 				}
 				if uk, err := a.userScope(canonUser, false); err == nil && uk != nil {
-					if _, err := uk.ForgetAll(match); err != nil {
+					if _, err := uk.ForgetAll(match, seeds...); err != nil {
 						log.Printf("memory: olvida: user scope: %v", err)
 					}
 				}
+				a.scrubHistory(ctx, histChannel, canonUser, match, seeds...)
 			}
 		}
 	}
@@ -721,9 +785,27 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 					rawArgs = fixed
 				}
 			}
+			// forget_memory must reach the live context too, and its
+			// words have to be collected BEFORE the tool runs: once the
+			// fact is gone from the files there is nothing left to learn
+			// them from (battery run 9, "pulpo" quoted from history).
+			var forgetMatch string
+			var forgetSeeds []string
+			if call.Function.Name == "forget_memory" {
+				var fa struct {
+					Match string `json:"match"`
+				}
+				if json.Unmarshal(rawArgs, &fa) == nil && strings.TrimSpace(fa.Match) != "" {
+					forgetMatch = fa.Match
+					forgetSeeds = a.factSeeds(forgetMatch, canonUser)
+				}
+			}
 			result, err := a.tools.Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
+			}
+			if forgetMatch != "" && err == nil {
+				a.scrubHistory(ctx, histChannel, canonUser, forgetMatch, forgetSeeds...)
 			}
 			if traj != nil {
 				traj.Messages = append(traj.Messages, trajectory.Message{Role: "tool", Name: call.Function.Name, Content: result})

@@ -220,9 +220,9 @@ func (k *Knowledge) AppendFrom(id, entry, origin string) (bool, error) {
 	return true, k.reindexLocked()
 }
 
-// Forget removes every bullet containing match (case-insensitive) from
+// Forget removes every entry containing match (case-insensitive) from
 // the file with the given id and commits the removal. Headings and the
-// YAML header are never touched. It returns how many bullets were
+// YAML header are never touched. It returns how many entries were
 // removed.
 func (k *Knowledge) Forget(id, match string) (int, error) {
 	k.mu.Lock()
@@ -231,20 +231,20 @@ func (k *Knowledge) Forget(id, match string) (int, error) {
 	if _, err := os.Stat(filepath.Join(k.dir, name)); err != nil {
 		return 0, fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
 	}
-	removed, err := k.forgetFile(name, match)
+	removed, changed, err := k.forgetFiles([]string{name}, match, nil)
 	if err != nil || removed == 0 {
 		return removed, err
 	}
-	if err := k.commit("memory: forget in "+id, name); err != nil {
+	if err := k.commit("memory: forget in "+id, changed...); err != nil {
 		return removed, err
 	}
 	return removed, k.reindexLocked()
 }
 
-// ForgetAll removes every bullet containing match from every memory file
-// of this scope - the global files (people, preferences, workstreams,
-// learnings, digests) or one sender's scope under users/<id>. Each
-// changed file gets its own commit.
+// ForgetAll removes every matching entry from every memory file of this
+// scope - the global files (people, preferences, workstreams, learnings,
+// digests) or one sender's scope under users/<id>. Each changed file
+// gets its own commit.
 //
 // It exists because a fact survives in more than one file: context
 // pruning (stage 7g) copies the compacted turn into the sender's
@@ -254,17 +254,73 @@ func (k *Knowledge) Forget(id, match string) (int, error) {
 // the "invented" token that was really still on disk). Scopes are not
 // crossed: this walks the files of k.dir, never users/ subfolders, so
 // one sender's "olvida:" never reaches another sender's memory.
-func (k *Knowledge) ForgetAll(match string) (int, error) {
+//
+// extra carries fact words learned elsewhere - FactTokens of the scope
+// that still holds the stored fact - so a paraphrase in a digest that
+// shares no word with the query is still caught (battery run 9: the
+// digest line said "empanada" but never "mi plato de fiesta", and the
+// query alone matched nothing in the sender's scope).
+func (k *Knowledge) ForgetAll(match string, extra ...string) (int, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	match = strings.ToLower(strings.TrimSpace(match))
 	if match == "" {
 		return 0, nil
 	}
+	removed, changed, err := k.forgetFiles(k.fileNames(), match, extra)
+	if err != nil || removed == 0 {
+		return removed, err
+	}
+	if err := k.commit("memory: forget", changed...); err != nil {
+		return removed, err
+	}
+	return removed, k.reindexLocked()
+}
+
+// FactTokens returns the distinctive words of the fact this query
+// points at: the five-letter-plus words of every entry the query
+// already matches in this scope, minus the query's own words. They are
+// what the query itself cannot say - "empanada" lives in the stored
+// fact even when the digest that copied it no longer repeats "mi plato
+// de fiesta". Read-only: it never writes or commits.
+func (k *Knowledge) FactTokens(match string) []string {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	match = strings.ToLower(strings.TrimSpace(match))
+	if match == "" {
+		return nil
+	}
+	tokens := forgetTokens(match)
+	seeds := map[string]bool{}
+	for _, name := range k.fileNames() {
+		k.collectFactSeeds(name, match, tokens, seeds)
+	}
+	return sortedKeys(seeds)
+}
+
+// forgetFiles is the shared core of Forget and ForgetAll: it learns the
+// fact's own words from names, then strips every matching entry. It
+// returns the number of entries removed and the files that changed.
+func (k *Knowledge) forgetFiles(names []string, match string, extra []string) (int, []string, error) {
+	match = strings.ToLower(strings.TrimSpace(match))
+	if match == "" {
+		return 0, nil, nil
+	}
+	tokens := forgetTokens(match)
+	seeds := map[string]bool{}
+	for _, s := range extra {
+		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
+			seeds[s] = true
+		}
+	}
+	for _, name := range names {
+		k.collectFactSeeds(name, match, tokens, seeds)
+	}
+	seedList := sortedKeys(seeds)
 	removed := 0
 	var changed []string
-	for _, name := range k.fileNames() {
-		n, err := k.forgetFile(name, match)
+	for _, name := range names {
+		n, err := k.forgetFile(name, match, tokens, seedList)
 		if err != nil {
 			continue
 		}
@@ -273,13 +329,98 @@ func (k *Knowledge) ForgetAll(match string) (int, error) {
 			changed = append(changed, name)
 		}
 	}
-	if removed == 0 {
-		return 0, nil
+	return removed, changed, nil
+}
+
+// collectFactSeeds adds to seeds the fact words of every entry of one
+// file that already matches the query. Query words are skipped: they
+// are already matched by the query rule, and keeping them out of the
+// seed set keeps rule B from deleting entries that share only a topic
+// word with the query.
+//
+// Two things keep the set honest: a word must be five letters or more
+// (a query's own stopword filter still applies), and digest boilerplate
+// never counts. Every session digest opens with "Session digest ...
+// compacted turns", and a seed like "session" would delete every digest
+// of the next scope that ever receives these words (it did, in the
+// first draft: the color digest died with the dish ones).
+func (k *Knowledge) collectFactSeeds(name, match string, tokens []string, seeds map[string]bool) {
+	raw, err := os.ReadFile(filepath.Join(k.dir, name))
+	if err != nil {
+		return
 	}
-	if err := k.commit("memory: forget", changed...); err != nil {
-		return removed, err
+	_, entries := splitEntries(strings.Split(string(raw), "\n"))
+	query := map[string]bool{}
+	for _, t := range tokens {
+		query[t] = true
 	}
-	return removed, k.reindexLocked()
+	for _, entry := range entries {
+		if !entryMatchesQuery(entry, match, tokens) {
+			continue
+		}
+		for _, ln := range entry {
+			// The provenance stamp ("[2026-10-02, origin: agent]") rides
+			// on every bullet; its words are the writer, never the fact.
+			// Left in, "origin"/"agent" become seeds that match every
+			// stamped entry of the file (regression caught by TestForget
+			// the moment the stamp landed: n=2 instead of 1).
+			for _, w := range forgetTokens(stampRE.ReplaceAllString(ln, "")) {
+				if len(w) < 5 || query[w] || boilerplateWords[w] {
+					continue
+				}
+				seeds[w] = true
+			}
+		}
+	}
+}
+
+// boilerplateWords are the words every session digest repeats, never
+// part of a fact: they must not become purge (or scrub) targets. The
+// list is the narration the summarizer always writes - "the user asked
+// again, I noted it, confirmed it" - not the fact itself.
+var boilerplateWords = map[string]bool{
+	"session": true, "digest": true, "digests": true, "compacted": true,
+	"summary": true, "resumen": true, "turnos": true, "turns": true,
+	"fecha": true, "record": true, "records": true, "usuario": true,
+	"memory": true, "memoria": true, "conversacion": true,
+	"conversación": true, "hechos": true, "pendiente": true,
+	"pendientes": true, "decision": true, "decisión": true,
+	"recordar": true, "recordó": true, "solicitó": true, "solicita": true,
+	"solicitado": true, "confirmó": true, "confirmar": true,
+	"confirmada": true, "confirmado": true, "anotar": true, "anotó": true,
+	"anotado": true, "anotando": true, "guardó": true, "guardar": true,
+	"guardado": true, "reiteradamente": true, "repetidamente": true,
+	"consecutivos": true, "consecutiva": true, "instancia": true,
+	"menciona": true, "mencionado": true, "pregunta": true, "preguntó": true,
+	"respondió": true, "asistente": true, "preferencia": true,
+	"preferencias": true, "registro": true, "registros": true,
+}
+
+// splitEntries divides file content into the lines that come before the
+// first bullet (YAML header, heading, intro prose - never removable) and
+// the entries: a "- " bullet plus every line up to the next bullet.
+func splitEntries(lines []string) ([]string, [][]string) {
+	var front []string
+	var entries [][]string
+	var cur []string
+	inEntry := false
+	for _, ln := range lines {
+		if strings.HasPrefix(strings.TrimSpace(ln), "- ") {
+			if inEntry {
+				entries = append(entries, cur)
+			}
+			cur, inEntry = nil, true
+		}
+		if !inEntry {
+			front = append(front, ln)
+			continue
+		}
+		cur = append(cur, ln)
+	}
+	if inEntry {
+		entries = append(entries, cur)
+	}
+	return front, entries
 }
 
 // forgetFile strips the matching entries from one file, without
@@ -290,52 +431,31 @@ func (k *Knowledge) ForgetAll(match string) (int, error) {
 // dropping only the header would leave the fact on disk (battery M3,
 // still 0/1 in run 7 with the purge running at the right time).
 //
-// A line matches when it carries the query verbatim (the classic rule),
-// or when it carries at least two of the query's content words: the
-// digest's own summarizer paraphrases, and "mi plato de fiesta" never
-// appears verbatim in "El plato de fiesta del usuario es la empanada".
-// Two words is the floor because one common word is too wide a net for
-// a destructive command.
-func (k *Knowledge) forgetFile(name, match string) (int, error) {
+// Two rules, and an entry goes when either fires:
+//
+//   - the query rule: a line carries the query verbatim, or at least
+//     two of its content words (one when the query has only one). The
+//     summarizer paraphrases, so two words is the floor - one common
+//     word is too wide a net for a destructive command.
+//   - the fact rule: a line carries a word learned from the stored fact
+//     itself (seeds, five letters or more). "empanada" names the fact
+//     even when the digest no longer says "mi plato de fiesta".
+func (k *Knowledge) forgetFile(name, match string, tokens, seeds []string) (int, error) {
 	path := filepath.Join(k.dir, name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return 0, err
 	}
-	match = strings.ToLower(strings.TrimSpace(match))
-	if match == "" {
-		return 0, nil
-	}
-	tokens := forgetTokens(match)
-	var kept, entry []string
+	front, entries := splitEntries(strings.Split(string(raw), "\n"))
+	kept := append([]string(nil), front...)
 	removed := 0
-	inEntry, hit := false, false
-	flush := func() {
-		if !inEntry {
-			return
-		}
-		if hit {
+	for _, entry := range entries {
+		if entryMatchesQuery(entry, match, tokens) || entryHasSeed(entry, seeds) {
 			removed++
-		} else {
-			kept = append(kept, entry...)
-		}
-		entry, inEntry, hit = nil, false, false
-	}
-	for _, ln := range strings.Split(string(raw), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(ln), "- ") {
-			flush()
-			inEntry = true
-		}
-		if !inEntry { // front matter and intro prose: never removable
-			kept = append(kept, ln)
 			continue
 		}
-		if forgetLineMatches(strings.ToLower(ln), match, tokens) {
-			hit = true
-		}
-		entry = append(entry, ln)
+		kept = append(kept, entry...)
 	}
-	flush()
 	if removed == 0 {
 		return 0, nil
 	}
@@ -343,6 +463,32 @@ func (k *Knowledge) forgetFile(name, match string) (int, error) {
 		return 0, err
 	}
 	return removed, nil
+}
+
+// entryMatchesQuery is rule A (see forgetFile).
+func entryMatchesQuery(entry []string, match string, tokens []string) bool {
+	for _, ln := range entry {
+		if forgetLineMatches(strings.ToLower(ln), match, tokens) {
+			return true
+		}
+	}
+	return false
+}
+
+// entryHasSeed is rule B (see forgetFile).
+func entryHasSeed(entry []string, seeds []string) bool {
+	if len(seeds) == 0 {
+		return false
+	}
+	for _, ln := range entry {
+		low := strings.ToLower(ln)
+		for _, s := range seeds {
+			if strings.Contains(low, s) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // forgetStopwords are the query words that carry no topic of their own.
@@ -381,6 +527,17 @@ func forgetTokens(match string) []string {
 		seen[w] = true
 		out = append(out, w)
 	}
+	return out
+}
+
+// sortedKeys returns a map's keys in order (deterministic purges, and
+// stable words for the history scrub).
+func sortedKeys(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	sort.Strings(out)
 	return out
 }
 

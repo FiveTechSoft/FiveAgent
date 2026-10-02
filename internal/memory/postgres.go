@@ -25,6 +25,48 @@ func OpenPostgres(dsn string) (Store, error) {
 	return s, s.migrate()
 }
 
+// Scrub redacts words out of the stored messages of one conversation.
+func (s *pgStore) Scrub(ctx context.Context, channel, userID string, words []string) (int, error) {
+	if len(words) == 0 {
+		return 0, nil
+	}
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, content FROM messages WHERE channel = $1 AND user_id = $2`,
+		channel, userID)
+	if err != nil {
+		return 0, err
+	}
+	type hit struct {
+		id  int64
+		out string
+	}
+	var hits []hit
+	for rows.Next() {
+		var h hit
+		var content string
+		if err := rows.Scan(&h.id, &content); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		if next, did := RedactWords(content, words); did {
+			h.out = next
+			hits = append(hits, h)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, err
+	}
+	rows.Close()
+	for _, h := range hits {
+		if _, err := s.db.ExecContext(ctx,
+			`UPDATE messages SET content = $1 WHERE id = $2`, h.out, h.id); err != nil {
+			return 0, err
+		}
+	}
+	return len(hits), nil
+}
+
 // Close closes the database handle.
 func (s *pgStore) Close() error { return s.db.Close() }
 

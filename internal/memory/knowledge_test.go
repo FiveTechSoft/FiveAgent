@@ -337,6 +337,7 @@ compacted away (roadmap stage 7g).
 - Session digest 2026-10-02 (73 compacted turns): **Resumen:**
 
 Durante 37 turnos consecutivos, el usuario solicitó recordar que su plato de fiesta es la empanada de zamburiñas.
+- Session digest 2026-10-02 (41 compacted turns): la receta que el usuario guardó era la empanada de zamburiñas, siempre la misma.
 - Session digest 2026-10-02 (12 compacted turns): el color favorito del usuario es el verde musgo.
 `
 	if err := os.WriteFile(filepath.Join(k.dir, "digests.md"), []byte(digests), 0o600); err != nil {
@@ -346,8 +347,8 @@ Durante 37 turnos consecutivos, el usuario solicitó recordar que su plato de fi
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 2 {
-		t.Errorf("forgetAll removed %d entries, want the 2 dish digests", n)
+	if n != 3 {
+		t.Errorf("forgetAll removed %d entries, want the 3 dish digests", n)
 	}
 	raw, err := os.ReadFile(filepath.Join(k.dir, "digests.md"))
 	if err != nil {
