@@ -29,11 +29,13 @@ evidence that counts.
    ubuntu-latest, windows-latest and macos-latest. First all-green run:
    https://github.com/FiveTechSoft/FiveAgent/actions/runs/36331174095
 5. **Unit tests** - model client, WhatsApp webhook, agent loop.
-6. **Release v0.0.1** (done) - tag, changelog, prebuilt binaries for
-   Windows/Linux/macOS. Gate cleared on the tag tree itself: live
-   battery run 11 (2026-10-02) reports zero real hallucinations
-   (96 pass + 2 correct-abstentions of 102 scored, M3 effective
-   forgetting 1/1).
+6. **Release v0.0.1** (tagged) - tag, changelog, prebuilt binaries for
+   Windows/Linux/macOS. Battery run 11 (2026-10-02) reports 0
+   hallucinations flagged by the adjusted detector (96 pass + 2 correct
+   abstentions + 4 misses of 102 scored); the unmodified rubric scored
+   97/102 with 1 flagged on the earlier full run. Raw run output is not
+   stored in the repository. Whether the zero-hallucination gate is met
+   with the adjusted detector is an open decision.
 
 ## Phase 2 - v0.2: memory and safety
 
