@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -43,6 +44,8 @@ type Knowledge struct {
 	dir  string
 	repo *git.Repository
 	ix *ftsIndex // stage 7c: rebuildable FTS5 cache; nil = keyword path only
+	// now is the clock used to date new notes; tests replace it.
+	now func() time.Time
 }
 
 // File is one parsed memory file.
@@ -153,12 +156,40 @@ func OpenKnowledge(dir string) (*Knowledge, error) {
 // Dir returns the knowledge folder path (the global scope root).
 func (k *Knowledge) Dir() string { return k.dir }
 
-// Append adds one bullet to the file with the given id and commits the
-// change. The id is the file name without extension ("people",
-// "preferences", "workstreams"). It reports false when the note is
-// already stored (same text, ignoring case, spacing and trailing
-// punctuation) and adds nothing.
+// stampRE matches the provenance stamp Append writes at the end of a
+// bullet: "[2026-10-02, origin: save_memory]".
+var stampRE = regexp.MustCompile(`\s*\[\d{4}-\d{2}-\d{2}, origin: [^\]\n]*\]\s*$`)
+
+// stamp appends the date and origin to a bullet unless it already ends
+// with a stamp. The origin names who wrote the note (a tool, the indexer,
+// the user's explicit command), never message content.
+func (k *Knowledge) stamp(entry, origin string) string {
+	if stampRE.MatchString(entry) {
+		return entry
+	}
+	origin = strings.Join(strings.Fields(strings.NewReplacer("[", "", "]", "").Replace(origin)), " ")
+	if origin == "" {
+		origin = "agent"
+	}
+	now := time.Now
+	if k.now != nil {
+		now = k.now
+	}
+	return fmt.Sprintf("%s [%s, origin: %s]", strings.TrimRight(entry, " "), now().Format("2006-01-02"), origin)
+}
+
+// Append adds one bullet with origin "agent"; see AppendFrom.
 func (k *Knowledge) Append(id, entry string) (bool, error) {
+	return k.AppendFrom(id, entry, "agent")
+}
+
+// AppendFrom adds one bullet to the file with the given id and commits
+// the change. The bullet ends with a stamp holding today's date and the
+// origin. The id is the file name without extension ("people",
+// "preferences", "workstreams"). It reports false when the note is
+// already stored (same text, ignoring case, spacing, trailing
+// punctuation and the stamp) and adds nothing.
+func (k *Knowledge) AppendFrom(id, entry, origin string) (bool, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	name := id + ".md"
@@ -178,6 +209,7 @@ func (k *Knowledge) Append(id, entry string) (bool, error) {
 			return false, nil
 		}
 	}
+	entry = k.stamp(entry, origin)
 	body := strings.TrimRight(string(raw), "\n") + "\n" + entry + "\n"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		return false, err
@@ -446,6 +478,7 @@ func (k *Knowledge) Consolidate() (int, error) {
 // normalizeNote reduces a note to a comparable form: lowercase, single
 // spaces, no trailing punctuation.
 func normalizeNote(s string) string {
+	s = stampRE.ReplaceAllString(s, "")
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.Join(strings.Fields(s), " ")
 	return strings.TrimRight(s, " .;,")
