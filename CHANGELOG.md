@@ -6,11 +6,22 @@ yet exercised against the real external service says so explicitly.
 
 ## v0.0.1 (2026-10-02)
 
-Consolidation of roadmap stages 1-36, first tagged release. The agreed
-gate - battery against HEAD with zero real hallucinations - passed on
-the exact tag tree: live run 11 (113 prompts, 20 categories, 102
-scored) reports 0 hallucinations, 96 pass + 2 correct-abstentions +
-4 misses, M1 write-through 8/8 and M3 effective forgetting 1/1.
+Consolidation of roadmap stages 1-36, first tagged release. Battery
+result reported for this tree: live run 11 (113 prompts, 20 categories,
+102 scored): 96 pass + 2 correct abstentions + 4 misses, 0 hallucinations
+flagged by the battery detector, M1 write-through 8/8, M3 effective
+forgetting 1/1. Read this number with three caveats:
+
+- The detector was adjusted after seeing runs 6 and 7 (a translated
+  "access denied" no longer counts as invented, "avoid X" phrases are
+  not read as recommending X, three more abstention phrasings count).
+  Each change has a unit test, but it is not the unmodified rubric. The
+  unmodified rubric on the earlier full run against 6bc4863 scored
+  97/102 with 1 hallucination flagged.
+- The raw output of run 11 (scorecard, trajectories) is not stored in
+  the repository, so the figures above cannot be re-checked from it.
+- Real command execution in the sandbox was verified in only 2 cases.
+
 Prebuilt binaries for Windows, Linux and macOS are attached to the
 GitHub release. The 4 misses are metrics, not gates: two are recall
 calls the model skipped, one is the sandbox denying `bash -c` (the
@@ -36,9 +47,9 @@ could not count.
   tokens derived from the stored fact reach every copy of it - curated
   files, session digests (paraphrases included) and per-user scopes -
   and the forgotten words are redacted from stored session history, so
-  the model cannot quote the fact back from old turns. Verified live:
-  battery runs 10 and 11 both report memory-erase 1/1 with zero
-  hallucinations.
+  the model cannot quote the fact back from old turns. Battery runs
+  10 and 11 both report memory-erase 1/1 (raw output not stored in the
+  repository).
 - Memory notes carry a date and an origin: Append writes a stamp
   (`[date, origin: ...]`) on every new note; duplicates are still
   detected across days and origins. Unit-tested. Retrieval of an absent
@@ -187,6 +198,9 @@ Shipped and CI-tested, not yet exercised against the real service:
 
 ### The v0.0.1 gate
 
-Battery run 6 (baseline) runs against the tagged HEAD on the dedicated
-runner with a gate of zero real hallucinations. Only then is the tag
-cut.
+The agreed gate was zero real hallucinations on a battery run against
+the tagged tree. Run 11 reports 0 flagged by the adjusted detector; the
+unmodified rubric flagged 1 on the earlier full run. The tag was cut on
+that basis. Whether the gate counts as met with an adjusted detector is
+an open decision, and the raw run output still has to be added to the
+repository so the claim can be checked.
