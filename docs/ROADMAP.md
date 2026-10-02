@@ -883,6 +883,33 @@ evidence that counts.
     against a fake Graph server only. NOT yet verified against the real
     Meta API.
 
+## Objectives to measure
+
+Not implemented as a whole. Each item is a hypothesis; none is claimed to
+work until a battery case measures it.
+
+**Memory recovery sequence (to measure).** The target order for answering
+from memory:
+
+1. A small map is always loaded.
+2. A stable profile is frozen for the session (stage 7k already freezes
+   the snapshot; the profile content itself is to be measured).
+3. Search is FTS5 with a short query and one retry without date
+   filters (stage 7c ships FTS-first recall with a keyword fallback on
+   index errors; there are no date filters and no explicit retry step
+   today, so this step is open).
+4. Only the found fragment is read, not the whole file.
+5. Current facts are verified in the live source before they are stated.
+6. If nothing is found, the answer is "not found", never "does not exist".
+
+Organization: short files per topic or entity (today: five default files
+by topic); facts carry a date and an origin and conflicts are explained
+(not implemented: notes are plain bullets, the cap keeps the most recent);
+no secrets stored (not enforced on memory writes today).
+
+Pending test: a battery case where recovery is bounded by a token limit,
+reporting answers found, tokens read and wrong "does not exist" answers.
+
 ## Principles
 
 - Simple first: one binary, one config file, one command to run.
