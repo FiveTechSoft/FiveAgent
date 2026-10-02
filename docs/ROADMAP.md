@@ -875,7 +875,13 @@ evidence that counts.
     `messages` field and to the WhatsApp Business Account
     (`subscribed_apps`), and confirm the phone number id. Idea born from a
     real first-time setup: the Meta panel is confusing enough to stop new
-    users. Until this exists, docs/whatsapp.md is the way.
+    users. Until it is verified live, docs/whatsapp.md is the way.
+    Implemented (first slice): `fiveagent setup whatsapp` checks the
+    token and phone number id; with `--waba-id` it subscribes the app to
+    the account and reads the subscription back; with `--app-id` and
+    `--callback-url` it registers the webhook callback. Tested in CI
+    against a fake Graph server only. NOT yet verified against the real
+    Meta API.
 
 ## Principles
 
