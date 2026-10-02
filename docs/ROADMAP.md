@@ -29,10 +29,11 @@ evidence that counts.
    ubuntu-latest, windows-latest and macos-latest. First all-green run:
    https://github.com/FiveTechSoft/FiveAgent/actions/runs/36331174095
 5. **Unit tests** - model client, WhatsApp webhook, agent loop.
-6. **Release v0.0.1** - tag, changelog, prebuilt binaries for Windows/Linux/macOS.
-   Candidate documented in CHANGELOG.md (2026-09-29); the tag waits
-   for battery run 6 (baseline) against HEAD with the agreed gate of
-   zero real hallucinations.
+6. **Release v0.0.1** (done) - tag, changelog, prebuilt binaries for
+   Windows/Linux/macOS. Gate cleared on the tag tree itself: live
+   battery run 11 (2026-10-02) reports zero real hallucinations
+   (96 pass + 2 correct-abstentions of 102 scored, M3 effective
+   forgetting 1/1).
 
 ## Phase 2 - v0.2: memory and safety
 

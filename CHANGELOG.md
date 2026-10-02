@@ -4,12 +4,18 @@ All notable changes to FiveAgent. Rule of this file: nothing is claimed
 before it is implemented and verified in CI, and anything shipped but not
 yet exercised against the real external service says so explicitly.
 
-## v0.0.1 (release candidate - tag NOT cut yet)
+## v0.0.1 (2026-10-02)
 
-Consolidation of roadmap stages 1-36. The v0.0.1 tag is intentionally
-pending: it waits for battery run 6 (the baseline run against HEAD on the
-dedicated runner) with the agreed gate of zero real hallucinations. When
-that run passes, the tag is cut and prebuilt binaries are published.
+Consolidation of roadmap stages 1-36, first tagged release. The agreed
+gate - battery against HEAD with zero real hallucinations - passed on
+the exact tag tree: live run 11 (113 prompts, 20 categories, 102
+scored) reports 0 hallucinations, 96 pass + 2 correct-abstentions +
+4 misses, M1 write-through 8/8 and M3 effective forgetting 1/1.
+Prebuilt binaries for Windows, Linux and macOS are attached to the
+GitHub release. The 4 misses are metrics, not gates: two are recall
+calls the model skipped, one is the sandbox denying `bash -c` (the
+prompt's own error path), one is an ambiguity the abstention detector
+could not count.
 
 ### Added after consolidation
 
@@ -18,6 +24,13 @@ that run passes, the tag is cut and prebuilt binaries are published.
   (with read-back) and registers the webhook callback. Covered by tests
   against a fake Graph server; not yet exercised against the real Meta
   API.
+- `olvida:` and `forget_memory` are effective on disk (M3): purge
+  tokens derived from the stored fact reach every copy of it - curated
+  files, session digests (paraphrases included) and per-user scopes -
+  and the forgotten words are redacted from stored session history, so
+  the model cannot quote the fact back from old turns. Verified live:
+  battery runs 10 and 11 both report memory-erase 1/1 with zero
+  hallucinations.
 - Memory notes carry a date and an origin: Append writes a stamp
   (`[date, origin: ...]`) on every new note; duplicates are still
   detected across days and origins. Unit-tested. Retrieval of an absent
