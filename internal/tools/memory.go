@@ -49,7 +49,7 @@ func (t SaveMemory) Execute(_ context.Context, args json.RawMessage) (string, er
 	if err := json.Unmarshal(args, &a); err != nil {
 		return "", fmt.Errorf("save_memory: bad arguments: %w", err)
 	}
-	added, err := t.K.Append(a.File, a.Entry)
+	added, err := t.K.AppendFrom(a.File, a.Entry, "save_memory")
 	if err != nil {
 		return "", err
 	}
@@ -157,7 +157,7 @@ func (t SaveLearning) Execute(_ context.Context, args json.RawMessage) (string, 
 	if len(entry) > 300 {
 		entry = entry[:300]
 	}
-	added, err := t.K.Append("learnings", entry)
+	added, err := t.K.AppendFrom("learnings", entry, "save_learning")
 	if err != nil {
 		return "", err
 	}
