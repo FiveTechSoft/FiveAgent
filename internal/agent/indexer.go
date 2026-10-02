@@ -181,7 +181,7 @@ func (ix *Indexer) index(ctx context.Context, item indexItem) error {
 		if !ok {
 			continue
 		}
-		if _, err := kn.Append(file, fact); err != nil {
+		if _, err := kn.AppendFrom(file, fact, "indexer"); err != nil {
 			log.Printf("indexer: append %s for %s: %v", file, item.userID, err)
 		}
 	}
