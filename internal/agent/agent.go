@@ -585,7 +585,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			}
 			entry := fmt.Sprintf("Session digest %s (%d compacted turns): %s",
 				time.Now().Format("2006-01-02"), turns, cutRunes(summary, 800))
-			if _, err := uk.Append("digests", entry); err != nil {
+			if _, err := uk.AppendFrom("digests", entry, "session digest"); err != nil {
 				log.Printf("agent: session digest: %v", err)
 			}
 		}
@@ -610,7 +610,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 		switch {
 		case len(text) >= len(rememberPrefix) && strings.EqualFold(text[:len(rememberPrefix)], rememberPrefix):
 			if entry := strings.TrimSpace(text[len(rememberPrefix):]); entry != "" {
-				if _, err := a.knowledge.Append("preferences", entry); err != nil {
+				if _, err := a.knowledge.AppendFrom("preferences", entry, "user command"); err != nil {
 					log.Printf("memory: recuerda: store failed: %v", err)
 				}
 			}
