@@ -18,6 +18,11 @@ that run passes, the tag is cut and prebuilt binaries are published.
   (with read-back) and registers the webhook callback. Covered by tests
   against a fake Graph server; not yet exercised against the real Meta
   API.
+- Memory notes carry a date and an origin: Append writes a stamp
+  (`[date, origin: ...]`) on every new note; duplicates are still
+  detected across days and origins. Unit-tested. Retrieval of an absent
+  fact returning nothing (not a look-alike) is tested at the memory
+  layer only; how the model words "not found" is not measured.
 
 ### Highlights
 
