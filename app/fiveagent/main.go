@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -30,6 +31,7 @@ import (
 	"github.com/FiveTechSoft/FiveAgent/internal/slack"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
 	"github.com/FiveTechSoft/FiveAgent/internal/trajectory"
+	"github.com/FiveTechSoft/FiveAgent/internal/wasetup"
 )
 
 func main() {
@@ -44,6 +46,12 @@ func main() {
 			fmt.Println(l)
 		}
 		return
+	}
+
+	// fiveagent setup whatsapp: check the token and phone number id and,
+	// when the ids are given, register the webhook and subscribe the app.
+	if len(os.Args) > 2 && os.Args[1] == "setup" && os.Args[2] == "whatsapp" {
+		os.Exit(runSetupWhatsApp(os.Args[3:]))
 	}
 
 	cfg, err := config.Load(os.Getenv("FIVEAGENT_CONFIG"))
@@ -552,4 +560,48 @@ func main() {
 
 	<-ctx.Done()
 	log.Println("shutting down")
+}
+
+// runSetupWhatsApp returns the process exit code: 0 only when every step
+// that was requested was confirmed by the Graph API.
+func runSetupWhatsApp(args []string) int {
+	fs := flag.NewFlagSet("setup whatsapp", flag.ContinueOnError)
+	wabaID := fs.String("waba-id", "", "WhatsApp Business Account id: subscribes the app to it")
+	appID := fs.String("app-id", "", "Meta app id: with --callback-url, registers the webhook")
+	callback := fs.String("callback-url", "", "public https webhook URL, e.g. https://host/webhook/whatsapp")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	cfg, err := config.Load(os.Getenv("FIVEAGENT_CONFIG"))
+	if err != nil {
+		fmt.Println("config:", err)
+		return 1
+	}
+	wa, ok := cfg.Channels["whatsapp"]
+	if !ok {
+		fmt.Println("no channels.whatsapp section in the config")
+		return 1
+	}
+	c := &wasetup.Client{Token: wa.AccessToken}
+	ctx := context.Background()
+	steps := []wasetup.Step{c.CheckPhone(ctx, wa.PhoneNumberID)}
+	if *wabaID != "" {
+		steps = append(steps, c.SubscribeWABA(ctx, *wabaID))
+	}
+	if *appID != "" || *callback != "" {
+		steps = append(steps, c.RegisterWebhook(ctx, *appID, wa.AppSecret, *callback, wa.VerifyToken))
+	}
+	code := 0
+	for _, st := range steps {
+		mark := "OK  "
+		if !st.OK {
+			mark = "FAIL"
+			code = 1
+		}
+		fmt.Printf("[%s] %s: %s\n", mark, st.Name, st.Detail)
+	}
+	if *wabaID == "" && *appID == "" && *callback == "" {
+		fmt.Println("only the token and phone number id were checked; add --waba-id, and --app-id with --callback-url, to configure the rest")
+	}
+	return code
 }
