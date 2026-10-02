@@ -24,6 +24,14 @@ could not count.
   (with read-back) and registers the webhook callback. Covered by tests
   against a fake Graph server; not yet exercised against the real Meta
   API.
+- Prompt-injection defenses (stage 9): every system prompt now marks
+  command output, web results, file contents, recalled memories,
+  subordinate replies and quoted third-party text as untrusted data,
+  and a triggered skill block carries a header scoping it to its own
+  task. Adversarial CI tests push an "ignore all previous
+  instructions" payload through a tool result and a stored memory note
+  and assert it only rides as labeled data on a byte-stable system
+  prompt. The inbound-message vector ships with the multi-user opening.
 - `olvida:` and `forget_memory` are effective on disk (M3): purge
   tokens derived from the stored fact reach every copy of it - curated
   files, session digests (paraphrases included) and per-user scopes -

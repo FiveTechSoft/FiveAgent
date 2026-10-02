@@ -232,11 +232,20 @@ evidence that counts.
     docs: a key file on the same disk protects copies of the data
     file (backups, sync clients, leaked archives), NOT the live
     machine - that is what the env key is for.
-9. **Prompt-injection tests** - external content is data, never instructions; CI proves it.
-   Today this covers memory content; before the bot opens to multiple
-   users it must also cover the main vector: the inbound messages
-   themselves ("ignore your instructions and..."). Hardened system
-   rules plus adversarial evals ship with any multi-user opening.
+9. **Prompt-injection tests** (CI-tested, 2026-10-02; inbound-message
+   vector waits for the multi-user opening) - external content is data,
+   never instructions, and CI proves it: a system rule marks command
+   output, web results, file contents, recalled memories, subordinate
+   replies and quoted third-party text as untrusted data, a triggered
+   skill block is framed as a procedure that never overrides the rules,
+   and the adversarial tests push an "ignore all previous instructions"
+   payload through a tool result and a stored memory note, asserting it
+   only lands as labeled data while the system prompt stays byte-stable
+   (`internal/agent/injection_test.go`). Before the bot opens to
+   multiple users it must also cover the main vector: the inbound
+   messages themselves ("ignore your instructions and..."). Hardened
+   system rules plus adversarial evals ship with any multi-user
+   opening.
 10. **Per-task model routing** (first version working) - an optional
    `coder:` model in fiveagent.yml serves code-heavy requests. Each
    message goes through a local heuristic (two tiers of signals with
