@@ -63,7 +63,7 @@ func TestIdleConsolidation(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 		raw, _ := os.ReadFile(prefPath)
 		body := string(raw)
-		if strings.Contains(body, "3 años") && !strings.Contains(body, "- mi perro se llama Tobi\n") {
+		if strings.Contains(body, "3 años") && strings.Count(body, "Tobi") == 1 {
 			merged = true
 			break
 		}
