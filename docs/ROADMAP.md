@@ -903,9 +903,12 @@ from memory:
 6. If nothing is found, the answer is "not found", never "does not exist".
 
 Organization: short files per topic or entity (today: five default files
-by topic); facts carry a date and an origin and conflicts are explained
-(not implemented: notes are plain bullets, the cap keeps the most recent);
-no secrets stored (not enforced on memory writes today).
+by topic). Facts now carry a date and an origin: every new note ends with
+a stamp such as `[2026-10-02, origin: save_memory]`, written by the code,
+and deduplication ignores the stamp (unit tests). Older notes have no
+stamp. Not implemented: explaining conflicts between facts (the recall
+cap keeps the most recent matches), and keeping secrets out of memory
+writes.
 
 Pending test: a battery case where recovery is bounded by a token limit,
 reporting answers found, tokens read and wrong "does not exist" answers.
