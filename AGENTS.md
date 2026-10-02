@@ -21,6 +21,10 @@ cp fiveagent.yml.example fiveagent.yml  # then edit: model endpoint, channels
 `fiveagent.bat` (Windows) builds nothing but starts Ollama if needed and
 logs everything to `fiveagent.log`.
 
+Cross-compile for release with `CGO_ENABLED=0` (the Windows gcc chokes
+on `grp.h` when GOOS=linux; the shipped binaries are cgo-free anyway).
+Building outside the worktree keeps the `vX.Y.Z` module stamp clean.
+
 ## Tests
 
 ```
