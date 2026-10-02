@@ -640,7 +640,7 @@ func (w *whatsapp) recordFeedback(from, emoji, messageID string) {
 	}
 	entry := fmt.Sprintf("El usuario marcó mi respuesta como %s (%s): %q",
 		kind, time.Now().Format("2006-01-02"), excerpt)
-	if _, err := kn.Append("learnings", entry); err != nil {
+	if _, err := kn.AppendFrom("learnings", entry, "reaction feedback"); err != nil {
 		log.Printf("whatsapp: reaction feedback: %v", err)
 		return
 	}
