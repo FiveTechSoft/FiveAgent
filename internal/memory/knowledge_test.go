@@ -266,3 +266,104 @@ func TestForget(t *testing.T) {
 		t.Errorf("no-op forget committed: %d -> %d", before, c)
 	}
 }
+
+// TestForgetAllCoversEveryFile: one fact lives in more than one file.
+// Context pruning (stage 7g) copies the compacted turn into digests.md,
+// so removing the bullet from the curated file only leaves the copy to
+// resurrect the fact. Battery run 6 hit exactly that: M3 0/1 and a
+// "invented" token that was really still on disk.
+func TestForgetAllCoversEveryFile(t *testing.T) {
+	k := openTemp(t)
+	const fact = "mi plato de fiesta es la empanada de zamburiñas"
+	if _, err := k.Append("preferences", fact); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Append("digests", "Session digest 2026-10-02 (12 compacted turns): recuerda: "+fact); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Append("preferences", "Prefiere el verde musgo."); err != nil {
+		t.Fatal(err)
+	}
+	n, err := k.ForgetAll("mi plato de fiesta")
+	if err != nil || n != 2 {
+		t.Fatalf("forgetAll: n=%d err=%v, want n=2", n, err)
+	}
+	for _, name := range []string{"preferences.md", "digests.md"} {
+		raw, err := os.ReadFile(filepath.Join(k.dir, name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.Contains(string(raw), "empanada") {
+			t.Errorf("%s still holds the forgotten fact:\n%s", name, raw)
+		}
+	}
+	raw, _ := os.ReadFile(filepath.Join(k.dir, "preferences.md"))
+	if !strings.Contains(string(raw), "verde musgo") {
+		t.Error("unrelated entry removed")
+	}
+	if !strings.HasPrefix(string(raw), "---\nid: preferences") {
+		t.Error("header damaged")
+	}
+	// Forgetting something absent writes nothing and commits nothing.
+	before := commitCount(t, k)
+	if n, err := k.ForgetAll("sushi"); err != nil || n != 0 {
+		t.Fatalf("forgetAll absent: n=%d err=%v", n, err)
+	}
+	if c := commitCount(t, k); c != before {
+		t.Errorf("no-op forgetAll committed: %d -> %d", before, c)
+	}
+}
+
+// TestForgetRemovesParaphrasedDigestEntries is the battery run-7
+// ERASE-MISS, with digest text taken from a real pruning pass (Ollama
+// qwen3.5:9b probe, 2026-10-02). Two properties of that text defeated
+// the old line matcher even when "olvida:" ran at the right moment:
+// the summary PARAPHRASES the fact, so "mi plato de fiesta" appears
+// nowhere in it ("El plato de fiesta del usuario es la empanada ..."),
+// and a stage 7g entry spans a bullet plus paragraphs, of which only
+// the header starts with "- ".
+func TestForgetRemovesParaphrasedDigestEntries(t *testing.T) {
+	k := openTemp(t)
+	const digests = `---
+id: digests
+aliases: [resumen, digest, sesiones]
+---
+# Session digests
+
+Rolling summaries of the conversation turns that context pruning
+compacted away (roadmap stage 7g).
+- Session digest 2026-10-02 (71 compacted turns): **Hechos:** El plato de fiesta del usuario es la empanada de zamburiñas (la que más le gusta).
+**Decisión/Registro:** Esta preferencia se solicitó y confirmó repetidamente.
+- Session digest 2026-10-02 (73 compacted turns): **Resumen:**
+
+Durante 37 turnos consecutivos, el usuario solicitó recordar que su plato de fiesta es la empanada de zamburiñas.
+- Session digest 2026-10-02 (12 compacted turns): el color favorito del usuario es el verde musgo.
+`
+	if err := os.WriteFile(filepath.Join(k.dir, "digests.md"), []byte(digests), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	n, err := k.ForgetAll("mi plato de fiesta")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 2 {
+		t.Errorf("forgetAll removed %d entries, want the 2 dish digests", n)
+	}
+	raw, err := os.ReadFile(filepath.Join(k.dir, "digests.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := string(raw)
+	if strings.Contains(body, "empanada") {
+		t.Errorf("paraphrased digest survived the olvida: (battery ERASE-MISS):\n%s", body)
+	}
+	if !strings.Contains(body, "verde musgo") {
+		t.Errorf("unrelated digest removed:\n%s", body)
+	}
+	if !strings.HasPrefix(body, "---\nid: digests") {
+		t.Error("front matter damaged")
+	}
+	if !strings.Contains(body, "# Session digests") {
+		t.Error("heading damaged")
+	}
+}

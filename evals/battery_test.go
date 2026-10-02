@@ -194,6 +194,20 @@ func abstains(reply string) bool {
 		// 2026-09-29 run 5: "no lo tengo en mi memoria" was the correct
 		// post-forget abstention and scored NO-ABSTENTION.
 		"no lo tengo en mi memoria", "no lo tengo en memoria",
+		// 2026-10-02 run 7: two correct post-forget abstentions scored
+		// NO-ABSTENTION - "Ya olvidé esa información" and "Ya no
+		// recuerdo ..." after the olvida: setup.
+		"ya olvid", "ya no recuerdo", "no recuerdo",
+		// 2026-10-02 run 7: the tiddlywinks abstention opened with "No
+		// consigo encontrar información documentada sobre ..." and
+		// scored NO-ABSTENTION - the "información" guard keeps "no
+		// consigo con ese comando" style answers out.
+		"no consigo encontrar información",
+		// 2026-10-02 run 7 literal: the two correct post-forget
+		// abstentions that scored NO-ABSTENTION.
+		"Ya olvidé esa información ✅",
+		"Ya no recuerdo cuál es tu comida favorita.",
+		"No consigo encontrar información documentada sobre una \"liga regional de tiddlywinks de Badajoz en 2023\".",
 	} {
 		if strings.Contains(low, m) {
 			return true
@@ -207,18 +221,25 @@ func abstains(reply string) bool {
 // write-through directly on disk, so a "guardado" reply that never
 // called save_memory counts as a miss.
 func memoryFilesContain(dir, token string) bool {
-	found := false
+	return len(memoryFilesWith(dir, token)) > 0
+}
+
+// memoryFilesWith lists the .md files under dir still holding token
+// (case-insensitive), the same walk the M1/M3 disk checks do - so an
+// ERASE-MISS names the file that kept the fact instead of only the fact.
+func memoryFilesWith(dir, token string) []string {
+	var out []string
 	filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
 			return nil
 		}
 		b, err := os.ReadFile(path)
 		if err == nil && strings.Contains(strings.ToLower(string(b)), strings.ToLower(token)) {
-			found = true
+			out = append(out, path)
 		}
 		return nil
 	})
-	return found
+	return out
 }
 
 // hallucinationToken picks the first must_not_contain token present
@@ -270,15 +291,28 @@ func inventedErrorNarration(lowReply, auditDelta string) string {
 	if !strings.Contains(auditDelta, "run_command audit") {
 		return ""
 	}
-	auditC := compact(foldAccent(auditDelta))
+	// Compared case-insensitively: the reply token is read off a
+	// lowercased reply, so an upper-case code the tool really printed
+	// (bash/E_ACCESSDENIED, battery run 6) read back as invented.
+	auditC := compact(foldAccent(strings.ToLower(auditDelta)))
 	if m := regexp.MustCompile(`e_[a-z0-9_]{3,}`).FindString(lowReply); m != "" {
 		if !strings.Contains(auditC, compact(m)) {
 			return m
 		}
 	}
-	for _, phrase := range []string{"acceso denegado", "access denied", "permission denied", "permiso denegado"} {
-		if strings.Contains(compact(foldAccent(lowReply)), compact(phrase)) && !strings.Contains(auditC, compact(phrase)) {
-			return phrase
+	// One concept, four spellings: a tool that printed "Acceso
+	// denegado" (WSL inside the AppContainer) and a reply that says
+	// "access denied" agree - a translation is not an invention. Only a
+	// denial with no denial anywhere on record is flagged.
+	family := []string{"acceso denegado", "access denied", "permission denied", "permiso denegado"}
+	for _, p := range family {
+		if strings.Contains(auditC, compact(p)) {
+			return ""
+		}
+	}
+	for _, p := range family {
+		if strings.Contains(compact(foldAccent(lowReply)), compact(p)) {
+			return p
 		}
 	}
 	return ""
@@ -311,7 +345,11 @@ func negatedToken(lowReply, lt string) bool {
 		if j := strings.LastIndexAny(window, ".,;!?\n"); j >= 0 {
 			window = window[j+1:]
 		}
-		if !regexp.MustCompile(`\b(no|sin|nunca|jamás|tampoco|ni)\b`).MatchString(window) {
+		// 2026-10-02 run 7: "la forma correcta (evitando `cVar` o nombres
+		// genéricos)" mentioned the token to discard it, not to claim it.
+		// The avoidance verbs are a negation of the same kind: the token
+		// appears in the window precisely as what NOT to write.
+		if !regexp.MustCompile(`\b(no|sin|nunca|jamás|tampoco|ni|evitando|evita|evitar|evite|evitad|evito|avoiding|avoid)\b`).MatchString(window) {
 			return false // at least one occurrence stands unnegated
 		}
 		idx = i + len(lt)
@@ -696,8 +734,8 @@ func TestLiveBattery(t *testing.T) {
 			// from the files, not just from the reply. Metric, like M1.
 			if p.MemoryErased != "" {
 				eraseTotal++
-				if memoryFilesContain(filepath.Join(dir, "memory"), p.MemoryErased) {
-					t.Logf("ERASE-MISS [%s] %q: memory files still hold %q after the turn", cat, prompt, p.MemoryErased)
+				if holders := memoryFilesWith(filepath.Join(dir, "memory"), p.MemoryErased); len(holders) > 0 {
+					t.Logf("ERASE-MISS [%s] %q: memory files still hold %q after the turn: %v", cat, prompt, p.MemoryErased, holders)
 				} else {
 					erased++
 				}
@@ -922,6 +960,23 @@ func TestHallucinationToken(t *testing.T) {
 		[]string{"input()"}, false); tok != "input()" {
 		t.Errorf("token outside the negated clause must count, got %q", tok)
 	}
+	// The 2026-10-02 run 7 false positive: the Harbour answer was
+	// CORRECT (LOCAL/ACCEPT ... TO) and mentioned cVar as the name to
+	// avoid. Literal reply fragment from the run report.
+	if tok := hallucinationToken(
+		"en **harbour**, la forma correcta (evitando `cvar` o nombres genéricos) es así: local cnombre := \"\" accept \"tu nombre: \" to cnombre",
+		"en harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?",
+		[]string{"cvar"}, false); tok != "" {
+		t.Errorf("token named as the one to avoid flagged as hallucination: %q", tok)
+	}
+	// ...while the token RECOMMENDED still counts: the avoidance verb
+	// is what separates the two, not the verb "forma".
+	if tok := hallucinationToken(
+		"la forma recomendada es rellenar cvar directamente con el valor",
+		"en harbour, ¿cómo declaro una variable y le pido al usuario su nombre por consola?",
+		[]string{"cvar"}, false); tok != "cvar" {
+		t.Errorf("token recommended (not avoided) must count, got %q", tok)
+	}
 	// Clean answer: nothing.
 	if tok := hallucinationToken(
 		"la capital de portugal es lisboa",
@@ -1002,6 +1057,23 @@ func TestInventedErrorNarration(t *testing.T) {
 			`Me dio acceso denegado`, "", ""},
 		{"invented denial over a clean run",
 			`Falló con acceso denegado`, `run_command audit cmd="echo" exit=0`, "acceso denegado"},
+		// Battery run 6 (2026-10-02): WSL's bash.exe inside the
+		// AppContainer really answered "Acceso denegado." +
+		// "Código de error: Bash/E_ACCESSDENIED" on stdout. Both of
+		// these were scored as hallucinations although the tool said
+		// them - the audit used to record stderr only, and case-sensitively.
+		{"run6: real WSL error code quoted verbatim",
+			`El error fue Bash/E_ACCESSDENIED`,
+			`run_command audit cmd="bash" exit=1 stdout="Acceso denegado.\r\nCódigo de error: Bash/E_ACCESSDENIED\r\n" stderr=""`,
+			""},
+		{"run6: Spanish tool output, English narration",
+			`Devuelve access denied: la AppContainer bloquea WSL`,
+			`run_command audit cmd="bash" exit=1 stdout="Acceso denegado." stderr=""`,
+			""},
+		{"run6: denial still invented when nothing says it",
+			`Falló con access denied`,
+			`run_command audit cmd="bash" exit=1 stdout="ok" stderr=""`,
+			"access denied"},
 	}
 	for _, c := range cases {
 		if got := inventedErrorNarration(strings.ToLower(c.reply), c.audit); got != c.want {

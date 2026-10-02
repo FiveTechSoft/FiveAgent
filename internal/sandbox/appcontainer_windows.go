@@ -372,7 +372,7 @@ func (a *appcontainer) Run(ctx context.Context, userKey string, argv []string) (
 	if r, _, _ := procGetExitCodeProcess.Call(uintptr(pi.Process), uintptr(unsafe.Pointer(&code))); r != 0 {
 		exitCode = int(code)
 	}
-	res := Result{Stdout: clip(string(stdout)), Stderr: clip(string(stderr)), ExitCode: exitCode, TimedOut: timedOut}
+	res := Result{Stdout: clip(decodeUTF16(string(stdout))), Stderr: clip(decodeUTF16(string(stderr))), ExitCode: exitCode, TimedOut: timedOut}
 	return res, nil
 }
 

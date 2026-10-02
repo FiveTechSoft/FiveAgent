@@ -4,4 +4,7 @@ fiveagent
 data/
 out.log
 err.log
+*.log
+*.err
 fiveagent.exe
+*.exe~

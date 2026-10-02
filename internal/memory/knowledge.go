@@ -196,31 +196,186 @@ func (k *Knowledge) Forget(id, match string) (int, error) {
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	name := id + ".md"
+	if _, err := os.Stat(filepath.Join(k.dir, name)); err != nil {
+		return 0, fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
+	}
+	removed, err := k.forgetFile(name, match)
+	if err != nil || removed == 0 {
+		return removed, err
+	}
+	if err := k.commit("memory: forget in "+id, name); err != nil {
+		return removed, err
+	}
+	return removed, k.reindexLocked()
+}
+
+// ForgetAll removes every bullet containing match from every memory file
+// of this scope - the global files (people, preferences, workstreams,
+// learnings, digests) or one sender's scope under users/<id>. Each
+// changed file gets its own commit.
+//
+// It exists because a fact survives in more than one file: context
+// pruning (stage 7g) copies the compacted turn into the sender's
+// digests.md, and Recall merges that scope back in. Forgetting the
+// token from the three curated files only left the digest copy alive,
+// so the fact resurrected after a restart (battery run 6: M3 0/1 plus
+// the "invented" token that was really still on disk). Scopes are not
+// crossed: this walks the files of k.dir, never users/ subfolders, so
+// one sender's "olvida:" never reaches another sender's memory.
+func (k *Knowledge) ForgetAll(match string) (int, error) {
+	k.mu.Lock()
+	defer k.mu.Unlock()
+	match = strings.ToLower(strings.TrimSpace(match))
+	if match == "" {
+		return 0, nil
+	}
+	removed := 0
+	var changed []string
+	for _, name := range k.fileNames() {
+		n, err := k.forgetFile(name, match)
+		if err != nil {
+			continue
+		}
+		if n > 0 {
+			removed += n
+			changed = append(changed, name)
+		}
+	}
+	if removed == 0 {
+		return 0, nil
+	}
+	if err := k.commit("memory: forget", changed...); err != nil {
+		return removed, err
+	}
+	return removed, k.reindexLocked()
+}
+
+// forgetFile strips the matching entries from one file, without
+// committing. It writes nothing when no entry matches.
+//
+// An ENTRY is a "- " bullet plus the unbulleted lines under it: a stage
+// 7g session digest is a header bullet and one or more paragraphs, so
+// dropping only the header would leave the fact on disk (battery M3,
+// still 0/1 in run 7 with the purge running at the right time).
+//
+// A line matches when it carries the query verbatim (the classic rule),
+// or when it carries at least two of the query's content words: the
+// digest's own summarizer paraphrases, and "mi plato de fiesta" never
+// appears verbatim in "El plato de fiesta del usuario es la empanada".
+// Two words is the floor because one common word is too wide a net for
+// a destructive command.
+func (k *Knowledge) forgetFile(name, match string) (int, error) {
 	path := filepath.Join(k.dir, name)
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return 0, fmt.Errorf("memory: unknown file %q (have: %s)", id, strings.Join(k.fileNames(), ", "))
+		return 0, err
 	}
 	match = strings.ToLower(strings.TrimSpace(match))
-	var kept []string
+	if match == "" {
+		return 0, nil
+	}
+	tokens := forgetTokens(match)
+	var kept, entry []string
 	removed := 0
-	for _, ln := range strings.Split(string(raw), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(ln), "- ") && strings.Contains(strings.ToLower(ln), match) {
+	inEntry, hit := false, false
+	flush := func() {
+		if !inEntry {
+			return
+		}
+		if hit {
 			removed++
+		} else {
+			kept = append(kept, entry...)
+		}
+		entry, inEntry, hit = nil, false, false
+	}
+	for _, ln := range strings.Split(string(raw), "\n") {
+		if strings.HasPrefix(strings.TrimSpace(ln), "- ") {
+			flush()
+			inEntry = true
+		}
+		if !inEntry { // front matter and intro prose: never removable
+			kept = append(kept, ln)
 			continue
 		}
-		kept = append(kept, ln)
+		if forgetLineMatches(strings.ToLower(ln), match, tokens) {
+			hit = true
+		}
+		entry = append(entry, ln)
 	}
+	flush()
 	if removed == 0 {
 		return 0, nil
 	}
 	if err := os.WriteFile(path, []byte(strings.Join(kept, "\n")), 0o600); err != nil {
 		return 0, err
 	}
-	if err := k.commit("memory: forget in "+id, name); err != nil {
-		return removed, err
+	return removed, nil
+}
+
+// forgetStopwords are the query words that carry no topic of their own.
+// Two-letter words are dropped by length in forgetTokens; these are the
+// longer ones ("todo lo que sepas sobre mi comida favorita" would other-
+// wise vote for "sepas" as if it named a fact).
+var forgetStopwords = map[string]bool{
+	"que": true, "por": true, "para": true, "con": true, "sin": true,
+	"del": true, "los": true, "las": true, "una": true, "unos": true,
+	"unas": true, "este": true, "esta": true, "estos": true, "estas": true,
+	"ese": true, "esa": true, "esos": true, "esas": true, "aquel": true,
+	"aquella": true, "más": true, "muy": true, "también": true,
+	"todo": true, "toda": true, "todos": true, "todas": true,
+	"otro": true, "otra": true, "otros": true, "otras": true,
+	"nada": true, "algo": true, "cual": true, "cuales": true,
+	"donde": true, "cuando": true, "como": true, "sobre": true,
+	"entre": true, "hasta": true, "desde": true, "cuyo": true,
+	"the": true, "and": true, "for": true, "you": true, "are": true,
+	"was": true, "not": true, "all": true, "any": true, "can": true,
+	"has": true, "have": true, "this": true, "that": true, "with": true,
+	"from": true, "into": true, "what": true, "when": true, "how": true,
+}
+
+// forgetTokens returns the query's content words: alphabetic, three
+// letters or more, not stopwords, no repeats.
+func forgetTokens(match string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, w := range strings.FieldsFunc(match, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsNumber(r)
+	}) {
+		w = strings.ToLower(w)
+		if len(w) < 3 || forgetStopwords[w] || seen[w] {
+			continue
+		}
+		seen[w] = true
+		out = append(out, w)
 	}
-	return removed, k.reindexLocked()
+	return out
+}
+
+// forgetLineMatches decides whether one line of an entry belongs to the
+// query: verbatim substring, or at least two content words (one when the
+// query has only one).
+func forgetLineMatches(line, match string, tokens []string) bool {
+	if strings.Contains(line, match) {
+		return true
+	}
+	if len(tokens) == 0 {
+		return false
+	}
+	need := 2
+	if len(tokens) == 1 {
+		need = 1
+	}
+	got := 0
+	for _, t := range tokens {
+		if strings.Contains(line, t) {
+			got++
+			if got >= need {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // Consolidate merges near-duplicate bullets in every file of the scope

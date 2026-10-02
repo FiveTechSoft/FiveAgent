@@ -6,7 +6,9 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -173,5 +175,120 @@ func TestHandleOlvidaPrefixForgetsDirectly(t *testing.T) {
 	}
 	if len(hits) != 0 {
 		t.Errorf("olvida: prefix did not remove the bullet: %+v", hits)
+	}
+}
+
+// memoryFilesHolding lists every .md file under root holding token
+// (case-insensitive), the same walk the battery's M3 disk check does.
+func memoryFilesHolding(root, token string) []string {
+	var out []string
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
+			return nil
+		}
+		if b, err := os.ReadFile(path); err == nil &&
+			strings.Contains(strings.ToLower(string(b)), strings.ToLower(token)) {
+			out = append(out, path)
+		}
+		return nil
+	})
+	return out
+}
+
+// Battery run 6 (M3 0/1): "olvida:" cleared the three curated global
+// files but not the sender's own digests.md, where stage 7g had copied
+// the compacted turn. Recall merges that scope, so the fact came back
+// in a fresh session and the disk check still saw it - the model was
+// telling the truth about a file that should have been cleaned.
+func TestHandleOlvidaPurgesSenderDigestScope(t *testing.T) {
+	kn := openTestKnowledge(t)
+	const fact = "mi plato de fiesta es la empanada de zamburiñas"
+	uk, err := memory.OpenUserScope(kn.Dir(), "u1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := memory.OpenUserScope(kn.Dir(), "u2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := kn.Append("preferences", fact); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := uk.Append("digests", "Session digest 2026-10-02 (12 compacted turns): recuerda: "+fact); err != nil {
+		t.Fatal(err)
+	}
+	// Another sender holds the same fact: one "olvida:" never reaches
+	// another sender's scope.
+	if _, err := other.Append("digests", "Session digest 2026-10-02 (3 compacted turns): recuerda: "+fact); err != nil {
+		t.Fatal(err)
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"Borrado."}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1", "olvida: mi plato de fiesta"); err != nil {
+		t.Fatal(err)
+	}
+	if paths := memoryFilesHolding(kn.Dir(), "empanada"); len(paths) != 1 {
+		t.Errorf("forgotten fact left in %d files, want only the other sender's scope: %v", len(paths), paths)
+	}
+	raw, err := os.ReadFile(filepath.Join(other.Dir(), "digests.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "empanada") {
+		t.Error("another sender's memory was purged by this one's olvida:")
+	}
+}
+
+// Battery run 7 ERASE-MISS: the very same turn runs the pruner, and
+// stage 7g writes the fresh digest out of the history the olvida: just
+// cleaned - so Ruta A had to be the LAST memory writer of the turn.
+// With the purge ahead of PruneConfig.Prune the digest came back
+// before Handle returned and the battery's on-disk check still found
+// "empanada" (run 6 AND run 7, 0/1 twice).
+func TestHandleOlvidaPurgesAfterThisTurnPruning(t *testing.T) {
+	kn := openTestKnowledge(t)
+	const fact = "mi plato de fiesta es la empanada de zamburiñas"
+	if _, err := kn.Append("preferences", fact); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"Borrado."}}]}`)
+	}))
+	defer srv.Close()
+
+	// A deep history: far over the tiny budget below, so this turn's
+	// Prune compacts the middle and the DigestSink rewrites digests.md.
+	store := &fakeStore{}
+	for i := 0; i < 30; i++ {
+		store.hist = append(store.hist,
+			[2]string{"user", "turno " + strconv.Itoa(i) + ": " + fact},
+			[2]string{"assistant", "apuntado, queda anotado: la empanada de zamburiñas"})
+	}
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), store, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	a.WithPruning(PruneConfig{
+		MaxChars:  600,
+		HeadKeep:  2,
+		TailKeep:  8,
+		Summarize: func(context.Context, []model.Message) (string, error) {
+			return fact, nil
+		},
+	})
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1", "olvida: mi plato de fiesta"); err != nil {
+		t.Fatal(err)
+	}
+	if paths := memoryFilesHolding(kn.Dir(), "empanada"); len(paths) != 0 {
+		t.Errorf("digest re-written by this turn's pruning survived the olvida: %v", paths)
 	}
 }

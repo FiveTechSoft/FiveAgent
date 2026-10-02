@@ -516,31 +516,10 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			a.trajSink(*traj)
 		}()
 	}
-	// Ruta A (docs/memory-training.md): a message starting with
-	// "recuerda:" is stored directly, without asking the model to call
-	// save_memory. The small model sometimes replies "de acuerdo" and
-	// never calls the tool, and the fact is lost (observed live in the
-	// 2026-09-28 battery: 4 of 7 memory setups never reached disk).
-	// "olvida:" is the twin: it removes matching bullets directly.
+	// Ruta A (docs/memory-training.md) runs below, once the sender's
+	// canonical identity is known: an "olvida:" has to reach the
+	// sender's own scope too, not just the three global files.
 	text = strings.TrimSpace(text)
-	if a.knowledge != nil && len(text) > 0 {
-		switch {
-		case len(text) >= len(rememberPrefix) && strings.EqualFold(text[:len(rememberPrefix)], rememberPrefix):
-			if entry := strings.TrimSpace(text[len(rememberPrefix):]); entry != "" {
-				if _, err := a.knowledge.Append("preferences", entry); err != nil {
-					log.Printf("memory: recuerda: store failed: %v", err)
-				}
-			}
-		case len(text) >= len(forgetPrefix) && strings.EqualFold(text[:len(forgetPrefix)], forgetPrefix):
-			if match := strings.TrimSpace(text[len(forgetPrefix):]); match != "" {
-				for _, id := range standardMemoryFiles {
-					if _, err := a.knowledge.Forget(id, match); err != nil {
-						log.Printf("memory: olvida: %s: %v", id, err)
-					}
-				}
-			}
-		}
-	}
 	// Stage 36: "vincular <code>" links this channel identity to the
 	// one that created the code. Mechanical, no model turn - the
 	// linking flow is explicit, never guessed.
@@ -614,6 +593,39 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	hmsgs, pruneNotes := pruner.Prune(ctx, hmsgs)
 	for _, n := range pruneNotes {
 		log.Printf("agent: context pruning: %s", n)
+	}
+	// Ruta A (docs/memory-training.md): a message starting with
+	// "recuerda:" is stored directly, without asking the model to call
+	// save_memory. The small model sometimes replies "de acuerdo" and
+	// never calls the tool, and the fact is lost (observed live in the
+	// 2026-09-28 battery: 4 of 7 memory setups never reached disk).
+	// "olvida:" is the twin: it removes matching bullets directly, from
+	// every global memory file AND from the sender's own scope - a fact
+	// that pruning copied into users/<id>/digests.md (stage 7g) must not
+	// outlive the command that removed it (battery run 6, M3 0/1).
+	// It runs AFTER pruning: this same turn's compaction re-writes the
+	// digest from the very history the command just cleaned, which is
+	// how run 7 still found "empanada" on disk right after the olvida:.
+	if a.knowledge != nil && len(text) > 0 {
+		switch {
+		case len(text) >= len(rememberPrefix) && strings.EqualFold(text[:len(rememberPrefix)], rememberPrefix):
+			if entry := strings.TrimSpace(text[len(rememberPrefix):]); entry != "" {
+				if _, err := a.knowledge.Append("preferences", entry); err != nil {
+					log.Printf("memory: recuerda: store failed: %v", err)
+				}
+			}
+		case len(text) >= len(forgetPrefix) && strings.EqualFold(text[:len(forgetPrefix)], forgetPrefix):
+			if match := strings.TrimSpace(text[len(forgetPrefix):]); match != "" {
+				if _, err := a.knowledge.ForgetAll(match); err != nil {
+					log.Printf("memory: olvida: %v", err)
+				}
+				if uk, err := a.userScope(canonUser, false); err == nil && uk != nil {
+					if _, err := uk.ForgetAll(match); err != nil {
+						log.Printf("memory: olvida: user scope: %v", err)
+					}
+				}
+			}
+		}
 	}
 	// Stage 7k: the session's frozen memory snapshot rides the system
 	// prompt. Session start = the just-appended message is the whole

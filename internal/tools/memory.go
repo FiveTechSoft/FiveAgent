@@ -68,8 +68,9 @@ func (t ForgetMemory) Name() string { return "forget_memory" }
 
 func (t ForgetMemory) Description() string {
 	return "Remove facts from long-term memory. Use it when the user asks to " +
-		"forget something, or when a stored fact is no longer true. Removes " +
-		"every entry containing the given text."
+		"forget something, or when a stored fact is no longer true. Searches " +
+		"every memory file of this scope (the curated files and the session " +
+		"digests) and removes every entry containing the given text."
 }
 
 func (t ForgetMemory) Parameters() json.RawMessage {
@@ -79,7 +80,7 @@ func (t ForgetMemory) Parameters() json.RawMessage {
 			"file": {
 				"type": "string",
 				"enum": ["people", "preferences", "workstreams"],
-				"description": "Which memory file to search."
+				"description": "The memory file the fact lives in; the search still covers every memory file of the scope."
 			},
 			"match": {
 				"type": "string",
@@ -98,7 +99,10 @@ func (t ForgetMemory) Execute(_ context.Context, args json.RawMessage) (string, 
 	if err := json.Unmarshal(args, &a); err != nil {
 		return "", fmt.Errorf("forget_memory: bad arguments: %w", err)
 	}
-	n, err := t.K.Forget(a.File, a.Match)
+	// Every file, not just a.File: pruning copies compacted turns into
+	// the session digests, and a fact left there resurrects after a
+	// restart (battery run 6, M3 0/1).
+	n, err := t.K.ForgetAll(a.Match)
 	if err != nil {
 		return "", err
 	}

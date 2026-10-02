@@ -26,6 +26,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/config"
 )
@@ -36,6 +37,37 @@ type Result struct {
 	Stderr   string
 	ExitCode int
 	TimedOut bool
+}
+
+// decodeUTF16 normalizes a stream a Windows child wrote as UTF-16LE.
+// WSL's bash.exe does exactly that: inside an AppContainer it fails
+// with "Acceso denegado." plus "Código de error: Bash/E_ACCESSDENIED"
+// interleaved with NUL bytes (battery run 6, 2026-10-02). The model
+// was handed that NUL soup, guessed an error instead of quoting it,
+// and the battery scored the guess as a hallucination. Output that is
+// not UTF-16 comes back untouched.
+func decodeUTF16(s string) string {
+	b := []byte(s)
+	if len(b) < 4 {
+		return s
+	}
+	zeros := 0
+	for i := 1; i < len(b); i += 2 {
+		if b[i] == 0 {
+			zeros++
+		}
+	}
+	if zeros*4 < len(b) { // fewer than a quarter of the odd bytes are NUL: not UTF-16
+		return s
+	}
+	if b[0] == 0xFF && b[1] == 0xFE {
+		b = b[2:]
+	}
+	u := make([]uint16, 0, len(b)/2)
+	for i := 0; i+1 < len(b); i += 2 {
+		u = append(u, uint16(b[i])|uint16(b[i+1])<<8)
+	}
+	return string(utf16.Decode(u))
 }
 
 // Sandbox executes commands in isolation.
@@ -162,7 +194,7 @@ func runResult(ctx context.Context, cmd *exec.Cmd) (Result, error) {
 	if errors.As(runErr, &exitErr) {
 		runErr = nil
 	}
-	r := Result{Stdout: string(out.buf), Stderr: string(errb.buf)}
+	r := Result{Stdout: decodeUTF16(string(out.buf)), Stderr: decodeUTF16(string(errb.buf))}
 	if cmd.ProcessState != nil {
 		r.ExitCode = cmd.ProcessState.ExitCode()
 	} else {

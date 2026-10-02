@@ -115,7 +115,7 @@ func (j *jobobject) Run(ctx context.Context, userKey string, argv []string) (Res
 	}
 
 	waitErr := cmd.Wait()
-	res := Result{Stdout: string(out.buf), Stderr: string(errb.buf)}
+	res := Result{Stdout: decodeUTF16(string(out.buf)), Stderr: decodeUTF16(string(errb.buf))}
 	if cmd.ProcessState != nil {
 		res.ExitCode = cmd.ProcessState.ExitCode()
 	} else {
