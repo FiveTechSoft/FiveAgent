@@ -11,6 +11,14 @@ pending: it waits for battery run 6 (the baseline run against HEAD on the
 dedicated runner) with the agreed gate of zero real hallucinations. When
 that run passes, the tag is cut and prebuilt binaries are published.
 
+### Added after consolidation
+
+- `fiveagent setup whatsapp`: checks the access token and phone number
+  id, optionally subscribes the app to the WhatsApp Business Account
+  (with read-back) and registers the webhook callback. Covered by tests
+  against a fake Graph server; not yet exercised against the real Meta
+  API.
+
 ### Highlights
 
 - Self-hosted personal agent: one Go binary, `docker compose up` brings
