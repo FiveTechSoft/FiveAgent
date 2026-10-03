@@ -198,12 +198,14 @@ categories:
     must_contain:
     - FooBAR-Baz_123
     needs_sandbox: true
+    v2_exec_token: FooBAR-Baz_123
     source: salida verbatim de run_command; el casing tramposo caza salidas reformateadas o inventadas (hallazgo de la primera prueba viva)
   - prompt: "sin ejecutar nada, responde con precisión técnica: en Windows, ¿con qué command y args exactos lanzarías un programa con run_command?"
     must_contain:
     - cmd
     - /c
     needs_sandbox: true
+    v2_argv: cmd|/c
     source: "la descripción de la tool run_command; en Windows es cmd /c, no bash (hallazgo de la primera prueba viva: bash -c no existe en la mayoría de Windows)"
   - prompt: ejecuta el comando echo con el texto auditoria-cinco
     must_contain:
