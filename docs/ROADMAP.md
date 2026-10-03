@@ -23,8 +23,13 @@ evidence that counts.
    bubblewrap on Linux (no network, host files hidden, one writable folder
    per user, timeout), Windows AppContainer + Job Objects (no network, host
    files unreadable, RAM cap, timeout; plain Job Objects remains as the
-   fallback), Docker (no network, RAM/CPU caps). Later: sandbox-exec on
-   macOS.
+   fallback), Docker (no network, RAM/CPU caps). Windows shell builtins
+   (echo, dir, copy, ...) have no standalone executable, so
+   CreateProcess cannot start them by name: when a command fails with
+   "cannot find the file" and is a bare builtin, `run_command` retries
+   once through `cmd /c` - the battery run 11 FooBAR miss, fixed
+   red-to-green and verified live on the appcontainer backend.
+   Later: sandbox-exec on macOS.
 4. **CI** (done) - GitHub Actions: build, vet and tests on every push, on
    ubuntu-latest, windows-latest and macos-latest. First all-green run:
    https://github.com/FiveTechSoft/FiveAgent/actions/runs/36331174095

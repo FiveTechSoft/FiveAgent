@@ -98,7 +98,22 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 		return "", fmt.Errorf("run_command: empty command")
 	}
 	start := time.Now()
-	res, err := r.SB.Run(ctx, userKey, append([]string{a.Command}, a.Args...))
+	argv := append([]string{a.Command}, a.Args...)
+	res, err := r.SB.Run(ctx, userKey, argv)
+	if err != nil && isMissingFile(err) && isCmdBuiltin(a.Command) {
+		// Battery run 11 MISS: on Windows, echo/dir & co. are cmd
+		// builtins with no standalone executable, so CreateProcess
+		// reports "cannot find the file" for the very command the user
+		// asked for. Retry once through cmd /c with the whole command
+		// as one payload (the shape proven live in battery run 11:
+		// args ["/c", "echo auditoria-cinco"]); if that also fails,
+		// keep the original error - it names the real program.
+		payload := strings.Join(argv, " ")
+		if res2, err2 := r.SB.Run(ctx, userKey, []string{"cmd", "/c", payload}); err2 == nil {
+			log.Printf("run_command: %q has no own executable; ran it through cmd /c", a.Command)
+			res, err = res2, nil
+		}
+	}
 	if err != nil {
 		// The audit trail distinguishes a real execution from a model
 		// that claims it ran something (first-live-test finding).
@@ -141,4 +156,39 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 		out = fmt.Sprintf("(no output, exit code %d)", res.ExitCode)
 	}
 	return out, nil
+}
+
+// cmdBuiltins are Windows shell builtins that have no standalone
+// executable: CreateProcess cannot start them by name, only cmd /c can
+// run them.
+var cmdBuiltins = map[string]bool{
+	"echo": true, "dir": true, "cls": true, "copy": true, "move": true,
+	"del": true, "erase": true, "type": true, "ren": true, "rename": true,
+	"md": true, "mkdir": true, "rd": true, "rmdir": true, "set": true,
+	"date": true, "time": true, "ver": true, "vol": true, "cd": true,
+	"chdir": true, "pushd": true, "popd": true, "more": true,
+	"title": true, "color": true, "path": true, "assoc": true,
+	"ftype": true,
+}
+
+// isCmdBuiltin reports whether command is a bare shell builtin name
+// (no path separator - "C:\tools\echo" is a program, not the builtin).
+func isCmdBuiltin(command string) bool {
+	command = strings.ToLower(strings.TrimSpace(command))
+	if strings.ContainsAny(command, `/\`) {
+		return false
+	}
+	return cmdBuiltins[command]
+}
+
+// isMissingFile reports whether err says the executable itself could
+// not be found: the Windows CreateProcess wording plus Go's own
+// exec.LookPath wording (locale-independent).
+func isMissingFile(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "cannot find the file") ||
+		strings.Contains(msg, "executable file not found")
 }

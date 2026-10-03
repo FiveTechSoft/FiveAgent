@@ -63,6 +63,16 @@ could not count.
   detected across days and origins. Unit-tested. Retrieval of an absent
   fact returning nothing (not a look-alike) is tested at the memory
   layer only; how the model words "not found" is not measured.
+- `run_command` runs Windows shell builtins (the run 11 miss described
+  above as "the sandbox denying bash -c" was in fact a bare `echo`):
+  the model invoked `echo` exactly as the prompt asked, but Windows has
+  no echo.exe, so CreateProcess reported "cannot find the file". The
+  tool now retries a missing-file failure once through `cmd /c` when
+  the command is a bare cmd builtin (echo, dir, copy, ...). Unknown
+  executables and other errors keep their original error unchanged, so
+  the battery's not-found narration cases still see the same text.
+  Unit-tested red-to-green (retry fires for builtins only) and verified
+  live against the real appcontainer backend on Windows.
 
 ### Highlights
 
