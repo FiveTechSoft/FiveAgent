@@ -2,6 +2,7 @@ package tools_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"strings"
@@ -125,4 +126,25 @@ func (f *failingSandbox) Name() string { return "fake-failing" }
 func (f *failingSandbox) Run(_ context.Context, _ string, argv []string) (sandbox.Result, error) {
 	f.calls = append(f.calls, append([]string(nil), argv...))
 	return sandbox.Result{}, f.err
+}
+
+// The cmd /c retry joins argv into one payload, so an argument holding cmd
+// syntax must NOT be retried: the original error comes back and cmd never
+// sees the argument.
+func TestRunCommandBuiltinRetrySkipsCmdMetacharacters(t *testing.T) {
+	for _, arg := range []string{"hi & del x", "a|b", "x > out.txt", "%PATH%", "^&", "\"q\"", "(a)", "a\nb"} {
+		sb := &windowsBuiltinSandbox{}
+		tool := tools.RunCommand{SB: sb}
+		ctx := tools.WithRequestInfo(context.Background(), "whatsapp", "34600000000")
+		payload, _ := json.Marshal(map[string]any{"command": "echo", "args": []string{arg}})
+		out, _ := tool.Execute(ctx, payload)
+		for _, c := range sb.calls {
+			if c[0] == "cmd" {
+				t.Errorf("arg %q reached cmd /c: %v", arg, sb.calls)
+			}
+		}
+		if strings.Contains(out, arg) && len(sb.calls) != 1 {
+			t.Errorf("arg %q: unexpected retry output %q", arg, out)
+		}
+	}
 }
