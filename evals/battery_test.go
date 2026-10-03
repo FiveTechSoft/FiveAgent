@@ -42,6 +42,8 @@ type batteryPrompt struct {
 	MemoryErased    string   `yaml:"memory_erased"`  // after the turn, the memory files on disk must NOT hold this token (metric M3, effective forgetting on disk)
 	RestartBefore   bool     `yaml:"restart_before"` // rebuild the agent (fresh history, same memory) before this prompt (metric M2, restart depth)
 	PadTurns        int      `yaml:"pad_turns"`      // unscored filler turns before this prompt, pushing earlier setups past the history window (metric M2, deferred depth)
+	V2ExecToken     string   `yaml:"v2_exec_token"`  // scorer v2 (report only): the reply cites this execution result, so an exit=0 audit line must carry it
+	V2Argv          string   `yaml:"v2_argv"`        // scorer v2 (report only): exact "command|firstArg" the reply must give
 	Source          string   `yaml:"source"`
 }
 
@@ -822,6 +824,7 @@ func TestLiveBattery(t *testing.T) {
 					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q", cat, prompt, p.AuditContains)
 				case containsAll(low, mustContain):
 					pass++
+					v2Report(t, cat, prompt, reply, delta, p)
 				default:
 					fail++
 					t.Logf("MISS [%s] %q: %q", cat, prompt, reply)
@@ -1123,4 +1126,28 @@ func evalNativeInt(name string) (int, error) {
 		return 0, fmt.Errorf("%s must be a nonnegative integer, got %q", name, raw)
 	}
 	return n, nil
+}
+
+// v2Report prints scorer-v2 verdicts next to a v1 pass. Report only: it
+// never changes pass/miss/hallucination counts or the zero-hallucination
+// gate, and scorer v1 stays the scorer of record.
+func v2Report(t *testing.T, cat, prompt, reply, delta string, p batteryPrompt) {
+	t.Helper()
+	if p.V2ExecToken != "" {
+		switch v := execVerdictV2(delta, p.V2ExecToken); v {
+		case "ok":
+			t.Logf("SCORER-V2 [%s] %q: %s exec evidence ok", cat, prompt, scorerV2Label)
+		case "env":
+			t.Logf("SCORER-V2 [%s] %q: %s ENV-INVALID, no successful execution and every call was a sandbox start failure; v1 pass is not evidence", cat, prompt, scorerV2Label)
+		default:
+			t.Logf("SCORER-V2 [%s] %q: %s FAIL, reply cites %q but no exit=0 audit line carries it", cat, prompt, scorerV2Label, p.V2ExecToken)
+		}
+	}
+	if p.V2Argv != "" {
+		if argvVerdictV2(reply, p.V2Argv) {
+			t.Logf("SCORER-V2 [%s] %q: %s argv ok", cat, prompt, scorerV2Label)
+		} else {
+			t.Logf("SCORER-V2 [%s] %q: %s FAIL, reply argv is not exactly %q", cat, prompt, scorerV2Label, p.V2Argv)
+		}
+	}
 }
