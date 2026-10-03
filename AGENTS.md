@@ -79,3 +79,4 @@ Details and baseline numbers: evals/README.md.
   facts; the anti-confabulation seed.
 - `evals/README.md` - how the battery works and the baseline.
 - `deploy/` - systemd unit and the cross-compile helper.
+Las trayectorías del battery viven en evals/data/trajectories/prev/*.jsonl pero solo guardan mensajes de conversación, no system prompts: verificar inyección de memoria a posteriori exige probe vivo.
