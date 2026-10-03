@@ -145,6 +145,15 @@ could not count.
   in evals/scorer_v2_test.go replay the saved evidence and fail if the
   mechanism stops firing (checked by mutation). Not measured: v2 over a
   full live battery.
+- Battery run 15 (first run with the snapshot purge): 97 pass + 2
+  correct abstentions + 3 misses + 0 hallucinations of 102 (both
+  parses agree) - GATE MET. The run-14b failure is gone: the
+  post-forget ask no longer quotes the fact (disk and system prompt
+  both clean). Remaining violations are stochastic and unrelated to
+  memory: a logic riddle answered with alternatives instead of the
+  expected word, a post-forget answer that hedged instead of a clean
+  abstention, and the known AUDIT-MISSING (`cmd /c` wrapper chosen
+  by the model itself) - its harness expectation awaits a decision.
 
 ### Highlights
 
