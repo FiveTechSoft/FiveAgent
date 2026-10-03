@@ -130,6 +130,21 @@ could not count.
   on a forget. Red test first: TestOlvidaPurgesFrozenSnapshot (turn 4
   after `olvida:` no longer contains the fact; the pre-forget turns
   still do).
+- Exec scorer v2 (report only, label `exec-scorer-v2`): a saved
+  execution run of another model scored v1 PASS on "echo FooBAR-Baz_123"
+  although every run_command call had exited 127 (sandbox start failure)
+  and the reply was the token copied from the prompt, and PASS on the
+  Windows launch question with `command="cmd /c"` + `args ["-c", ...]`.
+  v1 checks words in the reply, not that they came from an observed
+  execution. v2 adds verdict lines (`SCORER-V2 ...`) next to v1 for
+  cases tagged `v2_exec_token` (needs an exit=0 audit line carrying the
+  token; flags ENV-INVALID when every call was a sandbox start failure)
+  and `v2_argv` (exact command and first argument). v1 counts, the
+  zero-hallucination gate and every historical run are unchanged; earlier
+  runs are NOT re-scored (their raw logs are not in the repo). Fixtures
+  in evals/scorer_v2_test.go replay the saved evidence and fail if the
+  mechanism stops firing (checked by mutation). Not measured: v2 over a
+  full live battery.
 
 ### Highlights
 
