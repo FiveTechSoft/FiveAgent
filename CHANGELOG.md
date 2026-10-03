@@ -35,6 +35,14 @@ could not count.
   (with read-back) and registers the webhook callback. Covered by tests
   against a fake Graph server; not yet exercised against the real Meta
   API.
+- Memory aging (stage 7l): `archive_days` rides the idle
+  consolidation pass - stamped entries older than N days move to
+  `archive/<file>.md`, a subdirectory recall, the FTS index and the
+  snapshot never walk, so an aged fact stops resurfacing while staying
+  on disk and in git history. Unstamped lines never age, and `olvida:`
+  still reaches archived copies through the same forget path. Default
+  0 (disabled); unit-tested red-to-green in internal/memory and
+  internal/agent.
 - Prompt-injection defenses (stage 9): every system prompt now marks
   command output, web results, file contents, recalled memories,
   subordinate replies and quoted third-party text as untrusted data,

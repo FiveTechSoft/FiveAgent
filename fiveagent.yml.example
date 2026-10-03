@@ -17,6 +17,7 @@ model:
 # model above. base_url, provider and api_key are inherited from model if omitted.
 # memory:
 #   consolidate_idle_minutes: 30   # Stage 7l: after 30 idle minutes, merge near-duplicate memory facts. 0 disables.
+#   archive_days: 180              # Stage 7l aging: on that idle pass, stamped entries older than 180 days move to archive/<file>.md (out of recall, kept on disk). Needs consolidate_idle_minutes. 0 disables.
 # sampling:                # Stage 11a: per-request-kind sampling. Unset fields keep provider defaults.
 #   tool_temperature: 0.1  # tool-calling rounds run cooler: precision over variety for JSON arguments.
 #   chat_temperature: 0.6  # final answers run warmer: fluency for the user-facing reply.

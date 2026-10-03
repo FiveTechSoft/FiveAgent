@@ -120,6 +120,11 @@ type Memory struct {
 	// this many minutes without a turn, a background pass merges
 	// near-duplicate memory facts. 0 disables it.
 	ConsolidateIdleMin int `yaml:"consolidate_idle_minutes,omitempty"`
+	// ArchiveDays is the stage 7l aging pass: on the idle consolidation
+	// pass, memory entries whose stamp date is older than this many
+	// days move to archive/<file>.md - out of recall, still on disk.
+	// 0 (default) disables it; entries without a stamp never age.
+	ArchiveDays int `yaml:"archive_days,omitempty"`
 }
 
 // Sandbox holds the per-user isolated execution settings. Enabled by

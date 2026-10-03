@@ -160,7 +160,10 @@ type Agent struct {
 	// Stage 7l: idle-time consolidation. lastActivity is the start of
 	// the latest turn; the background pass fires only after idleAfter
 	// without turns, so it never costs latency in a user's turn.
+	// archiveDays (set before WithConsolidation starts the loop) arms
+	// the aging pass that moves stale stamped entries to archive/.
 	idleAfter    time.Duration
+	archiveDays  int
 	actMu        sync.Mutex
 	lastActivity time.Time
 }
@@ -249,6 +252,15 @@ func (a *Agent) WithConsolidation(idleAfter time.Duration) *Agent {
 	return a
 }
 
+// WithArchiveDays arms the stage 7l aging pass: on each idle
+// consolidation pass, stamped entries older than days move to
+// archive/<file>.md, out of recall. 0 (default) disables it. Call it
+// before WithConsolidation so the loop starts with the setting.
+func (a *Agent) WithArchiveDays(days int) *Agent {
+	a.archiveDays = days
+	return a
+}
+
 func (a *Agent) consolidationLoop() {
 	tick := a.idleAfter / 2
 	if tick < 10*time.Millisecond {
@@ -268,6 +280,13 @@ func (a *Agent) consolidationLoop() {
 			} else if n > 0 {
 				log.Printf("agent: memory consolidation merged %d duplicate facts", n)
 			}
+			if a.archiveDays > 0 {
+				if n, err := a.knowledge.ArchiveStale(a.archiveDays, time.Now()); err != nil {
+					log.Printf("agent: memory archive: %v", err)
+				} else if n > 0 {
+					log.Printf("agent: memory archive aged out %d stale entries", n)
+				}
+			}
 		}
 		a.scopeMu.Lock()
 		scopes := make([]*memory.Knowledge, 0, len(a.scopes))
@@ -280,6 +299,13 @@ func (a *Agent) consolidationLoop() {
 				log.Printf("agent: sender-scope consolidation: %v", err)
 			} else if n > 0 {
 				log.Printf("agent: sender-scope consolidation merged %d duplicate facts", n)
+			}
+			if a.archiveDays > 0 {
+				if n, err := uk.ArchiveStale(a.archiveDays, time.Now()); err != nil {
+					log.Printf("agent: sender-scope archive: %v", err)
+				} else if n > 0 {
+					log.Printf("agent: sender-scope archive aged out %d stale entries", n)
+				}
 			}
 		}
 		// One pass per idle stretch: the clock restarts after it.

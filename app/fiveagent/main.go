@@ -495,8 +495,14 @@ func main() {
 	if kn != nil {
 		core.WithKnowledge(kn)
 		if cfg.Memory.ConsolidateIdleMin > 0 {
+			core.WithArchiveDays(cfg.Memory.ArchiveDays)
 			core.WithConsolidation(time.Duration(cfg.Memory.ConsolidateIdleMin) * time.Minute)
 			log.Printf("memory idle consolidation: every %d min of idle (stage 7l)", cfg.Memory.ConsolidateIdleMin)
+			if cfg.Memory.ArchiveDays > 0 {
+				log.Printf("memory aging: stamped entries older than %d days move to archive/ on the idle pass", cfg.Memory.ArchiveDays)
+			}
+		} else if cfg.Memory.ArchiveDays > 0 {
+			log.Printf("memory aging disabled: archive_days needs consolidate_idle_minutes > 0")
 		}
 		if cfg.Memory.AutoIndex {
 			core.WithIndexer(agent.NewIndexer(mdl, cfg.Memory.Knowledge))

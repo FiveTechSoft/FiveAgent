@@ -294,6 +294,7 @@ func (k *Knowledge) FactTokens(match string) []string {
 	seeds := map[string]bool{}
 	for _, name := range k.fileNames() {
 		k.collectFactSeeds(name, match, tokens, seeds)
+		k.collectFactSeeds(filepath.Join("archive", name), match, tokens, seeds)
 	}
 	return sortedKeys(seeds)
 }
@@ -313,13 +314,20 @@ func (k *Knowledge) forgetFiles(names []string, match string, extra []string) (i
 			seeds[s] = true
 		}
 	}
-	for _, name := range names {
+	// Every top-level file's archived copy is in scope too: an aged-out
+	// entry (stage 7l archive/) must obey olvida: like any other, or a
+	// forgotten fact would survive one read away.
+	targets := make([]string, 0, len(names)*2)
+	for _, n := range names {
+		targets = append(targets, n, filepath.Join("archive", n))
+	}
+	for _, name := range targets {
 		k.collectFactSeeds(name, match, tokens, seeds)
 	}
 	seedList := sortedKeys(seeds)
 	removed := 0
 	var changed []string
-	for _, name := range names {
+	for _, name := range targets {
 		n, err := k.forgetFile(name, match, tokens, seedList)
 		if err != nil {
 			continue

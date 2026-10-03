@@ -142,18 +142,30 @@ evidence that counts.
       write (the M5 hard gate), plus a fresh session picks the new
       fact up.
    l. **Idle-time consolidation** (rules slice implemented, 2026-09-30,
-      CI-tested) - when the agent is idle (consolidate_idle_minutes in
-      the yml), a background pass consolidates memory: near-duplicate
-      bullets merge (a bullet whose normalized form is contained in a
-      longer one goes away; the longer one already says everything, so
-      no fact is lost), in the global scope and every open sender
-      scope. Zero latency cost in the user's turn; the files stay the
-      source of truth. Pending: aging out stale entries, re-filing
-      misplaced ones, digest refresh and the model summary pass.
+      CI-tested; aging added 2026-10-02) - when the agent is idle
+      (consolidate_idle_minutes in the yml), a background pass
+      consolidates memory: near-duplicate bullets merge (a bullet whose
+      normalized form is contained in a longer one goes away; the
+      longer one already says everything, so no fact is lost), in the
+      global scope and every open sender scope. With archive_days set,
+      the same pass ages out stale entries: stamped entries older than
+      N days move to archive/<file>.md - a subdirectory Recall, the FTS
+      index and the frozen snapshot never walk (they only read the
+      top-level .md), so the aged fact stops resurfacing while staying
+      on disk and in git history; unstamped hand-written lines never
+      age, and olvida: still reaches archive/ through the same forget
+      path. Zero latency cost in the user's turn; the files stay the
+      source of truth. Pending: re-filing misplaced ones, digest
+      refresh and the model summary pass.
       Done when: (met for the rules slice) the battery's
       "idle-consolidation" case (evals/consolidation_test.go) proves
       an idle pass merges the seeded duplicates on its own, the next
-      recall returns the merged fact once, and no fact was lost.
+      recall returns the merged fact once, and no fact was lost;
+      (met for aging) internal/memory/archive_test.go and
+      internal/agent/archive_test.go prove the idle pass moves only
+      stale stamped entries to archive/, recall loses them without
+      losing fresh ones, the pass is idempotent, archive_days: 0
+      moves nothing, and a forgotten fact leaves no copy anywhere.
    m. **Memory effectiveness metrics** (designed 2026-09-28, partially
       implemented) - memory quality as numbers, not anecdotes. Six
       metrics: M1 write-through rate (every recuerda: setup must leave
