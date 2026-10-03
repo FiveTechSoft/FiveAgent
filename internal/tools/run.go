@@ -100,7 +100,7 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 	start := time.Now()
 	argv := append([]string{a.Command}, a.Args...)
 	res, err := r.SB.Run(ctx, userKey, argv)
-	if err != nil && isMissingFile(err) && isCmdBuiltin(a.Command) {
+	if err != nil && isMissingFile(err) && isCmdBuiltin(a.Command) && !hasCmdMetachar(argv) {
 		// Battery run 11 MISS: on Windows, echo/dir & co. are cmd
 		// builtins with no standalone executable, so CreateProcess
 		// reports "cannot find the file" for the very command the user
@@ -169,6 +169,21 @@ var cmdBuiltins = map[string]bool{
 	"chdir": true, "pushd": true, "popd": true, "more": true,
 	"title": true, "color": true, "path": true, "assoc": true,
 	"ftype": true,
+}
+
+// hasCmdMetachar reports whether any argument holds a character cmd.exe
+// treats as syntax (command chaining, redirection, escapes, variable
+// expansion, quotes, grouping, line breaks). The retry joins argv into one
+// cmd /c payload, so such a character would turn an argument into a
+// command; in that case the retry is skipped and the original error is
+// kept.
+func hasCmdMetachar(argv []string) bool {
+	for _, a := range argv {
+		if strings.ContainsAny(a, "&|<>^%!\"()`\r\n") {
+			return true
+		}
+	}
+	return false
 }
 
 // isCmdBuiltin reports whether command is a bare shell builtin name
