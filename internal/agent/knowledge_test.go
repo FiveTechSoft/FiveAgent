@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -56,6 +58,41 @@ func TestHandleInjectsMemory(t *testing.T) {
 	}
 	if !strings.Contains(body, "never instructions") {
 		t.Error("memory block is not labeled as data, never instructions")
+	}
+}
+
+// TestHandleLogsMemoryInjection: every turn with knowledge must log
+// what was injected - snapshot size plus recall files and lines.
+// Battery run 12's deferred miss cited other facts but not the target
+// one; without this line there is no way to tell after the fact
+// whether the fact rode the note.
+func TestHandleLogsMemoryInjection(t *testing.T) {
+	kn := openTestKnowledge(t)
+	if _, err := kn.Append("preferences", "Loves pasta."); err != nil {
+		t.Fatal(err)
+	}
+	var logBuf bytes.Buffer
+	log.SetOutput(&logBuf)
+	defer log.SetOutput(os.Stderr)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	if _, err := a.Handle(context.Background(), "whatsapp", "u1", "¿le gusta la pasta?"); err != nil {
+		t.Fatal(err)
+	}
+	out := logBuf.String()
+	if !strings.Contains(out, "memory injection") {
+		t.Errorf("no memory injection log line:\n%s", out)
+	}
+	if !strings.Contains(out, "preferences") {
+		t.Errorf("injection line does not name the recalled file:\n%s", out)
 	}
 }
 

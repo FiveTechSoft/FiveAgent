@@ -73,6 +73,16 @@ could not count.
   the battery's not-found narration cases still see the same text.
   Unit-tested red-to-green (retry fires for builtins only) and verified
   live against the real appcontainer backend on Windows.
+- Battery run 12 (2026-10-03, tree = run 11 + the cmd-builtin fix):
+  96 pass + 3 correct abstentions + 2 misses + 1 hallucination of 102
+  scored (both scorecard parses agree). The builtin retry flips the
+  FooBAR/echo case to pass; the M2c restart case recovers; the two
+  food-memory cases persist - the deferred reply cited other
+  remembered facts but not the target one. The zero-hallucination
+  gate failed on one stochastic harbour trap (`cVar`) that run 11
+  passed: the gate is not deterministic run-to-run. Every turn now
+  logs `memory injection: snapshot=N chars, recall=N lines from
+  [...]`, so the next run says whether the fact was injected at all.
 
 ### Highlights
 

@@ -766,6 +766,21 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 				hits = append(hits, uhits...)
 			}
 		}
+		// Battery run 12: the deferred miss cited other remembered facts
+		// but not the target one - log what actually rode the turn so a
+		// later battery run can tell harness absence from model neglect.
+		var lines int
+		var files []string
+		seen := map[string]bool{}
+		for _, h := range hits {
+			lines += len(h.Lines)
+			if !seen[h.ID] {
+				seen[h.ID] = true
+				files = append(files, h.ID)
+			}
+		}
+		log.Printf("memory injection: snapshot=%d chars, recall=%d lines from [%s]",
+			len(snapshot), lines, strings.Join(files, ","))
 		if note := recallNote(hits); note != "" {
 			msgs = append(msgs, model.Message{Role: "system", Content: note})
 		}
