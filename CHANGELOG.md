@@ -110,6 +110,18 @@ could not count.
   in the scope that holds it and across scopes. Paraphrased digest
   copies still die on their curated original's seeds (run 7/9
   guard green). Red test first: TestForgetPlatoSparesFoodFact.
+- Battery run 14: attempt 1 was invalidated by infrastructure (Ollama
+  wedged - every generate timed out; server restarted), attempt 2
+  scored 98 pass + 2 correct abstentions + 1 miss + 1 hallucination of
+  101 (both parses agree). The food-final case PASSES for the first
+  time (the seed fix above, verified live). The gate now fails on the
+  post-forget ask: disk was clean (`recall=0`) yet the model cited
+  `lacón` - it read the fact from the stage-7k frozen session snapshot,
+  which `olvida:` never purges (only history messages get scrubbed).
+  Run 13 passed that same case by model luck; the flap is stochastic
+  on top of that real gap. Next round: drop or re-freeze the snapshot
+  on `olvida:`/forget. AUDIT-MISSING (model wraps the missing command
+  in `cmd /c` itself) persists unchanged.
 
 ### Highlights
 
