@@ -96,6 +96,60 @@ func TestHandleLogsMemoryInjection(t *testing.T) {
 	}
 }
 
+// TestOlvidaPurgesFrozenSnapshot: stage 7k freezes the memory block
+// once per session, but a forgotten fact must leave the system prompt
+// too - the per-turn recall note cannot remove lines it never had.
+// Battery run 14b: disk was clean (recall=0) yet the model quoted the
+// forgotten fact from the stale snapshot and the gate counted a
+// hallucination (run 13 survived the same snapshot by model luck).
+func TestOlvidaPurgesFrozenSnapshot(t *testing.T) {
+	kn := openTestKnowledge(t)
+	var bodies atomic.Value // []string, one system message per request
+	bodies.Store([]string{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		var req struct {
+			Messages []struct {
+				Role    string `json:"role"`
+				Content string `json:"content"`
+			} `json:"messages"`
+		}
+		_ = json.Unmarshal(body, &req)
+		if len(req.Messages) > 0 && req.Messages[0].Role == "system" {
+			prev, _ := bodies.Load().([]string)
+			bodies.Store(append(prev, req.Messages[0].Content))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"ok"}}]}`)
+	}))
+	defer srv.Close()
+
+	cfg := &config.Config{Model: config.Model{BaseURL: srv.URL, Name: "m"}}
+	a := New(model.NewOpenAICompat(cfg.Model), &fakeStore{}, tools.NewRegistry(), SystemPrompt(cfg))
+	a.WithKnowledge(kn)
+	ctx := context.Background()
+	for _, turn := range []string{
+		"recuerda: mi comida favorita es el lacón con grelos",
+		"hola",
+		"olvida: mi comida favorita es el lacón con grelos",
+		"qué hora es",
+	} {
+		if _, err := a.Handle(ctx, "whatsapp", "u1", turn); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sys, _ := bodies.Load().([]string)
+	if len(sys) != 4 {
+		t.Fatalf("captured %d system prompts, want 4", len(sys))
+	}
+	if !strings.Contains(sys[1], "lacón") {
+		t.Errorf("frozen snapshot lacks the fact before the olvida (setup broken): %q", sys[1])
+	}
+	if strings.Contains(sys[3], "lacón") {
+		t.Errorf("stale snapshot still serves the forgotten fact after olvida: %q", sys[3])
+	}
+}
+
 // TestHandleSavesMemoryViaTool checks the model can store a fact through
 // the save_memory tool and it lands in the markdown file.
 func TestHandleSavesMemoryViaTool(t *testing.T) {

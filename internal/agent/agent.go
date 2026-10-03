@@ -491,6 +491,21 @@ func (a *Agent) frozenSnapshot(userID string) string {
 		"Facts saved after the session started arrive through recall, not by rewriting this snapshot.\n" + body
 }
 
+// invalidateSnapshots drops every frozen session snapshot (stage 7k).
+// A forgotten fact must leave the system prompt too: the per-turn
+// recall note cannot remove lines the frozen block already carries
+// (battery run 14b: disk clean, recall=0, yet the model quoted the
+// fact from the stale snapshot and the gate counted a hallucination).
+// Saving never invalidates - the snapshot text says new facts arrive
+// through recall; forgetting always does, because no note can un-say
+// a line. The next turn re-freezes from the cleaned files once; the
+// prefix then stays byte-stable again.
+func (a *Agent) invalidateSnapshots() {
+	a.snapMu.Lock()
+	defer a.snapMu.Unlock()
+	a.snapshots = nil
+}
+
 // recallNote builds the memory block injected next to the system prompt.
 // Memories are data the agent once chose to store, so the label is
 // explicit: never instructions. Recall runs on every turn from the
@@ -729,6 +744,10 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 					}
 				}
 				a.scrubHistory(ctx, histChannel, canonUser, match, seeds...)
+				// The frozen snapshot was taken while the fact was
+				// still on disk; drop it or the system prompt keeps
+				// serving what the command just removed.
+				a.invalidateSnapshots()
 			}
 		}
 	}
@@ -862,6 +881,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			}
 			if forgetMatch != "" && err == nil {
 				a.scrubHistory(ctx, histChannel, canonUser, forgetMatch, forgetSeeds...)
+				a.invalidateSnapshots()
 			}
 			if traj != nil {
 				traj.Messages = append(traj.Messages, trajectory.Message{Role: "tool", Name: call.Function.Name, Content: result})

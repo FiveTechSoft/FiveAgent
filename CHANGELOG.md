@@ -122,6 +122,14 @@ could not count.
   on top of that real gap. Next round: drop or re-freeze the snapshot
   on `olvida:`/forget. AUDIT-MISSING (model wraps the missing command
   in `cmd /c` itself) persists unchanged.
+- `olvida:` and `forget_memory` now invalidate the stage-7k frozen
+  session snapshot: the system prompt no longer serves a fact the
+  command just removed (the recall note cannot un-say a line the
+  frozen block carries). Saving still never re-freezes - new facts
+  keep arriving through recall, so the cacheable prefix only changes
+  on a forget. Red test first: TestOlvidaPurgesFrozenSnapshot (turn 4
+  after `olvida:` no longer contains the fact; the pre-forget turns
+  still do).
 
 ### Highlights
 
