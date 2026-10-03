@@ -81,8 +81,22 @@ could not count.
   remembered facts but not the target one. The zero-hallucination
   gate failed on one stochastic harbour trap (`cVar`) that run 11
   passed: the gate is not deterministic run-to-run. Every turn now
-  logs `memory injection: snapshot=N chars, recall=N lines from
+  logs   `memory injection: snapshot=N chars, recall=N lines from
   [...]`, so the next run says whether the fact was injected at all.
+- Battery run 13 (2026-10-03, first run with the injection log):
+  95 pass + 4 correct abstentions + 3 misses + 0 hallucinations of
+  102 scored (both scorecard parses agree) - GATE MET. The log
+  adjudicates the deferred food miss: recall returned 6 lines, all
+  from digests, none from preferences - the fact was never injected,
+  so that miss is recall-side, not model neglect. Two local
+  diagnostics (isolated store; plus digests noise) both pass, so the
+  drop needs the full battery fixture; next round replays it. The
+  model itself wrapped the nonexistent command in `cmd /c`, so the
+  error was cmd's "not recognized" instead of sandbox CreateProcess
+  and `audit_contains: error=sandbox` missed (zero occurrences in
+  runs 11-12 - a new stochastic class, not a regression: the
+  builtin retry only fires for bare builtins and still passed the
+  echo case this run).
 
 ### Highlights
 
