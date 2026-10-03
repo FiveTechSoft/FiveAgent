@@ -309,8 +309,13 @@ func (k *Knowledge) forgetFiles(names []string, match string, extra []string) (i
 	}
 	tokens := forgetTokens(match)
 	seeds := map[string]bool{}
+	// Fact words learned in another scope travel as extra; they answer
+	// to this scope's blocked set like any harvested seed (run 13's
+	// cross-scope path: a bundled user digest seeded "comida" and the
+	// global lacón line paid for it).
+	blocked := k.blockedSeedWords(match, tokens)
 	for _, s := range extra {
-		if s = strings.ToLower(strings.TrimSpace(s)); s != "" {
+		if s = strings.ToLower(strings.TrimSpace(s)); s != "" && !blocked[s] {
 			seeds[s] = true
 		}
 	}
@@ -353,6 +358,7 @@ func (k *Knowledge) forgetFiles(names []string, match string, extra []string) (i
 // of the next scope that ever receives these words (it did, in the
 // first draft: the color digest died with the dish ones).
 func (k *Knowledge) collectFactSeeds(name, match string, tokens []string, seeds map[string]bool) {
+	blocked := k.blockedSeedWords(match, tokens)
 	raw, err := os.ReadFile(filepath.Join(k.dir, name))
 	if err != nil {
 		return
@@ -373,13 +379,58 @@ func (k *Knowledge) collectFactSeeds(name, match string, tokens []string, seeds 
 			// stamped entry of the file (regression caught by TestForget
 			// the moment the stamp landed: n=2 instead of 1).
 			for _, w := range forgetTokens(stampRE.ReplaceAllString(ln, "")) {
-				if len(w) < 5 || query[w] || boilerplateWords[w] {
+				if len(w) < 5 || query[w] || boilerplateWords[w] || blocked[w] {
 					continue
 				}
 				seeds[w] = true
 			}
 		}
 	}
+}
+
+// blockedSeedWords returns the words that must never become forget
+// seeds: words carried by a curated fact entry the query does NOT
+// match. Such a word names another surviving fact, not the one being
+// forgotten - seeding from it deletes the wrong entry (battery run 13:
+// a compacted digest bundled the plato fact with the food fact, the
+// harvest picked up "comida" from there, and "olvida: mi plato de
+// fiesta" erased the lacón preference; the tools food-final MISS was
+// that deletion, five minutes later). Only curated fact files count as
+// independent facts - one bullet, one fact: a word in a digest or a
+// learning is narration over possibly-bundled text and must not veto a
+// seed (battery run 7's paraphrased dish survives on "empanada"
+// alone). The check runs per scope, so a word naming a fact in this
+// scope blocks even when it arrives from another scope's extra.
+func (k *Knowledge) blockedSeedWords(match string, tokens []string) map[string]bool {
+	blocked := map[string]bool{}
+	targets := make([]string, 0, 8)
+	for _, name := range k.fileNames() {
+		base := filepath.Base(name)
+		if base == "digests.md" || base == "learnings.md" {
+			continue
+		}
+		targets = append(targets, name, filepath.Join("archive", name))
+	}
+	for _, name := range targets {
+		raw, err := os.ReadFile(filepath.Join(k.dir, name))
+		if err != nil {
+			continue
+		}
+		_, entries := splitEntries(strings.Split(string(raw), "\n"))
+		for _, entry := range entries {
+			if entryMatchesQuery(entry, match, tokens) {
+				continue
+			}
+			for _, ln := range entry {
+				for _, w := range forgetTokens(stampRE.ReplaceAllString(ln, "")) {
+					if len(w) >= 5 {
+						blocked[w] = true
+					}
+				}
+			}
+		}
+	}
+	return blocked
 }
 
 // boilerplateWords are the words every session digest repeats, never

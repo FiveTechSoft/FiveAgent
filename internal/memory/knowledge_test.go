@@ -161,6 +161,58 @@ func TestRecallExactFavoriteFoodQuery(t *testing.T) {
 	}
 }
 
+// TestForgetPlatoSparesFoodFact: an "olvida:" of one fact must not
+// delete another fact that only shares a bundled digest line. Battery
+// run 13: "olvida: mi plato de fiesta" (13:08:48) harvested "comida"
+// from a compacted digest that carried both facts, rule B deleted the
+// unrelated lacón line, and the tools food-final turn (13:13:38)
+// recalled digests only - the deferred MISS was a fact erased five
+// minutes earlier, not a model failure.
+func TestForgetPlatoSparesFoodFact(t *testing.T) {
+	k := openTemp(t)
+	if _, err := k.AppendFrom("preferences", "mi comida favorita es el lacón con grelos", "user command"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.AppendFrom("preferences", "mi plato de fiesta es la empanada de zamburiñas", "user command"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := k.Append("digests", "el usuario guardó su plato de fiesta: empanada de zamburiñas, y su comida favorita es el lacón con grelos"); err != nil {
+		t.Fatal(err)
+	}
+	seeds := k.FactTokens("mi plato de fiesta")
+	if _, err := k.ForgetAll("mi plato de fiesta", seeds...); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(k.Dir(), "preferences.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), "lacón con grelos") {
+		t.Errorf("preferences lost the unrelated food line (seeds=%v):\n%s", seeds, raw)
+	}
+	if strings.Contains(string(raw), "empanada de zamburiñas") {
+		t.Errorf("plato line still on disk:\n%s", raw)
+	}
+	hits, err := k.Recall("volviendo a lo de antes del todo: ¿cuál es mi comida favorita ahora mismo?")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, h := range hits {
+		if h.ID != "preferences" {
+			continue
+		}
+		for _, ln := range h.Lines {
+			if strings.Contains(ln, "lacón con grelos") {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("food fact not recalled after unrelated forget (seeds=%v): %+v", seeds, hits)
+	}
+}
+
 // TestRecallFindsDroppedFile verifies the documented import flow for
 // training with a commercial AI: a markdown file dropped into the
 // knowledge folder while the process is running (exported from

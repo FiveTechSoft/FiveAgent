@@ -94,9 +94,22 @@ could not count.
   model itself wrapped the nonexistent command in `cmd /c`, so the
   error was cmd's "not recognized" instead of sandbox CreateProcess
   and `audit_contains: error=sandbox` missed (zero occurrences in
-  runs 11-12 - a new stochastic class, not a regression: the
-  builtin retry only fires for bare builtins and still passed the
-  echo case this run).
+   runs 11-12 - a new stochastic class, not a regression: the
+   builtin retry only fires for bare builtins and still passed the
+   echo case this run).
+- `olvida:` no longer deletes a fact that only shares a bundled
+  session digest with the forgotten one. Run 13's trajectory replay
+  showed the mechanism: "olvida: mi plato de fiesta" (13:08:48)
+  harvested seeds from a compacted digest line carrying both the
+  plato and the food fact, the seed rule then erased the unrelated
+  lacón preference, and the tools food-final turn (13:13:38)
+  recalled digests only - the deferred MISS was a fact deleted five
+  minutes earlier, not a model failure (the same story in runs
+  11-12). Fix: a word carried by a curated entry the query does not
+  match names another surviving fact and can never become a seed,
+  in the scope that holds it and across scopes. Paraphrased digest
+  copies still die on their curated original's seeds (run 7/9
+  guard green). Red test first: TestForgetPlatoSparesFoodFact.
 
 ### Highlights
 
