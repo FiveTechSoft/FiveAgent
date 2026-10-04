@@ -1,6 +1,7 @@
 package evals
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -19,6 +20,19 @@ import (
 // appear in the reply, not that they came from an observed execution or
 // that the argv is the exact one asked for.
 const scorerV2Label = "exec-scorer-v2"
+
+// v2Counts tallies verdicts over one battery run ("exec ok", "exec env",
+// "exec fail", "argv ok", "argv fail"); printed once at the end.
+var v2Counts = map[string]int{}
+
+func v2Summary() string {
+	keys := []string{"exec ok", "exec env", "exec fail", "argv ok", "argv fail"}
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, fmt.Sprintf("%s=%d", k, v2Counts[k]))
+	}
+	return strings.Join(parts, " ") + " (only v1-pass cases tagged v2_* are judged)"
+}
 
 var auditLineRE = regexp.MustCompile(`run_command audit user=\S+ cmd="((?:[^"\\]|\\.)*)" args=(\[[^\]]*\]) exit=(\d+)`)
 
