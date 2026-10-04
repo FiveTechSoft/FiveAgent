@@ -76,8 +76,10 @@ zero-hallucination gate are not affected, and runs made before v2 are
 not re-scored. To compare v1 against v2 over repeated runs, keep each
 run's full output (`... -v 2>&1 | tee run-N.log`, outside the repo) and
 count: `grep -c 'SCORER-V2.*FAIL' run-N.log`, `grep -c ENV-INVALID
-run-N.log`. An ENV-INVALID line means the sandbox could not start any
-call (check the sandbox backend before trusting the tools category).
+run-N.log`. An ENV-INVALID line means every failing call names the sandbox
+itself (daemon unreachable, image or arch mismatch): fix the backend
+before trusting the tools category. A missing executable (a whole
+command line passed as the program) is a model failure, not ENV-INVALID.
 Raw logs per run, and the model tag plus repo SHA in the file name, are
 what make a v1 and a v2 number comparable later.
 
