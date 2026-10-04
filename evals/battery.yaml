@@ -212,6 +212,7 @@ categories:
     - auditoria-cinco
     needs_sandbox: true
     audit_contains: echo
+    v2_exec_token: auditoria-cinco
     source: una ejecución real deja línea "run_command audit" en el log; si el modelo no llamó a la tool, no hay línea
   - prompt: ejecuta el comando comando_que_no_existe_xyz123 y cuéntame exactamente qué error te devuelve
     needs_sandbox: true
