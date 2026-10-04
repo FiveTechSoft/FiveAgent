@@ -1141,7 +1141,7 @@ func v2Report(t *testing.T, cat, prompt, reply, delta string, p batteryPrompt) {
 			t.Logf("SCORER-V2 [%s] %q: %s exec evidence ok", cat, prompt, scorerV2Label)
 		case "env":
 			v2Counts["exec env"]++
-			t.Logf("SCORER-V2 [%s] %q: %s ENV-INVALID, no successful execution and every call was a sandbox start failure; v1 pass is not evidence", cat, prompt, scorerV2Label)
+			t.Logf("SCORER-V2 [%s] %q: %s ENV-INVALID, no successful execution and every failing call names the sandbox itself (daemon unreachable, image or arch mismatch); v1 pass is not evidence", cat, prompt, scorerV2Label)
 		default:
 			v2Counts["exec fail"]++
 			t.Logf("SCORER-V2 [%s] %q: %s FAIL, reply cites %q but no exit=0 audit line carries it", cat, prompt, scorerV2Label, p.V2ExecToken)
