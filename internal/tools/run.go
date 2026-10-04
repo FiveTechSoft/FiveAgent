@@ -97,6 +97,17 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if strings.TrimSpace(a.Command) == "" {
 		return "", fmt.Errorf("run_command: empty command")
 	}
+	cmd, cargs, hint := normalizeInvocation(a.Command, a.Args)
+	if hint != "" {
+		// Misshaped call (a whole command line in "command"): nothing
+		// ran, and the error tells the model the exact shape to send.
+		log.Printf("run_command rejected user=%s cmd=%q args=%q: %s", userKey, a.Command, a.Args, hint)
+		return "", fmt.Errorf("run_command: %s", hint)
+	}
+	if cmd != a.Command || len(cargs) != len(a.Args) {
+		log.Printf("run_command: normalized call cmd=%q args=%q -> cmd=%q args=%q", a.Command, a.Args, cmd, cargs)
+	}
+	a.Command, a.Args = cmd, cargs
 	start := time.Now()
 	argv := append([]string{a.Command}, a.Args...)
 	res, err := r.SB.Run(ctx, userKey, argv)
@@ -206,4 +217,65 @@ func isMissingFile(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "cannot find the file") ||
 		strings.Contains(msg, "executable file not found")
+}
+
+// shellFlags maps each shell the guidance names to the flags that mean
+// "run this string": the shapes small models fold into "command".
+var shellFlags = map[string]map[string]bool{
+	"sh": {"-c": true}, "bash": {"-c": true}, "zsh": {"-c": true},
+	"cmd": {"/c": true}, "cmd.exe": {"/c": true},
+}
+
+// normalizeInvocation repairs or rejects the misshaped calls small
+// models send, measured in a saved FrogNano run: the whole line in
+// "command" (`sh -c "echo x"`, `echo 'x'`) or the shell and its flag
+// glued together (`cmd /c` with the payload in args). The tool takes a
+// program plus arguments and runs no shell, so those calls only ever
+// failed. Rules, all deterministic:
+//   - one token, or a first token with a path separator (a path may hold spaces): unchanged;
+//   - a known shell plus its run flag in "command" ("cmd /c", "sh -c"):
+//     the flag moves to args[0]; text after the flag is the payload and
+//     becomes one argument (one pair of surrounding quotes removed),
+//     unless args already carries one - then the call is ambiguous and
+//     rejected;
+//   - anything else with whitespace and no args: rejected with the
+//     corrected shape in the message; nothing is guessed or run.
+//
+// Returns the (possibly rewritten) command and args, or a non-empty hint
+// when the call must not run.
+func normalizeInvocation(command string, args []string) (string, []string, string) {
+	command = strings.TrimSpace(command)
+	fields := strings.Fields(command)
+	if len(fields) <= 1 || strings.ContainsAny(fields[0], `/\`) {
+		return command, args, ""
+	}
+	shell := strings.ToLower(fields[0])
+	if flags, ok := shellFlags[shell]; ok && flags[strings.ToLower(fields[1])] {
+		flag := fields[1]
+		rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(strings.TrimPrefix(command, fields[0])), fields[1]))
+		switch {
+		case rest == "":
+			return fields[0], append([]string{flag}, args...), ""
+		case len(args) == 0:
+			return fields[0], []string{flag, unquoteOnce(rest)}, ""
+		default:
+			return "", nil, fmt.Sprintf("command %q already holds a payload and args is also set; send command %q with args [%q, \"<one string>\"]", command, fields[0], flag)
+		}
+	}
+	if len(args) == 0 {
+		return "", nil, fmt.Sprintf("command must be one program name with its arguments in args, not a whole command line; send command %q with args %s (for shell syntax use a shell with its run flag, e.g. command \"sh\" args [\"-c\", \"...\"])", fields[0], quoteArgs(fields[1:]))
+	}
+	return "", nil, fmt.Sprintf("command %q contains spaces; send only the program name in command and every argument in args", command)
+}
+
+func unquoteOnce(s string) string {
+	if len(s) >= 2 && (s[0] == '"' && s[len(s)-1] == '"' || s[0] == '\'' && s[len(s)-1] == '\'') {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
+func quoteArgs(a []string) string {
+	b, _ := json.Marshal(a)
+	return string(b)
 }
