@@ -67,6 +67,20 @@ tokens); the rest is metrics.
 FIVEAGENT_EVAL_LIVE=1 go test ./evals/ -run Battery -v
 ```
 
+**Scorer v2 (report only, label `exec-scorer-v2`).** A full live run also
+prints `SCORER-V2` lines for the execution cases tagged `v2_exec_token`
+(the reply cites a result, so an exit=0 `run_command audit` line must
+carry it) and `v2_argv` (exact command and first argument), and one
+`METRIC scorer-v2` summary at the end. v1 counts and the
+zero-hallucination gate are not affected, and runs made before v2 are
+not re-scored. To compare v1 against v2 over repeated runs, keep each
+run's full output (`... -v 2>&1 | tee run-N.log`, outside the repo) and
+count: `grep -c 'SCORER-V2.*FAIL' run-N.log`, `grep -c ENV-INVALID
+run-N.log`. An ENV-INVALID line means the sandbox could not start any
+call (check the sandbox backend before trusting the tools category).
+Raw logs per run, and the model tag plus repo SHA in the file name, are
+what make a v1 and a v2 number comparable later.
+
 **Judge mode (comparative).** With `FIVEAGENT_EVAL_JUDGE=1` each battery
 prompt is also answered by a reference model (any OpenAI-compatible
 endpoint - a big hosted model or a bigger local one), and the judge
