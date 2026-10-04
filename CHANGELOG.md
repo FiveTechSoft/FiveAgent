@@ -171,6 +171,19 @@ could not count.
   expected word, a post-forget answer that hedged instead of a clean
   abstention, and the known AUDIT-MISSING (`cmd /c` wrapper chosen
   by the model itself) - its harness expectation awaits a decision.
+- Decision on that AUDIT-MISSING: the missing-command prompt now
+  scores with `audit_token: comando_que_no_existe_xyz123` instead of
+  `audit_contains: error=sandbox`. Both failure shapes are legitimate
+  - bare CreateProcess `error=sandbox` (runs 10-12) and `cmd /c`
+  exit=1 + "no se reconoce" (runs 13-15), the wrapped one being the
+  shape the battery's own `v2_argv: cmd|/c` documents for Windows -
+  so the check now demands the target command AND a failed execution
+  in the SAME run_command audit line. That also rejects an exit=0
+  echo of the target, an unrelated failing command, and an agent
+  line that only names the target (all false passes a token-only
+  match would allow). Red test first: TestAuditMiss replays the
+  verbatim audit lines of runs 10-15. Not measured: a live battery
+  run against this tree.
 
 ### Highlights
 

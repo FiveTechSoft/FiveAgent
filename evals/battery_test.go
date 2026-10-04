@@ -38,6 +38,7 @@ type batteryPrompt struct {
 	Setup           bool     `yaml:"setup"`          // conversation setup turn, no scoring
 	NeedsSandbox    bool     `yaml:"needs_sandbox"`  // needs a run_command backend; skipped when unavailable
 	AuditContains   string   `yaml:"audit_contains"` // after the turn, the audit log must hold a run_command line with this token
+	AuditToken      string   `yaml:"audit_token"`    // after the turn, one run_command audit line must hold this token AND record a failed execution (error= or nonzero exit): the missing command fails as bare CreateProcess (runs 10-12) or as cmd /c exit=1 (runs 13-15), both legitimate Windows shapes
 	MemoryWrites    string   `yaml:"memory_writes"`  // after the turn, the memory files on disk must hold this token (metric M1, write-through)
 	MemoryErased    string   `yaml:"memory_erased"`  // after the turn, the memory files on disk must NOT hold this token (metric M3, effective forgetting on disk)
 	RestartBefore   bool     `yaml:"restart_before"` // rebuild the agent (fresh history, same memory) before this prompt (metric M2, restart depth)
@@ -78,8 +79,8 @@ func TestBatteryFileValidates(t *testing.T) {
 			if strings.TrimSpace(p.Prompt) == "" {
 				t.Errorf("%s[%d]: empty prompt", cat, i)
 			}
-			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup && p.AuditContains == "" && p.MemoryWrites == "" && p.MemoryErased == "" {
-				t.Errorf("%s[%d]: no expectation (must_contain, must_not_contain, abstain_*, setup, audit_contains, memory_writes)", cat, i)
+			if len(p.MustContain)+len(p.MustNotContain) == 0 && !p.AbstainOK && !p.AbstainExpected && !p.Setup && p.AuditContains == "" && p.AuditToken == "" && p.MemoryWrites == "" && p.MemoryErased == "" {
+				t.Errorf("%s[%d]: no expectation (must_contain, must_not_contain, abstain_*, setup, audit_contains, audit_token, memory_writes)", cat, i)
 			}
 		}
 		total += len(ps)
@@ -347,6 +348,48 @@ func inventedErrorNarration(lowReply, auditDelta string) string {
 	}
 	return ""
 }
+
+// auditMiss reports whether the turn's run_command audit trail fails to
+// document what the prompt demands. want (audit_contains) must appear
+// in the delta next to a "run_command audit" line - the run-10..15
+// behavior, unchanged. tok (audit_token) must appear in a SINGLE audit
+// line that also records a failed execution: "] error=" (pre-spawn
+// CreateProcess, run.go's audit) or a nonzero " exit=N dur=" (cmd /c
+// answering "no se reconoce", runs 13-15). A missing command fails
+// both ways on Windows and battery.yaml itself teaches cmd|/c, so the
+// token alone is not enough: an exit=0 echo of the target or an
+// unrelated failing command must not satisfy it.
+func auditMiss(delta, want, tok string) bool {
+	if want != "" && !(strings.Contains(delta, "run_command audit") && strings.Contains(delta, want)) {
+		return true
+	}
+	if tok != "" && !auditFailsWith(delta, tok) {
+		return true
+	}
+	return false
+}
+
+// auditFailsWith reports whether some single "run_command audit" line
+// holds tok and records a failed execution: "] error=" (pre-spawn
+// CreateProcess, run.go's error audit) or a nonzero " exit=N dur="
+// (the dur anchor keeps stdout/stderr content from faking an exit
+// code; run.go prints exit=%d dur=%s back to back).
+func auditFailsWith(delta, tok string) bool {
+	for _, ln := range strings.Split(delta, "\n") {
+		if !strings.Contains(ln, "run_command audit") || !strings.Contains(ln, tok) {
+			continue
+		}
+		if strings.Contains(ln, "] error=") {
+			return true
+		}
+		if m := auditExitRE.FindStringSubmatch(ln); m != nil && strings.Trim(m[1], "0") != "" {
+			return true
+		}
+	}
+	return false
+}
+
+var auditExitRE = regexp.MustCompile(`\bexit=(\d+) dur=`)
 
 // negatedToken reports whether every occurrence of lt in lowReply is
 // governed by a negation in its own clause (2026-09-29 run 5: the
@@ -813,15 +856,14 @@ func TestLiveBattery(t *testing.T) {
 			default:
 				delta := auditBuf.String()[auditStart:]
 				invented := inventedErrorNarration(low, delta)
-				auditMiss := p.AuditContains != "" &&
-					!(strings.Contains(delta, "run_command audit") && strings.Contains(delta, p.AuditContains))
+				auditMissed := auditMiss(delta, p.AuditContains, p.AuditToken)
 				switch {
 				case invented != "":
 					halluc++
 					t.Errorf("ERROR-HALLUCINATION [%s] %q: narrated error %q absent from the tool audit %q", cat, prompt, invented, delta)
-				case auditMiss:
+				case auditMissed:
 					fail++
-					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q", cat, prompt, p.AuditContains)
+					t.Logf("AUDIT-MISSING [%s] %q: no run_command audit line with %q (failed-run token %q)", cat, prompt, p.AuditContains, p.AuditToken)
 				case containsAll(low, mustContain):
 					pass++
 					v2Report(t, cat, prompt, reply, delta, p)
@@ -1111,6 +1153,45 @@ func TestInventedErrorNarration(t *testing.T) {
 	for _, c := range cases {
 		if got := inventedErrorNarration(strings.ToLower(c.reply), c.audit); got != c.want {
 			t.Errorf("%s: inventedErrorNarration = %q, want %q", c.name, got, c.want)
+		}
+	}
+}
+
+// TestAuditMiss replays the verbatim run_command audit lines battery
+// runs 10-15 produced for the two audit_ prompts. Runs 10-12 answered
+// the missing command with a bare CreateProcess error (error=sandbox);
+// runs 13-15 wrapped it in cmd /c and got exit=1 + "no se reconoce".
+// Both are legitimate Windows shapes - battery.yaml's own v2_argv
+// teaches cmd|/c - so audit_token accepts either failure and rejects
+// an exit=0 echo of the target, an unrelated failing command, and an
+// agent line that only names the target.
+func TestAuditMiss(t *testing.T) {
+	const target = "comando_que_no_existe_xyz123"
+	bare := `2026/10/02 20:56:47 run_command audit user=whatsapp/battery cmd="comando_que_no_existe_xyz123" args=[] error=sandbox: CreateProcess: The system cannot find the file specified.`
+	wrapped := `2026/10/03 23:16:52 run_command audit user=whatsapp/battery cmd="cmd" args=["/c" "comando_que_no_existe_xyz123"] exit=1 dur=322ms stdout="" stderr="\"comando_que_no_existe_xyz123\" no se reconoce como un comando interno o externo,\r\nprograma o archivo por lotes ejecutable.\r\n"`
+	echoTarget := `2026/10/03 23:17:00 run_command audit user=whatsapp/battery cmd="cmd" args=["/c" "echo comando_que_no_existe_xyz123"] exit=0 dur=300ms stdout="comando_que_no_existe_xyz123\r\n" stderr=""`
+	agentLine := `2026/10/03 23:17:04 agent tool: run_command({"command":"comando_que_no_existe_xyz123","args":[]})`
+	unrelated := `2026/10/03 23:17:05 run_command audit user=whatsapp/battery cmd="cmd" args=["/c" "dir /nope"] exit=1 dur=80ms stdout="" stderr="El sistema no puede encontrar la ruta especificada."`
+	cases := []struct {
+		name     string
+		delta    string
+		want     string
+		tok      string
+		wantMiss bool
+	}{
+		{"bare CreateProcess satisfies audit_token (runs 10-12)", bare, "", target, false},
+		{"cmd /c exit=1 satisfies audit_token (runs 13-15)", wrapped, "", target, false},
+		{"error=sandbox does not cover the cmd /c shape", wrapped, "error=sandbox", "", true},
+		{"error=sandbox covers the bare shape (runs 10-12)", bare, "error=sandbox", "", false},
+		{"echoing the target is not a failed run", agentLine + "\n" + echoTarget, "", target, true},
+		{"agent line plus an unrelated failure is not the target's", agentLine + "\n" + unrelated, "", target, true},
+		{"no tool run at all", "", "", target, true},
+		{"failed run of another command", unrelated, "", target, true},
+		{"no audit expectation on this prompt", echoTarget, "", "", false},
+	}
+	for _, c := range cases {
+		if got := auditMiss(c.delta, c.want, c.tok); got != c.wantMiss {
+			t.Errorf("%s: auditMiss = %v, want %v", c.name, got, c.wantMiss)
 		}
 	}
 }
