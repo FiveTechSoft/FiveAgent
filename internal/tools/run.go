@@ -135,7 +135,7 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 	// narrates really came from this tool (battery run 6: the model
 	// quoted WSL's real "Acceso denegado" and the check called it a
 	// hallucination because only stderr - empty - was on record).
-	log.Printf("run_command audit user=%s cmd=%q args=%q exit=%d dur=%s stdout=%.160q stderr=%.160q", userKey, a.Command, a.Args, res.ExitCode, time.Since(start).Round(time.Millisecond), res.Stdout, res.Stderr)
+	log.Printf("run_command audit user=%s cmd=%q args=%q exit=%d dur=%s stdout=%.160q stderr=%.400q", userKey, a.Command, a.Args, res.ExitCode, time.Since(start).Round(time.Millisecond), res.Stdout, res.Stderr)
 	var sb strings.Builder
 	if res.Stdout != "" {
 		sb.WriteString(res.Stdout)
