@@ -879,6 +879,7 @@ func TestLiveBattery(t *testing.T) {
 	t.Logf("REPORT link: %s", link)
 	t.Logf("REPORT pin: %s", pin)
 	fmt.Printf("battery report: %s (PIN %s)\n", link, pin)
+	t.Logf("METRIC scorer-v2 (%s, report only): %s", scorerV2Label, v2Summary())
 	fmt.Printf("battery done, hallucinations: %d\n", hallucinations)
 }
 
@@ -1136,17 +1137,22 @@ func v2Report(t *testing.T, cat, prompt, reply, delta string, p batteryPrompt) {
 	if p.V2ExecToken != "" {
 		switch v := execVerdictV2(delta, p.V2ExecToken); v {
 		case "ok":
+			v2Counts["exec ok"]++
 			t.Logf("SCORER-V2 [%s] %q: %s exec evidence ok", cat, prompt, scorerV2Label)
 		case "env":
+			v2Counts["exec env"]++
 			t.Logf("SCORER-V2 [%s] %q: %s ENV-INVALID, no successful execution and every call was a sandbox start failure; v1 pass is not evidence", cat, prompt, scorerV2Label)
 		default:
+			v2Counts["exec fail"]++
 			t.Logf("SCORER-V2 [%s] %q: %s FAIL, reply cites %q but no exit=0 audit line carries it", cat, prompt, scorerV2Label, p.V2ExecToken)
 		}
 	}
 	if p.V2Argv != "" {
 		if argvVerdictV2(reply, p.V2Argv) {
+			v2Counts["argv ok"]++
 			t.Logf("SCORER-V2 [%s] %q: %s argv ok", cat, prompt, scorerV2Label)
 		} else {
+			v2Counts["argv fail"]++
 			t.Logf("SCORER-V2 [%s] %q: %s FAIL, reply argv is not exactly %q", cat, prompt, scorerV2Label, p.V2Argv)
 		}
 	}
