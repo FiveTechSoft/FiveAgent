@@ -145,6 +145,20 @@ could not count.
   in evals/scorer_v2_test.go replay the saved evidence and fail if the
   mechanism stops firing (checked by mutation). Not measured: v2 over a
   full live battery.
+- run_command call shape: a whole command line in `command` (`sh -c
+  "echo x"`, `echo 'x'`) or the shell glued to its flag (`cmd /c` with
+  the payload in args) never ran under the no-shell rule; both shapes
+  were measured in a saved run of another model. Now `sh -c "..."`,
+  `bash -c`, `cmd /c "..."` fold into the intended argv (flag first, the
+  payload one argument, logged as a normalized call); any other
+  whitespace-bearing command with no args is rejected unrun with the
+  exact corrected call in the error; a payload in both command and args
+  is rejected as ambiguous; paths with spaces are untouched. Tests
+  check each shape and fail when either mechanism is disabled (checked
+  by mutation). Not measured: effect on a live battery run.
+- Scorer v2 now also tags the auditoria-cinco case and prints one
+  `METRIC scorer-v2` summary line per run; README says how to compare v1
+  and v2 over saved logs.
 - Battery run 15 (first run with the snapshot purge): 97 pass + 2
   correct abstentions + 3 misses + 0 hallucinations of 102 (both
   parses agree) - GATE MET. The run-14b failure is gone: the
