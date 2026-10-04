@@ -14,8 +14,9 @@ import (
 //
 // Why v2 exists: a saved FrogNano execution run (2026-10-03) scored
 // PASS on "echo FooBAR-Baz_123" although every run_command call had
-// exited 127 (sandbox failure) and the reply was the token copied from
-// the prompt; and PASS on the Windows launch question although the reply
+// exited 127 (the model passed whole command lines as the program name,
+// so no executable existed) and the reply was the token copied from the
+// prompt; and PASS on the Windows launch question although the reply
 // gave command="cmd /c" with args ["-c", ...]. v1 checks that words
 // appear in the reply, not that they came from an observed execution or
 // that the argv is the exact one asked for.
@@ -54,10 +55,41 @@ func parseAuditLines(delta string) []auditLine {
 
 // execVerdictV2 judges a reply that cites an execution result token.
 // "ok": an audit line with exit=0 carries the token in its command line.
-// "env": no successful execution and every audit line is a sandbox
-// start failure (not evidence about the model, case should not be scored).
+// "env": no successful execution and every failing audit line is a
+// sandbox start failure by failureClass (not evidence about the model, case should not be scored).
 // "unobserved": the token is cited but no successful audit line carries
 // it (a hallucinated output when the reply cites it).
+// failureClass separates a sandbox that could not start from a call the
+// model shaped wrong. A saved FrogNano run showed why: docker answered
+// "failed to create task ... runc create failed" for BOTH a dead runtime
+// and a program that does not exist, and the audit line cut the cause
+// off. So the runc wording alone proves nothing.
+//
+//	"env":     the cause names the sandbox itself (docker.sock permission
+//	           denied, daemon unreachable, image/arch mismatch);
+//	"model":   a whole command line passed as the program name (spaces,
+//	           no path, no args), or the cause says the executable or file
+//	           does not exist;
+//	"unknown": anything else, including a runc line whose cause is cut off.
+//
+// Only "env" can invalidate a case; "unknown" stays a miss on the model.
+func failureClass(l auditLine) string {
+	low := strings.ToLower(l.raw)
+	for _, m := range []string{"docker.sock", "cannot connect to the docker daemon", "exec format error", "no matching manifest", "pull access denied", "unable to find image"} {
+		if strings.Contains(low, m) {
+			return "env"
+		}
+	}
+	if strings.Contains(low, "executable file not found") || strings.Contains(low, "no such file or directory") {
+		return "model"
+	}
+	fields := strings.Fields(l.cmd)
+	if len(fields) > 1 && l.args == "[]" && !strings.ContainsAny(fields[0], `/\`) {
+		return "model"
+	}
+	return "unknown"
+}
+
 func execVerdictV2(delta, token string) string {
 	lines := parseAuditLines(delta)
 	tok := strings.ToLower(token)
@@ -72,7 +104,7 @@ func execVerdictV2(delta, token string) string {
 			if l.exit == "0" {
 				continue // an unrelated success (e.g. a probe) is not the target
 			}
-			if !strings.Contains(l.raw, "failed to create task") && !strings.Contains(l.raw, "runc create failed") {
+			if failureClass(l) != "env" {
 				allEnv = false
 			} else {
 				envFails++
@@ -105,12 +137,21 @@ func argvVerdictV2(reply, want string) bool {
 }
 
 const (
-	fixtureEnvBroken = `run_command audit user=whatsapp/battery cmd="sh -c \"echo 'FooBAR-Baz_123'\"" args=[] exit=127 dur=142ms stderr="docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed"
-run_command audit user=whatsapp/battery cmd="echo 'FooBAR-Baz_123'" args=[] exit=127 dur=138ms stderr="docker: Error response from daemon: failed to create task for container: runc create failed"
+	// Sandbox that could not start: the cause names the daemon.
+	fixtureEnvBroken = `run_command audit user=whatsapp/battery cmd="echo" args=["x"] exit=127 dur=142ms stderr="docker: permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock"
 run_command audit user=whatsapp/battery cmd="/bin/true" args=[] exit=0 dur=157ms stderr=""
 `
-	fixtureEchoOK   = `run_command audit user=whatsapp/battery cmd="echo" args=["auditoria-cinco"] exit=0 dur=138ms stderr=""` + "\n"
-	fixtureRealFail = `run_command audit user=whatsapp/battery cmd="echo 'FooBAR-Baz_123'" args=[] exit=1 dur=10ms stderr="boom"` + "\n"
+	// Saved FrogNano run: whole command lines as the program name; docker
+	// says "runc create failed: unable to st" (cause cut off by the log).
+	fixtureMalformed = `run_command audit user=whatsapp/battery cmd="sh -c \"echo 'FooBAR-Baz_123'\"" args=[] exit=127 dur=142ms stderr="docker: Error response from daemon: failed to create task for container: failed to create shim task: OCI runtime create failed: runc create failed: unable to st"
+run_command audit user=whatsapp/battery cmd="echo 'FooBAR-Baz_123'" args=[] exit=127 dur=138ms stderr="docker: Error response from daemon: failed to create task for container: runc create failed: unable to st"
+run_command audit user=whatsapp/battery cmd="/bin/true" args=[] exit=0 dur=157ms stderr=""
+`
+	// A runc line with the cause cut off and a well-shaped command: not
+	// provably the environment.
+	fixtureRuncCutOff = `run_command audit user=whatsapp/battery cmd="echo" args=["x"] exit=127 dur=142ms stderr="docker: Error response from daemon: failed to create task for container: runc create failed: unable to st"` + "\n"
+	fixtureEchoOK     = `run_command audit user=whatsapp/battery cmd="echo" args=["auditoria-cinco"] exit=0 dur=138ms stderr=""` + "\n"
+	fixtureRealFail   = `run_command audit user=whatsapp/battery cmd="echo 'FooBAR-Baz_123'" args=[] exit=1 dur=10ms stderr="boom"` + "\n"
 )
 
 // Negative fixtures replayed from the saved evidence: v1 passed these,
@@ -119,7 +160,9 @@ func TestScorerV2ExecVerdict(t *testing.T) {
 	cases := []struct {
 		name, delta, token, want string
 	}{
-		{"all calls exit 127 from sandbox start failure, only /bin/true succeeded", fixtureEnvBroken, "FooBAR-Baz_123", "env"},
+		{"daemon unreachable (docker.sock permission denied), only a probe succeeded", fixtureEnvBroken, "FooBAR-Baz_123", "env"},
+		{"whole command lines as program name: model failure, not environment", fixtureMalformed, "FooBAR-Baz_123", "unobserved"},
+		{"runc line with the cause cut off is not provably environment", fixtureRuncCutOff, "FooBAR-Baz_123", "unobserved"},
 		{"no audit lines at all", "", "FooBAR-Baz_123", "unobserved"},
 		{"real failing run (not a sandbox start failure)", fixtureRealFail, "FooBAR-Baz_123", "unobserved"},
 		{"genuine successful run", fixtureEchoOK, "auditoria-cinco", "ok"},
