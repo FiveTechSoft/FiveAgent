@@ -148,3 +148,55 @@ func TestRunCommandBuiltinRetrySkipsCmdMetacharacters(t *testing.T) {
 		}
 	}
 }
+
+// recordSandbox records the argv it was asked to run.
+type recordSandbox struct{ calls [][]string }
+
+func (r *recordSandbox) Name() string { return "fake-record" }
+func (r *recordSandbox) Run(_ context.Context, _ string, argv []string) (sandbox.Result, error) {
+	r.calls = append(r.calls, append([]string(nil), argv...))
+	return sandbox.Result{Stdout: "ok"}, nil
+}
+
+// TestRunCommandNormalizesMisshapedCalls: shapes measured in a saved
+// FrogNano run (whole shell line in "command", "cmd /c" glued) run as
+// the intended argv; ambiguous or bare lines are rejected unrun.
+func TestRunCommandNormalizesMisshapedCalls(t *testing.T) {
+	ctx := tools.WithRequestInfo(context.Background(), "whatsapp", "34600000000")
+	cases := []struct {
+		name, in string
+		want     []string // nil = must be rejected without running
+	}{
+		{"shell line in command", `{"command":"sh -c \"echo 'FooBAR-Baz_123'\""}`, []string{"sh", "-c", "echo 'FooBAR-Baz_123'"}},
+		{"cmd /c glued, payload in args", `{"command":"cmd /c","args":["echo hola"]}`, []string{"cmd", "/c", "echo hola"}},
+		{"cmd /c glued, flag-led args", `{"command":"cmd /c","args":["/c","dir"]}`, []string{"cmd", "/c", "/c", "dir"}},
+		{"exact shape untouched", `{"command":"sh","args":["-c","echo hi"]}`, []string{"sh", "-c", "echo hi"}},
+		{"path with spaces untouched", `{"command":"C:\\Program Files\\x\\tool.exe","args":["a"]}`, []string{`C:\Program Files\x\tool.exe`, "a"}},
+		{"bare line rejected", `{"command":"echo 'FooBAR-Baz_123'"}`, nil},
+		{"payload in both places rejected", `{"command":"sh -c echo hi","args":["x"]}`, nil},
+		{"spaces plus args rejected", `{"command":"python3 -c","args":["print(1)"]}`, nil},
+	}
+	for _, c := range cases {
+		sb := &recordSandbox{}
+		out, err := tools.RunCommand{SB: sb}.Execute(ctx, []byte(c.in))
+		if c.want == nil {
+			if err == nil || len(sb.calls) != 0 {
+				t.Errorf("%s: want rejection without running, got err=%v calls=%v out=%q", c.name, err, sb.calls, out)
+			}
+			continue
+		}
+		if err != nil || len(sb.calls) != 1 || strings.Join(sb.calls[0], "\x00") != strings.Join(c.want, "\x00") {
+			t.Errorf("%s: want argv %q, got %q (err=%v)", c.name, c.want, sb.calls, err)
+		}
+	}
+}
+
+// TestRunCommandRejectionNamesTheShape: the error must carry the exact
+// corrected call so the model's retry succeeds.
+func TestRunCommandRejectionNamesTheShape(t *testing.T) {
+	ctx := tools.WithRequestInfo(context.Background(), "whatsapp", "34600000000")
+	_, err := tools.RunCommand{SB: &recordSandbox{}}.Execute(ctx, []byte(`{"command":"echo hello world"}`))
+	if err == nil || !strings.Contains(err.Error(), `"echo"`) || !strings.Contains(err.Error(), `["hello","world"]`) {
+		t.Errorf("error must name command and args: %v", err)
+	}
+}
