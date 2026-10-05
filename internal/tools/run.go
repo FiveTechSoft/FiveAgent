@@ -49,6 +49,17 @@ func (r RunCommand) Description() string {
 	return fmt.Sprintf("Run a command inside the user's sandbox (%s backend): %s. Good for calculations, small scripts and file tasks. Files persist between calls. %s", r.SB.Name(), limits, shellGuidance(runtime.GOOS))
 }
 
+// shellExample names the shell pair guidance and rejection hints may
+// quote for goos: one source, so a hint can never recommend a shell
+// the OS lacks (battery run 16: the hint said sh -c, the model
+// followed it, CreateProcess found no sh.exe on Windows).
+func shellExample(goos string) (shell, flag string) {
+	if goos == "windows" {
+		return "cmd", "/c"
+	}
+	return "sh", "-c"
+}
+
 // shellGuidance tells the model how to invoke shell syntax on each OS:
 // the tool receives a program + arguments and runs them WITHOUT a
 // shell, so builtins (dir, echo, pipes, redirects) need the OS shell
@@ -56,10 +67,11 @@ func (r RunCommand) Description() string {
 // Windows machines (first live-test finding: the model ran bash -c and
 // the command failed).
 func shellGuidance(goos string) string {
+	shell, flag := shellExample(goos)
 	if goos == "windows" {
-		return "The command runs directly, without a shell. On Windows use command \"cmd\" with args [\"/c\", \"...\"] (e.g. args [\"/c\", \"dir\"]); bash does not exist on most Windows machines - use it only when the user explicitly asks and it exists."
+		return fmt.Sprintf("The command runs directly, without a shell. On Windows use command %q with args [%q, \"...\"] (e.g. args [%q, \"dir\"]); bash does not exist on most Windows machines - use it only when the user explicitly asks and it exists.", shell, flag, flag)
 	}
-	return "The command runs directly, without a shell: for shell syntax use command \"sh\" with args [\"-c\", \"...\"] (on Windows it would be cmd /c instead)."
+	return fmt.Sprintf("The command runs directly, without a shell: for shell syntax use command %q with args [%q, \"...\"] (on Windows it would be cmd /c instead).", shell, flag)
 }
 
 // Parameters implements Tool.
@@ -97,7 +109,7 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 	if strings.TrimSpace(a.Command) == "" {
 		return "", fmt.Errorf("run_command: empty command")
 	}
-	cmd, cargs, hint := normalizeInvocation(a.Command, a.Args)
+	cmd, cargs, hint := normalizeInvocation(a.Command, a.Args, runtime.GOOS)
 	if hint != "" {
 		// Misshaped call (a whole command line in "command"): nothing
 		// ran, and the error tells the model the exact shape to send.
@@ -239,11 +251,13 @@ var shellFlags = map[string]map[string]bool{
 //     unless args already carries one - then the call is ambiguous and
 //     rejected;
 //   - anything else with whitespace and no args: rejected with the
-//     corrected shape in the message; nothing is guessed or run.
+//     corrected shape in the message - the shell example in that
+//     message comes from shellExample(goos) so it names a shell the
+//     OS actually has; nothing is guessed or run.
 //
 // Returns the (possibly rewritten) command and args, or a non-empty hint
 // when the call must not run.
-func normalizeInvocation(command string, args []string) (string, []string, string) {
+func normalizeInvocation(command string, args []string, goos string) (string, []string, string) {
 	command = strings.TrimSpace(command)
 	fields := strings.Fields(command)
 	if len(fields) <= 1 || strings.ContainsAny(fields[0], `/\`) {
@@ -263,7 +277,8 @@ func normalizeInvocation(command string, args []string) (string, []string, strin
 		}
 	}
 	if len(args) == 0 {
-		return "", nil, fmt.Sprintf("command must be one program name with its arguments in args, not a whole command line; send command %q with args %s (for shell syntax use a shell with its run flag, e.g. command \"sh\" args [\"-c\", \"...\"])", fields[0], quoteArgs(fields[1:]))
+		shell, flag := shellExample(goos)
+		return "", nil, fmt.Sprintf("command must be one program name with its arguments in args, not a whole command line; send command %q with args %s (for shell syntax use a shell with its run flag, e.g. command %q args [%q, \"...\"])", fields[0], quoteArgs(fields[1:]), shell, flag)
 	}
 	return "", nil, fmt.Sprintf("command %q contains spaces; send only the program name in command and every argument in args", command)
 }

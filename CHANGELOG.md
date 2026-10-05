@@ -203,6 +203,14 @@ could not count.
   inside the 00:00-01:59 Madrid window where the rubric's
   `{{weekday}}` resolves to lunes: a tool-default vs rubric
   timezone boundary, deterministic for late-night runs.
+- The run_command rejection hint now recommends the OS shell instead
+  of always `sh -c`: battery run 16 shows the model receiving that
+  hint on three rejections in a row and following it once into a
+  CreateProcess failure (no sh.exe on Windows) while the tool
+  description already taught `cmd /c` - hint and description
+  disagreed. `shellExample(goos)` is the single source for both;
+  red test first: TestRunCommandRejectionHintsTheOSShell fails on
+  Windows when the hint says sh.
 
 ### Highlights
 

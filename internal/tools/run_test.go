@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
+	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -198,5 +199,27 @@ func TestRunCommandRejectionNamesTheShape(t *testing.T) {
 	_, err := tools.RunCommand{SB: &recordSandbox{}}.Execute(ctx, []byte(`{"command":"echo hello world"}`))
 	if err == nil || !strings.Contains(err.Error(), `"echo"`) || !strings.Contains(err.Error(), `["hello","world"]`) {
 		t.Errorf("error must name command and args: %v", err)
+	}
+}
+
+// TestRunCommandRejectionHintsTheOSShell: battery run 16 - the
+// rejection hint recommended command "sh" args ["-c", ...] on three
+// rejections in a row; the model followed it once and CreateProcess
+// found no sh.exe on Windows (the description already taught cmd /c;
+// the hint contradicted it). The hint must recommend the shell that
+// exists on this OS.
+func TestRunCommandRejectionHintsTheOSShell(t *testing.T) {
+	ctx := tools.WithRequestInfo(context.Background(), "whatsapp", "34600000000")
+	_, err := tools.RunCommand{SB: &recordSandbox{}}.Execute(ctx, []byte(`{"command":"echo hello world"}`))
+	if err == nil {
+		t.Fatal("a whole command line must be rejected unrun")
+	}
+	shell, flag := "sh", "-c"
+	if runtime.GOOS == "windows" {
+		shell, flag = "cmd", "/c"
+	}
+	want := fmt.Sprintf("command %q args [%q", shell, flag)
+	if !strings.Contains(err.Error(), want) {
+		t.Errorf("rejection hint must recommend the %s shell (%s) on %s, got: %v", shell, flag, runtime.GOOS, err)
 	}
 }
