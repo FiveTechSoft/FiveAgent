@@ -287,6 +287,10 @@ type Config struct {
 	// Sampling is the stage 11a per-request-kind sampling. Unset fields
 	// are not sent; the provider's defaults apply.
 	Sampling Sampling `yaml:"sampling,omitempty"`
+	// Timezone is the user's IANA zone (e.g. Europe/Madrid) for
+	// current_datetime when the model gives none. Empty means the host's
+	// local zone.
+	Timezone string `yaml:"timezone,omitempty"`
 	// SystemPrompt overrides the agent's built-in persona. Optional; the
 	// model identity line is always appended (see agent.SystemPrompt).
 	SystemPrompt string `yaml:"system_prompt,omitempty"`
