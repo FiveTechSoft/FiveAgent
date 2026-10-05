@@ -182,8 +182,27 @@ could not count.
   echo of the target, an unrelated failing command, and an agent
   line that only names the target (all false passes a token-only
   match would allow). Red test first: TestAuditMiss replays the
-  verbatim audit lines of runs 10-15. Not measured: a live battery
-  run against this tree.
+  verbatim audit lines of runs 10-15. First measured by battery run
+  16, next bullet.
+- Battery run 16 (first live run with `audit_token`, 90 min, tree
+  fb07524): 96 pass + 4 correct abstentions + 2 misses + 0
+  hallucinations of 102 scored (113 prompts, 20 categories; python
+  scorecard and PS regex agree) - GATE MET. The fixed prompt passed
+  on the very shape that failed runs 13-15: the model again wrapped
+  the missing command in `cmd /c` (audit `exit=1` + "no se
+  reconoce"), `audit_token` matched it, tools reads 7 pass + 1
+  abstention + 0 miss, and the log holds zero AUDIT-MISSING lines.
+  Scorer v2: exec ok=2, exec env=0, exec fail=0, argv ok=1, argv
+  fail=0. Neither miss touches memory: the compra.txt files case
+  (`sh -c` fails CreateProcess - no sh.exe in the Windows sandbox -
+  and the Windows Store `python3` alias then answered exit=0 with
+  "Failed to find real location" on stderr, so the model hedged into
+  an abstention), and the weekday ask, where the model called
+  `current_datetime` without a timezone - which defaults to UTC
+  (internal/tools/datetime.go) - and answered domingo/23:46 UTC
+  inside the 00:00-01:59 Madrid window where the rubric's
+  `{{weekday}}` resolves to lunes: a tool-default vs rubric
+  timezone boundary, deterministic for late-night runs.
 
 ### Highlights
 
