@@ -296,3 +296,23 @@ func TestSamplingValidation(t *testing.T) {
 		t.Fatalf("unset sampling must stay nil: %+v", cfg.Sampling)
 	}
 }
+
+func TestLoadTimezone(t *testing.T) {
+	yml := `
+model:
+  base_url: http://localhost:11434/v1
+  name: qwen3
+timezone: Europe/Madrid
+`
+	path := filepath.Join(t.TempDir(), "fiveagent.yml")
+	if err := os.WriteFile(path, []byte(yml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Timezone != "Europe/Madrid" {
+		t.Errorf("timezone not parsed: %q", cfg.Timezone)
+	}
+}
