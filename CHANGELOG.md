@@ -211,6 +211,19 @@ could not count.
   disagreed. `shellExample(goos)` is the single source for both;
   red test first: TestRunCommandRejectionHintsTheOSShell fails on
   Windows when the hint says sh.
+- current_datetime without a timezone argument no longer answers in UTC:
+  it uses the new optional `timezone:` config key (IANA name, invalid
+  names stop startup) and otherwise the host's local zone, the same one
+  cron and the calendar already read. Why: the CHANGELOG entry of
+  battery run 16 (OpenCode's text only, not verified by us) reports the
+  model naming domingo at 23:46 UTC when it was already lunes in Madrid;
+  the UTC default in the code is verified, and the tests reproduce that
+  window (23:46 UTC on a Sunday is 01:46 Monday at UTC+2). Tests pin the
+  host zone so they cannot pass by CI-host luck, and fail when either
+  the configured zone or the host fallback is bypassed (checked by
+  mutation). An explicit timezone argument still wins. Not measured: a
+  live battery run with this change; a Linux container with no TZ and no
+  `timezone:` still reads as UTC.
 
 ### Highlights
 
