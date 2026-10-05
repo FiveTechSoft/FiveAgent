@@ -71,7 +71,15 @@ func main() {
 	}
 	defer store.Close()
 
-	tl := []tools.Tool{tools.Datetime{}}
+	dt := tools.Datetime{}
+	if cfg.Timezone != "" {
+		loc, err := time.LoadLocation(cfg.Timezone)
+		if err != nil {
+			log.Fatalf("config: timezone %q: %v", cfg.Timezone, err)
+		}
+		dt.Zone = loc
+	}
+	tl := []tools.Tool{dt}
 	// Stage 22: the scheduler is created before the registry so the
 	// model gets schedule_job; its deliver closure resolves channels
 	// lazily, once they are built below, and Run starts once ctx
