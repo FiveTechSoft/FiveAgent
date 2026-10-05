@@ -1,3 +1,7 @@
+# Optional: your IANA timezone for "what day/time is it". Empty = the
+# machine's own zone.
+# timezone: Europe/Madrid
+
 model:
   provider: openai-compatible
   base_url: http://host.docker.internal:11434/v1   # Ollama default; or https://api.openai.com/v1, https://api.deepseek.com/v1
