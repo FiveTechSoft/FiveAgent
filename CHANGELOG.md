@@ -30,6 +30,22 @@ could not count.
 
 ### Added after consolidation
 
+- Explicit confirmation for effectful tools in the main turn (the app
+  enables it; the library default is off). A fixed list of eleven tools
+  (gmail_send, slack_send, calendar_create, github_create_issue,
+  drive_upload, send_chart, run_command, browser_act, write_file,
+  edit_file, schedule_job) does not run on first call: the model is told
+  to describe the action and ask. The identical call runs only after the
+  same sender's next message is a plain yes, once, within ten minutes;
+  any other message clears the pending approval and another sender cannot
+  approve it. Tools outside the list are unchanged and a new tool is not
+  on the list until someone adds it. Tests with fake tools cover hold,
+  yes, spent approval, other sender, unrelated message and default-off;
+  disabling the gate makes them fail. Limits: scheduled jobs that call an
+  effectful tool are held until the user answers, the yes match is a
+  fixed set of short words, and it was not exercised with real connected
+  accounts.
+
 - Skill tool gating now applies at execution, not only to model specs.
   Each turn builds its own registry; helpers inherit that scope and keep
   their query-only allowlist. A shared tool is enabled by any active owning
