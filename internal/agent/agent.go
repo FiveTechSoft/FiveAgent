@@ -811,6 +811,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	msgs = append(msgs, hmsgs...)
 
 	turnTools := a.toolRegistryFor(triggered)
+	approved := a.takeApprovals(histChannel+"/"+canonUser, text)
 	ctx = context.WithValue(ctx, turnRegistryKey{}, turnTools)
 	var reply string
 	var lastContent string // model words from a tool-call turn, as fallback
@@ -881,7 +882,13 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 					forgetSeeds = a.factSeeds(forgetMatch, canonUser)
 				}
 			}
-			result, err := turnTools.Execute(ctx, call.Function.Name, rawArgs)
+			var result string
+			var err error
+			if held, ok := a.gateEffect(histChannel+"/"+canonUser, call.Function.Name, rawArgs, approved); !ok {
+				result = held
+			} else {
+				result, err = turnTools.Execute(ctx, call.Function.Name, rawArgs)
+			}
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
 			}
