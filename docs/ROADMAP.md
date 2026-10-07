@@ -791,8 +791,13 @@ evidence that counts.
     procedure body written for a small model. Only the one-line index
     (name + trigger per skill) enters the system prompt on every turn;
     the full body loads on demand when a keyword matches (the stage 17
-    machinery), and a tool named in `tools:` is offered only on turns
-    where its skill triggered. docs/fivetech-domain.md migrated to
+    machinery). A tool named in `tools:` is offered and executable only
+    on turns where an owning skill triggered; any active owning skill
+    enables a shared tool. Helpers inherit the parent turn scope and
+    intersect it with their query-only allowlist. Synthetic dispatch
+    tests cover inactive/active skills in main, sequential and parallel
+    helper turns. This is tool gating, not user consent.
+    docs/fivetech-domain.md migrated to
     skills/fivetech/SKILL.md as the first skill; on-disk files win
     over the build-time embedded copies (skills/embed.go), so the
     library is editable without a rebuild, and one malformed file is
