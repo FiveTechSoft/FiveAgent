@@ -492,6 +492,7 @@ func main() {
 		core.WithIdentities(ids)
 	}
 	core.WithSkills(agent.LoadSkillsDir(agent.DefaultSkillsDir)...)
+	core.WithEffectConfirmation()
 	core.WithSampling(cfg.Sampling)
 	if trajLogger != nil {
 		core.WithTrajectory(func(r trajectory.Record) {
