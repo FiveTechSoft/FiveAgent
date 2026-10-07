@@ -86,7 +86,7 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 	// No model-supplied task can widen this allowlist. In particular, helpers
 	// cannot send, mutate memory, run commands, act in the shared browser or
 	// spawn more helpers. New tools stay unavailable until reviewed here.
-	reg := a.tools.Only(
+	reg := a.registryFromTurn(ctx).Only(
 		"current_datetime", "web_search", "duckduckgo", "brave", "read_file",
 		"gmail_search", "calendar_list", "drive_list", "drive_download",
 		"slack_channels", "slack_read", "github_repos", "github_issues",
