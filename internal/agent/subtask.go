@@ -5,7 +5,7 @@
 // split itself through the run_subtask tool: each call runs ONE
 // subtask in an isolated subturn - fresh context (no conversation
 // history, no memory recall, no store writes), the same model and
-// tools, and every tool EXCEPT run_subtask, so delegation is capped
+// a fixed set of query tools, so delegation is capped
 // at depth 1. run_subtask is sequential; its sibling run_subtasks
 // (stage 34) fans independent subtasks out in parallel. The subturn
 // result comes back as the tool result and the main turn composes
@@ -25,7 +25,7 @@ import (
 
 // subordinatePrompt is the fresh system prompt of a subturn: one
 // subtask, no history, answer directly.
-const subordinatePrompt = "You are a helper inside FiveAgent solving ONE small subtask with a fresh context. You see no conversation history: everything you know is in the subtask text. Answer the subtask directly and concisely, using the available tools when the subtask needs them. Honesty above fluency: if you cannot know, say so."
+const subordinatePrompt = "You are a helper inside FiveAgent solving ONE small subtask with a fresh context. You see no conversation history: everything you know is in the subtask text. You can use only query tools; leave sends, writes, commands and browser actions to the main turn. Answer the subtask directly and concisely, using the available tools when the subtask needs them. Honesty above fluency: if you cannot know, say so."
 
 // subtaskTool is the run_subtask tool the agent registers on itself.
 type subtaskTool struct {
@@ -72,7 +72,7 @@ func (t subtaskTool) Execute(ctx context.Context, args json.RawMessage) (string,
 // runSubTurn runs one subtask in an isolated subturn and returns its
 // reply. Fresh context by design: no store reads or writes, no memory
 // recall, no skills, no pruning (a fresh turn is short). The subturn
-// gets every tool except run_subtask itself - delegation depth is 1.
+// gets only known query tools; actions remain with the main turn.
 func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 	channel, _ := tools.RequestInfo(ctx)
 	msgs := []model.Message{
@@ -83,7 +83,15 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 	if a.coder != nil && looksLikeCode(task) {
 		mdl, fallback = a.coder, a.mdl
 	}
-	specs := a.tools.Without("run_subtask", "run_subtasks").Specs()
+	// No model-supplied task can widen this allowlist. In particular, helpers
+	// cannot send, mutate memory, run commands, act in the shared browser or
+	// spawn more helpers. New tools stay unavailable until reviewed here.
+	reg := a.tools.Only(
+		"current_datetime", "web_search", "duckduckgo", "brave", "read_file",
+		"gmail_search", "calendar_list", "drive_list", "drive_download",
+		"slack_channels", "slack_read", "github_repos", "github_issues",
+	)
+	specs := reg.Specs()
 	var reply string
 	for round := 0; round < maxToolRounds; round++ {
 		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, specs, a.toolCallOptions())
@@ -97,13 +105,13 @@ func (a *Agent) runSubTurn(ctx context.Context, task string) (string, error) {
 		msgs = append(msgs, ans)
 		for _, call := range ans.ToolCalls {
 			rawArgs := []byte(call.Function.Arguments)
-			if schema, ok := a.tools.Schema(call.Function.Name); ok {
+			if schema, ok := reg.Schema(call.Function.Name); ok {
 				if fixed, repairs, rerr := tools.RepairArgs(schema, rawArgs); rerr == nil && len(repairs) > 0 {
 					log.Printf("agent subturn tool repair %s: %s", call.Function.Name, strings.Join(repairs, "; "))
 					rawArgs = fixed
 				}
 			}
-			result, err := a.tools.Without("run_subtask", "run_subtasks").Execute(ctx, call.Function.Name, rawArgs)
+			result, err := reg.Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
 			}
