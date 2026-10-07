@@ -30,6 +30,15 @@ could not count.
 
 ### Added after consolidation
 
+- Helper tool dispatch is query-only: sequential and parallel helpers use
+  the same fixed allowlist for model specs, argument repair and execution.
+  Sends, writes, commands, browser actions and unknown tools stay blocked
+  even when the model emits an unadvertised call. Synthetic mocks cover
+  25 blocked tool names and 13 allowed queries, including parallel request
+  scope propagation; removing the filter makes the rejection test fail.
+  Main-turn tools are unchanged. This does not add a main-turn consent gate
+  and does not prove safety with real connected accounts.
+
 - `fiveagent setup whatsapp`: checks the access token and phone number
   id, optionally subscribes the app to the WhatsApp Business Account
   (with read-back) and registers the webhook callback. Covered by tests
