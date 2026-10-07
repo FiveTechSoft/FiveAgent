@@ -5,8 +5,8 @@
 // independent subtasks at once through a bounded worker pool
 // (goroutines fed by a task queue). Each subtask is the same
 // isolated subturn as stage 18 - fresh context, no history, no
-// memory, every tool except the delegation tools - so workers share
-// nothing mutable, and delegation stays capped at depth 1. A
+// memory, only the query-tool allowlist - and delegation stays capped
+// at depth 1. A
 // failing subtask fills its own slot with an honest error; the
 // others still run. The main turn is the coordinator: it gets every
 // result in order and synthesizes the final answer.
