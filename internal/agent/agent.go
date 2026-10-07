@@ -166,6 +166,10 @@ type Agent struct {
 	archiveDays  int
 	actMu        sync.Mutex
 	lastActivity time.Time
+	// Effect confirmation (see consent.go).
+	confirmEffects bool
+	consentMu      sync.Mutex
+	pending        map[string]map[string]time.Time
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
