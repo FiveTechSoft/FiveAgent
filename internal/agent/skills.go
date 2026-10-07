@@ -23,6 +23,7 @@ package agent
 // the library is editable without a rebuild.
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log"
@@ -173,28 +174,45 @@ func SkillsIndex(skills []Skill) string {
 	return b.String()
 }
 
-// toolSpecsFor returns the registry specs offered to the model on this
-// turn. A tool named by a skill's "tools:" header rides only when that
-// skill triggered; tools named by no skill are always offered.
-func (a *Agent) toolSpecsFor(triggered map[string]bool) []tools.Spec {
-	specs := a.tools.Specs()
-	gated := map[string]string{} // tool name -> owning skill
+// turnRegistryKey carries the parent turn's filtered tools to helpers. The
+// scope is request-local, never stored on the shared Agent or model-supplied.
+type turnRegistryKey struct{}
+
+// toolRegistryFor applies skill gating to execution as well as model specs.
+// If several skills name a tool, any active owner enables it. Tools named
+// by no skill remain available, preserving the existing default behavior.
+func (a *Agent) toolRegistryFor(triggered map[string]bool) *tools.Registry {
+	gated := map[string]bool{}
+	enabled := map[string]bool{}
 	for _, sk := range a.skills {
-		for _, tn := range sk.Tools {
-			gated[tn] = sk.Name
+		for _, name := range sk.Tools {
+			gated[name] = true
+			if triggered[sk.Name] {
+				enabled[name] = true
+			}
 		}
 	}
-	if len(gated) == 0 {
-		return specs
-	}
-	out := make([]tools.Spec, 0, len(specs))
-	for _, sp := range specs {
-		if owner, ok := gated[sp.Function.Name]; ok && !triggered[owner] {
-			continue
+	var names []string
+	for _, sp := range a.tools.Specs() {
+		name := sp.Function.Name
+		if !gated[name] || enabled[name] {
+			names = append(names, name)
 		}
-		out = append(out, sp)
 	}
-	return out
+	return a.tools.Only(names...)
+}
+
+func (a *Agent) toolSpecsFor(triggered map[string]bool) []tools.Spec {
+	return a.toolRegistryFor(triggered).Specs()
+}
+
+// registryFromTurn inherits the exact parent request scope. Helpers still
+// intersect it with their query-only allowlist, so they can never widen it.
+func (a *Agent) registryFromTurn(ctx context.Context) *tools.Registry {
+	if reg, ok := ctx.Value(turnRegistryKey{}).(*tools.Registry); ok {
+		return reg
+	}
+	return a.tools
 }
 
 // DomainSkill returns the FiveTech domain skill from the library
