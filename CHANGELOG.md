@@ -30,6 +30,14 @@ could not count.
 
 ### Added after consolidation
 
+- Skill tool gating now applies at execution, not only to model specs.
+  Each turn builds its own registry; helpers inherit that scope and keep
+  their query-only allowlist. A shared tool is enabled by any active owning
+  skill. Synthetic tests cover inactive and active skills in the main turn
+  and sequential/parallel helpers, plus request scope propagation. Switching
+  dispatch back to the full registry makes the rejection test fail. This is
+  not a user-consent gate and was not exercised with real connected accounts.
+
 - Helper tool dispatch is query-only: sequential and parallel helpers use
   the same fixed allowlist for model specs, argument repair and execution.
   Sends, writes, commands, browser actions and unknown tools stay blocked
