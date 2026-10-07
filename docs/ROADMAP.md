@@ -487,8 +487,10 @@ evidence that counts.
     turn. internal/agent/subtask.go: the model drives the split
     through the run_subtask tool (self-registered by agent.New); each
     call runs one subtask with fresh context - no history, no memory
-    recall, no store writes - the same model and tools, and every
-    tool EXCEPT run_subtask, so delegation is capped at depth 1.
+    recall, no store writes - the same model and a fixed query-tool
+    allowlist enforced at dispatch. Sends, writes, commands and
+    shared-browser actions stay in the main turn; new tools are
+    blocked by default, and delegation is capped at depth 1.
     Subturns go through the stage-16 recovery ladder and the stage-14
     argument repair like any turn. Sequential only, no parallelism
     (that is stage 34).
@@ -828,7 +830,8 @@ evidence that counts.
     through a bounded worker pool (goroutines fed by a task queue,
     cap 4 concurrent, cap 8 per call) on the stage 18 subturn
     machinery: each subtask is the same isolated subturn - fresh
-    context, nothing mutable shared - and delegation stays capped at
+    context, query-only tools with the original request scope - and
+    delegation stays capped at
     depth 1 (subturns see neither run_subtask nor run_subtasks). One
     failing subtask fills its own slot with an honest, attributed
     error; the others still finish. The main turn is the
