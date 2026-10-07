@@ -67,6 +67,19 @@ func (r *Registry) Without(names ...string) *Registry {
 	return out
 }
 
+// Only returns a new registry containing only the named tools. Unknown names
+// grant nothing. Execute uses this registry too, so an unadvertised call cannot
+// bypass the boundary. The original registry is unchanged.
+func (r *Registry) Only(names ...string) *Registry {
+	out := NewRegistry()
+	for _, name := range names {
+		if t, ok := r.byName[name]; ok {
+			out.Add(t)
+		}
+	}
+	return out
+}
+
 // Spec describes one tool for the chat completions request.
 type Spec struct {
 	Type     string `json:"type"` // "function"
