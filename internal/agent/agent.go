@@ -806,6 +806,8 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	}
 	msgs = append(msgs, hmsgs...)
 
+	turnTools := a.toolRegistryFor(triggered)
+	ctx = context.WithValue(ctx, turnRegistryKey{}, turnTools)
 	var reply string
 	var lastContent string // model words from a tool-call turn, as fallback
 	rescued := 0           // tool calls whose mistyped arguments were repaired (stage 14)
@@ -819,7 +821,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 		fallback = a.mdl
 	}
 	for round := 0; round < maxToolRounds; round++ {
-		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, a.toolSpecsFor(triggered), a.toolCallOptions())
+		ans, err := a.recoverableChat(ctx, mdl, fallback, msgs, turnTools.Specs(), a.toolCallOptions())
 		if err != nil {
 			return "", err
 		}
@@ -853,7 +855,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			}
 			log.Printf("agent tool: %s(%s)", call.Function.Name, args)
 			rawArgs := []byte(call.Function.Arguments)
-			if schema, ok := a.tools.Schema(call.Function.Name); ok {
+			if schema, ok := turnTools.Schema(call.Function.Name); ok {
 				if fixed, repairs, rerr := tools.RepairArgs(schema, rawArgs); rerr == nil && len(repairs) > 0 {
 					rescued++
 					log.Printf("agent tool repair %s: %s", call.Function.Name, strings.Join(repairs, "; "))
@@ -875,7 +877,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 					forgetSeeds = a.factSeeds(forgetMatch, canonUser)
 				}
 			}
-			result, err := a.tools.Execute(ctx, call.Function.Name, rawArgs)
+			result, err := turnTools.Execute(ctx, call.Function.Name, rawArgs)
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
 			}
