@@ -10,6 +10,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -176,4 +178,41 @@ func TestMCPBoundsConcurrentCommands(t *testing.T) {
 		t.Fatalf("up to %d commands ran at once, cap is 4", bs.max)
 	}
 	t.Logf("12 simultaneous calls: %d ran (max concurrent %d), %d refused as busy", done, bs.max, busy)
+}
+
+// The folder the commands write to is the folder read_file reads, and a
+// symlink left there by a command cannot be used to read outside it.
+func TestMCPReadFileSeesCommandFolderAndRefusesSymlinks(t *testing.T) {
+	root := t.TempDir()
+	srv, err := mcp.New(mcpTestToken, &fakeSandbox{}, tools.Workspace{Root: root}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := httptest.NewServer(srv)
+	t.Cleanup(ts.Close)
+	c := mcpClient{t: t, url: ts.URL + "/mcp"}
+	folder := filepath.Join(root, "mcp") // where the sandbox runs for user key "mcp"
+	if err := os.MkdirAll(folder, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "fuera.txt")
+	if err := os.WriteFile(outside, []byte("FAKE-SECRET-fuera"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(folder, "salida.txt"), []byte("lo que escribio un comando"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	read := func(path string) (string, bool) {
+		_, resp := c.call(mcpTestToken, `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"fiveagent_read_file","arguments":{"path":"`+path+`"}}}`)
+		return resultText(t, resp)
+	}
+	if txt, isErr := read("salida.txt"); isErr || !strings.Contains(txt, "lo que escribio") {
+		t.Fatalf("a file in the command folder must be readable: %q (isError %v)", txt, isErr)
+	}
+	if err := os.Symlink(outside, filepath.Join(folder, "enlace.txt")); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if txt, _ := read("enlace.txt"); strings.Contains(txt, "FAKE-SECRET-fuera") {
+		t.Fatal("a symlink in the command folder leaked a file outside it")
+	}
 }
