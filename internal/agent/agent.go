@@ -811,7 +811,10 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	msgs = append(msgs, hmsgs...)
 
 	turnTools := a.toolRegistryFor(triggered)
-	approved := a.takeApprovals(histChannel+"/"+canonUser, text)
+	var approved map[string]bool
+	if !isAutomated(ctx) {
+		approved = a.takeApprovals(histChannel+"/"+canonUser, text)
+	}
 	ctx = context.WithValue(ctx, turnRegistryKey{}, turnTools)
 	var reply string
 	var lastContent string // model words from a tool-call turn, as fallback
