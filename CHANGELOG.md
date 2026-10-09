@@ -30,6 +30,19 @@ could not count.
 
 ### Added after consolidation
 
+- MCP endpoint hardened after an audit (fictional token, fake sandbox,
+  no real command run): a token sent without the Bearer scheme used to
+  authenticate (reproduced by reading the code path; now 401); requests
+  with an Origin header and, on loopback, a non-loopback Host are
+  refused; tokens under 16 characters and the unisolated jobobject
+  backend are refused at startup; concurrent commands are capped at 4;
+  the listener has read timeouts. The existing test token was lengthened
+  to meet the new minimum. Each rule has a test and fails when its check
+  is removed. Not fixed and documented in docs/mcp.md: command folder and
+  read_file folder differ, MCP bypasses the effect confirmation by
+  design, and there is no wrong-token rate limit. Not exercised with a
+  real client such as OpenCode or a real sandbox backend.
+
 - Two opt-in long-task aids, both off by default so nothing changes
   unless enabled: WithProgressFile (each turn starts with the first 2000
   chars of one file in the sender's own workspace folder, as data, so a
