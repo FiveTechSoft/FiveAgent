@@ -81,3 +81,32 @@ only execution path - it never execs directly), workspace reads
 confined to the folder, and every failure mode surfacing honestly.
 The live check with the owner's OpenCode is on the user's
 verification queue.
+
+## Hardening and known limits
+
+Enforced by the server (each has a test in `evals/mcp_security_test.go`):
+
+- The token must be sent as `Authorization: Bearer <token>`; a bare
+  token or another scheme gets 401. Tokens shorter than 16 characters
+  are refused at startup.
+- Any request carrying an `Origin` header is refused with 403, even with
+  the right token: command-line clients do not send one, browsers do.
+- On a loopback listener the `Host` header must be `localhost`,
+  `127.0.0.1` or `::1`, which stops DNS-rebinding pages. On other binds
+  this check is off.
+- At most 4 commands run at once; extra calls get an honest busy error.
+- The server does not start on the `jobobject` backend, which has no
+  filesystem or network isolation. Use bubblewrap, docker or
+  AppContainer.
+
+Known limits, not fixed:
+
+- Commands run in the sandbox folder `data/sandbox/<user_key>`, while
+  `fiveagent_read_file` reads `data/workspace/mcp-server`. They are
+  different folders, so a file a command writes is not visible to
+  `fiveagent_read_file`.
+- MCP calls do not go through the chat confirmation for effectful
+  tools: a client holding the token is trusted to run sandboxed
+  commands.
+- There is no rate limit on wrong tokens beyond the loopback bind and
+  the token length.
