@@ -170,6 +170,10 @@ type Agent struct {
 	confirmEffects bool
 	consentMu      sync.Mutex
 	pending        map[string]map[string]time.Time
+	// Opt-in long-task aids (see longtask.go); both off by default.
+	progressWS   *tools.Workspace
+	progressName string
+	fixLimit     int
 }
 
 // New builds the core. sysPrompt comes from SystemPrompt(cfg).
