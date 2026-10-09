@@ -132,7 +132,7 @@ func main() {
 			if core == nil {
 				return "", fmt.Errorf("proactive: agent not ready")
 			}
-			return core.Handle(ctx, channelName, userID, prompt)
+			return core.Handle(agent.WithAutomated(ctx), channelName, userID, prompt)
 		}
 		deliver := func(ctx context.Context, channelName, userID, text string) error {
 			for _, ch := range chans {
