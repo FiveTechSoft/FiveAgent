@@ -99,12 +99,12 @@ Enforced by the server (each has a test in `evals/mcp_security_test.go`):
   filesystem or network isolation. Use bubblewrap, docker or
   AppContainer.
 
+`fiveagent_read_file` reads the same folder the commands run in
+(`data/sandbox/<user_key>`), so a file a command writes can be read
+back. Symlinks inside it cannot be followed outside it (tested).
+
 Known limits, not fixed:
 
-- Commands run in the sandbox folder `data/sandbox/<user_key>`, while
-  `fiveagent_read_file` reads `data/workspace/mcp-server`. They are
-  different folders, so a file a command writes is not visible to
-  `fiveagent_read_file`.
 - MCP calls do not go through the chat confirmation for effectful
   tools: a client holding the token is trusted to run sandboxed
   commands.
