@@ -91,6 +91,9 @@ func New(token string, sb sandbox.Sandbox, ws tools.Workspace, userKey string) (
 	if userKey == "" {
 		userKey = "mcp"
 	}
+	// Reads must see the folder the commands write to: the sandbox root,
+	// folder userKey. The caller passes the sandbox root as ws.Root.
+	ws.Fixed = userKey
 	s := &Server{token: token, sb: sb, ws: ws, userKey: userKey, mux: http.NewServeMux(),
 		slots: make(chan struct{}, maxConcurrentCommands)}
 	s.mux.HandleFunc("/mcp", s.handle)
