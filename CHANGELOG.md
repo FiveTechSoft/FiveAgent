@@ -30,6 +30,16 @@ could not count.
 
 ### Added after consolidation
 
+- Workspace file tools no longer follow a symlink out of the user's
+  folder. Reproduced first with fictional files: a symlink inside one
+  user's folder pointing to a file outside it was read by read_file. The
+  path is now checked after resolving symlinks in its deepest existing
+  part, for read, write and edit. Tests cover `..`, absolute and
+  backslash paths, file and directory symlinks to another user and to an
+  outside file; removing the check makes the symlink test fail. Not
+  exercised against a real deployment, and path races between check and
+  use are not addressed.
+
 - Explicit confirmation for effectful tools in the main turn (the app
   enables it; the library default is off). A fixed list of eleven tools
   (gmail_send, slack_send, calendar_create, github_create_issue,
@@ -41,10 +51,11 @@ could not count.
   approve it. Tools outside the list are unchanged and a new tool is not
   on the list until someone adds it. Tests with fake tools cover hold,
   yes, spent approval, other sender, unrelated message and default-off;
-  disabling the gate makes them fail. Limits: scheduled jobs that call an
-  effectful tool are held until the user answers, the yes match is a
-  fixed set of short words, and it was not exercised with real connected
-  accounts.
+  disabling the gate makes them fail. Turns started by a subscription
+  waking the agent are marked automated: they cannot approve and do not
+  clear a pending approval, and their own effect calls are held until the
+  user says yes. Limits: the yes match is a fixed set of short words, and
+  it was not exercised with real connected accounts.
 
 - Skill tool gating now applies at execution, not only to model specs.
   Each turn builds its own registry; helpers inherit that scope and keep
