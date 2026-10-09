@@ -26,16 +26,27 @@ const maxReadBytes = 64 * 1024
 type Workspace struct {
 	// Root is the base folder; each user gets Root/<channel>-<userID>/.
 	Root string
+	// Fixed, when set, replaces the per-request folder name: every call
+	// uses Root/<Fixed> (sanitized the same way). The MCP server uses it
+	// so reads see the folder its commands write to.
+	Fixed string
 }
 
 // userRoot resolves and creates the current user's folder.
 func (w Workspace) userRoot(ctx context.Context) (string, error) {
-	channel, userID := RequestInfo(ctx)
-	if userID == "" {
-		return "", errors.New("workspace: no user in the request context")
+	name := w.Fixed
+	perm := os.FileMode(0o755)
+	if name != "" {
+		perm = 0o700
+	} else {
+		channel, userID := RequestInfo(ctx)
+		if userID == "" {
+			return "", errors.New("workspace: no user in the request context")
+		}
+		name = channel + "-" + userID
 	}
 	var b strings.Builder
-	for _, r := range channel + "-" + userID {
+	for _, r := range name {
 		switch {
 		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9',
 			r == '-', r == '_', r == '.':
@@ -45,7 +56,7 @@ func (w Workspace) userRoot(ctx context.Context) (string, error) {
 		}
 	}
 	root := filepath.Join(w.Root, b.String())
-	if err := os.MkdirAll(root, 0o755); err != nil {
+	if err := os.MkdirAll(root, perm); err != nil {
 		return "", err
 	}
 	return root, nil
