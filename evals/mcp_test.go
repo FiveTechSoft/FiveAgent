@@ -89,7 +89,7 @@ func resultText(t *testing.T, resp map[string]any) (string, bool) {
 func TestMCPProtocolBattery(t *testing.T) {
 	fs := &fakeSandbox{result: sandbox.Result{Stdout: "hola desde el sandbox\n", ExitCode: 0}}
 	wsRoot := t.TempDir()
-	srv, err := mcp.New("token-secreto", fs, tools.Workspace{Root: wsRoot}, "")
+	srv, err := mcp.New("token-secreto-0123", fs, tools.Workspace{Root: wsRoot}, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// initialize.
-	_, resp := c.call("token-secreto", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
+	_, resp := c.call("token-secreto-0123", `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`)
 	init, ok := resp["result"].(map[string]any)
 	if !ok || init["protocolVersion"] == "" {
 		t.Fatalf("initialize must answer a protocolVersion: %v", resp)
@@ -119,13 +119,13 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// A notification gets 202 and no body.
-	status, resp := c.call("token-secreto", `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
+	status, resp := c.call("token-secreto-0123", `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
 	if status != http.StatusAccepted || resp != nil {
 		t.Errorf("a notification must get 202 with no body, got %d %v", status, resp)
 	}
 
 	// tools/list: both tools with honest schemas.
-	_, resp = c.call("token-secreto", `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
+	_, resp = c.call("token-secreto-0123", `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
 	tl, _ := resp["result"].(map[string]any)["tools"].([]any)
 	names := map[string]bool{}
 	for _, it := range tl {
@@ -140,7 +140,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// tools/call run_command: goes through the sandbox, userKey mcp.
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fiveagent_run_command","arguments":{"argv":["echo","hola"]}}}`)
 	text, isErr := resultText(t, resp)
 	if isErr || !strings.Contains(text, "hola desde el sandbox") || !strings.Contains(text, "exit code: 0") {
@@ -152,7 +152,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 
 	// A failing command is an honest error, never a fake success.
 	fs.result = sandbox.Result{Stdout: "", Stderr: "boom", ExitCode: 3}
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"fiveagent_run_command","arguments":{"argv":["false"]}}}`)
 	text, isErr = resultText(t, resp)
 	if !isErr || !strings.Contains(text, "boom") || !strings.Contains(text, "exit code: 3") {
@@ -160,7 +160,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// Missing argv is an honest usage error.
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"fiveagent_run_command","arguments":{}}}`)
 	if _, isErr = resultText(t, resp); !isErr {
 		t.Error("empty argv must be refused")
@@ -174,7 +174,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(folder, "nota.txt"), []byte("contenido de la nota"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"fiveagent_read_file","arguments":{"path":"nota.txt"}}}`)
 	text, isErr = resultText(t, resp)
 	if isErr || !strings.Contains(text, "contenido de la nota") {
@@ -182,18 +182,18 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// read_file escaping the folder is refused.
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"fiveagent_read_file","arguments":{"path":"../../etc/passwd"}}}`)
 	if _, isErr = resultText(t, resp); !isErr {
 		t.Error("a .. escape must be refused")
 	}
 
 	// Unknown method and unknown tool: honest protocol errors.
-	_, resp = c.call("token-secreto", `{"jsonrpc":"2.0","id":8,"method":"resources/list"}`)
+	_, resp = c.call("token-secreto-0123", `{"jsonrpc":"2.0","id":8,"method":"resources/list"}`)
 	if e, _ := resp["error"].(map[string]any); e["code"] != -32601.0 {
 		t.Errorf("unknown method must be -32601: %v", resp)
 	}
-	_, resp = c.call("token-secreto",
+	_, resp = c.call("token-secreto-0123",
 		`{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"delete_everything","arguments":{}}}`)
 	if e, _ := resp["error"].(map[string]any); e["code"] != -32602.0 {
 		t.Errorf("unknown tool must be -32602: %v", resp)
