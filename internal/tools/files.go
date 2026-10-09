@@ -59,7 +59,45 @@ func resolve(root, rel string) (string, error) {
 		return "", errors.New("path is empty")
 	}
 	clean := filepath.Clean(string(filepath.Separator) + filepath.FromSlash(rel))
-	return filepath.Join(root, clean), nil
+	full := filepath.Join(root, clean)
+	if err := insideRoot(root, full); err != nil {
+		return "", err
+	}
+	return full, nil
+}
+
+// insideRoot refuses a path whose real location, after following symlinks
+// in its deepest existing part, leaves the user's folder. The lexical
+// cleaning above cannot see a symlink that points elsewhere.
+func insideRoot(root, full string) error {
+	realRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return err
+	}
+	p := full
+	var rest string
+	for {
+		real, err := filepath.EvalSymlinks(p)
+		if err == nil {
+			real = filepath.Join(real, rest)
+			if real == realRoot || strings.HasPrefix(real, realRoot+string(filepath.Separator)) {
+				return nil
+			}
+			return errors.New("path leaves the workspace folder")
+		}
+		if !errors.Is(err, os.ErrNotExist) {
+			// A dangling symlink or other failure: do not guess.
+			if _, lerr := os.Lstat(p); lerr == nil {
+				return errors.New("path leaves the workspace folder")
+			}
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return errors.New("path leaves the workspace folder")
+		}
+		rest = filepath.Join(filepath.Base(p), rest)
+		p = parent
+	}
 }
 
 // snapshot commits the folder's current state (pre-write) so the write
