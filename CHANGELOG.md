@@ -30,6 +30,16 @@ could not count.
 
 ### Added after consolidation
 
+- evals/retrieval: a local lexical baseline for document search (BM25 in
+  Go, no network, no model) over heading-sized chunks of docs/ and
+  skills/, scored on 33 hand-labeled queries. First run: recall@5 0.848,
+  MRR 0.727 plain; with a small stopword list recall@5 0.848, MRR 0.798.
+  Read with care: the set is small, one person wrote queries and labels
+  knowing the docs, some sections overlap so a few misses are arguably
+  valid alternates, and labels were not changed after seeing results.
+  Vector and hybrid variants and Typesense are not implemented or
+  measured; no model was downloaded.
+
 - Workspace file tools no longer follow a symlink out of the user's
   folder. Reproduced first with fictional files: a symlink inside one
   user's folder pointing to a file outside it was read by read_file. The
