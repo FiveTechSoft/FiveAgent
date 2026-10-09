@@ -30,6 +30,17 @@ could not count.
 
 ### Added after consolidation
 
+- MCP read_file now reads the folder run_command writes to
+  (data/sandbox/<user_key>), so a command's output can be read back; a
+  symlink left there cannot be followed outside it. The MCP battery and a
+  new test fail if the folder is not shared. Fake sandbox only, no real
+  client.
+
+- Read-then-send test (fictional file, fake send tool, scripted model):
+  without a yes the send after a read is held; with the gate off it runs
+  (so the test would notice a missing gate); a yes from another user
+  releases nothing. Not tested with real accounts.
+
 - MCP endpoint hardened after an audit (fictional token, fake sandbox,
   no real command run): a token sent without the Bearer scheme used to
   authenticate (reproduced by reading the code path; now 401); requests
@@ -38,8 +49,7 @@ could not count.
   backend are refused at startup; concurrent commands are capped at 4;
   the listener has read timeouts. The existing test token was lengthened
   to meet the new minimum. Each rule has a test and fails when its check
-  is removed. Not fixed and documented in docs/mcp.md: command folder and
-  read_file folder differ, MCP bypasses the effect confirmation by
+  is removed. Not fixed and documented in docs/mcp.md: MCP bypasses the effect confirmation by
   design, and there is no wrong-token rate limit. Not exercised with a
   real client such as OpenCode or a real sandbox backend.
 
