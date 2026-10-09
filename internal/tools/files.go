@@ -283,3 +283,30 @@ func (t EditFile) Execute(ctx context.Context, args json.RawMessage) (string, er
 	}
 	return out, nil
 }
+
+// ReadSmall returns up to max bytes of one file in the current user's
+// folder, or ok=false when it is missing, unreadable or outside the
+// folder. It never creates the folder.
+func (w Workspace) ReadSmall(ctx context.Context, rel string, max int) (string, bool) {
+	channel, userID := RequestInfo(ctx)
+	if userID == "" {
+		return "", false
+	}
+	root, err := w.userRoot(ctx)
+	_ = channel
+	if err != nil {
+		return "", false
+	}
+	full, err := resolve(root, rel)
+	if err != nil {
+		return "", false
+	}
+	b, err := os.ReadFile(full)
+	if err != nil || len(b) == 0 {
+		return "", false
+	}
+	if max > 0 && len(b) > max {
+		b = b[:max]
+	}
+	return string(b), true
+}
