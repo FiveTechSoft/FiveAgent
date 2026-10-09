@@ -18,9 +18,11 @@
 package mcp
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 
@@ -58,7 +60,18 @@ type Server struct {
 	ws      tools.Workspace
 	userKey string
 	mux     *http.ServeMux
+	// loopbackOnly rejects requests whose Host header is not a loopback
+	// name, which stops DNS-rebinding pages from reaching the endpoint.
+	loopbackOnly bool
+	slots        chan struct{} // caps concurrent commands
 }
+
+// minTokenLen is the shortest bearer token the server accepts. The
+// endpoint can run commands, so a guessable token is refused at startup.
+const minTokenLen = 16
+
+// maxConcurrentCommands bounds parallel run_command calls.
+const maxConcurrentCommands = 4
 
 // New builds the server. The token is required; the sandbox is
 // required because fiveagent_run_command is the point of the server.
@@ -66,15 +79,39 @@ func New(token string, sb sandbox.Sandbox, ws tools.Workspace, userKey string) (
 	if strings.TrimSpace(token) == "" {
 		return nil, fmt.Errorf("mcp: a bearer token is required (set mcp.token in fiveagent.yml)")
 	}
+	if len(token) < minTokenLen {
+		return nil, fmt.Errorf("mcp: the bearer token must be at least %d characters", minTokenLen)
+	}
 	if sb == nil {
 		return nil, fmt.Errorf("mcp: the sandbox is required (set sandbox.enabled: true in fiveagent.yml)")
+	}
+	if sb.Name() == "jobobject" {
+		return nil, fmt.Errorf("mcp: refused: the jobobject sandbox has no filesystem or network isolation, so command execution is not exposed through it")
 	}
 	if userKey == "" {
 		userKey = "mcp"
 	}
-	s := &Server{token: token, sb: sb, ws: ws, userKey: userKey, mux: http.NewServeMux()}
+	s := &Server{token: token, sb: sb, ws: ws, userKey: userKey, mux: http.NewServeMux(),
+		slots: make(chan struct{}, maxConcurrentCommands)}
 	s.mux.HandleFunc("/mcp", s.handle)
 	return s, nil
+}
+
+// RestrictToLoopback makes the server answer only requests addressed to a
+// loopback host name. Call it when the listener is bound to loopback.
+func (s *Server) RestrictToLoopback() { s.loopbackOnly = true }
+
+func isLoopbackHost(hostport string) bool {
+	h := hostport
+	if host, _, err := net.SplitHostPort(hostport); err == nil {
+		h = host
+	}
+	h = strings.Trim(h, "[]")
+	if strings.EqualFold(h, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(h)
+	return ip != nil && ip.IsLoopback()
 }
 
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -91,9 +128,24 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "the MCP endpoint takes POST only", http.StatusMethodNotAllowed)
 		return
 	}
+	// Browsers always send Origin on cross-site requests; the design
+	// clients (CLIs) never do. Refuse any request that carries one.
+	if r.Header.Get("Origin") != "" {
+		http.Error(w, "browser origins are not allowed", http.StatusForbidden)
+		return
+	}
+	if s.loopbackOnly && !isLoopbackHost(r.Host) {
+		http.Error(w, "host not allowed", http.StatusForbidden)
+		return
+	}
 	auth := r.Header.Get("Authorization")
-	tok := strings.TrimSpace(strings.TrimPrefix(auth, "Bearer "))
-	if tok == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(s.token)) != 1 {
+	tok := ""
+	if len(auth) > 7 && strings.EqualFold(auth[:7], "bearer ") {
+		tok = strings.TrimSpace(auth[7:])
+	}
+	// Compare fixed-size digests so the length of the token is not leaked.
+	got, want := sha256.Sum256([]byte(tok)), sha256.Sum256([]byte(s.token))
+	if tok == "" || subtle.ConstantTimeCompare(got[:], want[:]) != 1 {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(rpcResponse{JSONRPC: "2.0",
@@ -198,6 +250,14 @@ func (s *Server) callTool(w http.ResponseWriter, r *http.Request, req rpcRequest
 		if err := json.Unmarshal(p.Arguments, &args); err != nil || len(args.Argv) == 0 {
 			writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: toolResult(
 				"fiveagent_run_command needs a non-empty argv array", true)})
+			return
+		}
+		select {
+		case s.slots <- struct{}{}:
+			defer func() { <-s.slots }()
+		default:
+			writeRPC(w, rpcResponse{JSONRPC: "2.0", ID: req.ID, Result: toolResult(
+				"too many commands running; retry shortly", true)})
 			return
 		}
 		res, err := s.sb.Run(r.Context(), s.userKey, args.Argv)
