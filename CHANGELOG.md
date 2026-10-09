@@ -30,6 +30,23 @@ could not count.
 
 ### Added after consolidation
 
+- Two opt-in long-task aids, both off by default so nothing changes
+  unless enabled: WithProgressFile (each turn starts with the first 2000
+  chars of one file in the sender's own workspace folder, as data, so a
+  long task can resume after history is pruned or the process restarts)
+  and WithFixAttemptLimit (after a tool fails, n more calls to it may run
+  in that turn; then it is not executed again and the model is told to
+  stop and report). They are NOT enabled in the app. A/B with a scripted
+  model, 10 repeats, identical each time: a tool that always fails runs 5
+  times without the limit and 2 with limit 1; a tool that fails once runs
+  2 times in both arms (no harm to recoverable failures); after a history
+  reset the progress notes reach the model only with the file enabled
+  (48 chars extra in the test). This measures the mechanism only. It says
+  nothing about whether a real model writes useful notes or recovers
+  better, and write_file is on the confirmation list, so a model writing
+  its progress file would ask the user each time until a dedicated
+  progress tool exists.
+
 - evals/retrieval: a local lexical baseline for document search (BM25 in
   Go, no network, no model) over heading-sized chunks of docs/ and
   skills/, scored on 33 hand-labeled queries. First run: recall@5 0.848,
