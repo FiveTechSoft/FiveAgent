@@ -81,3 +81,21 @@ func TestQueryToolsAndDefaultOffUnaffected(t *testing.T) {
 		t.Fatal("hash must ignore key order and spacing")
 	}
 }
+
+func TestAutomatedTurnNeitherApprovesNorClears(t *testing.T) {
+	ctx := context.Background()
+	auto := WithAutomated(ctx)
+	a, probe := consentRig(t, "gmail_send", true)
+	a.Handle(ctx, "wa", "u1", "manda el correo") // held, pending
+	// A system wake with the text "sí" must not approve it...
+	a.Handle(auto, "wa", "u1", "sí")
+	if n := probe.calls.Load(); n != 0 {
+		t.Fatalf("automated turn approved an effect: %d", n)
+	}
+	// ...and must not erase the pending approval either: the user's own
+	// yes afterwards still works.
+	a.Handle(ctx, "wa", "u1", "sí")
+	if n := probe.calls.Load(); n != 1 {
+		t.Fatalf("user yes after automated turn ran %d times, want 1", n)
+	}
+}
