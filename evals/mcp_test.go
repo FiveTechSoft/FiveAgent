@@ -167,7 +167,7 @@ func TestMCPProtocolBattery(t *testing.T) {
 	}
 
 	// read_file inside the workspace folder.
-	folder := filepath.Join(wsRoot, "mcp-server")
+	folder := filepath.Join(wsRoot, "mcp")
 	if err := os.MkdirAll(folder, 0o755); err != nil {
 		t.Fatal(err)
 	}
