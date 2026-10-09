@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -21,6 +22,21 @@ var effectTools = map[string]bool{
 	"github_create_issue": true, "drive_upload": true, "send_chart": true,
 	"run_command": true, "browser_act": true, "write_file": true,
 	"edit_file": true, "schedule_job": true,
+}
+
+type automatedKey struct{}
+
+// WithAutomated marks a turn started by the system (a subscription
+// waking the agent) rather than typed by the user. Such a turn can never
+// approve an effect and never clears an approval the user is about to
+// give; its own effect calls are still held until the user answers yes.
+func WithAutomated(ctx context.Context) context.Context {
+	return context.WithValue(ctx, automatedKey{}, true)
+}
+
+func isAutomated(ctx context.Context) bool {
+	v, _ := ctx.Value(automatedKey{}).(bool)
+	return v
 }
 
 const consentTTL = 10 * time.Minute
