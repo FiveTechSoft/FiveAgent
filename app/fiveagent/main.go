@@ -221,11 +221,13 @@ func main() {
 		if addr == "" {
 			addr = "127.0.0.1:8090"
 		}
-		wsRoot := cfg.Workspace.Root
-		if wsRoot == "" {
-			wsRoot = "data/workspace"
+		// read_file must see what run_command writes, so both use the
+		// sandbox root.
+		sbRoot := cfg.Sandbox.Root
+		if sbRoot == "" {
+			sbRoot = "data/sandbox"
 		}
-		if srv, err := mcp.New(cfg.MCP.Token, mcpSB, tools.Workspace{Root: wsRoot}, cfg.MCP.UserKey); err != nil {
+		if srv, err := mcp.New(cfg.MCP.Token, mcpSB, tools.Workspace{Root: sbRoot}, cfg.MCP.UserKey); err != nil {
 			log.Printf("MCP server disabled: %v", err)
 		} else {
 			if host, _, err := net.SplitHostPort(addr); err == nil && (strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback()) {
