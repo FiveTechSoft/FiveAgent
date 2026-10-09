@@ -812,6 +812,9 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			msgs = append(msgs, model.Message{Role: "system", Content: note})
 		}
 	}
+	if note := a.progressNote(ctx); note != "" {
+		msgs = append(msgs, model.Message{Role: "system", Content: note})
+	}
 	msgs = append(msgs, hmsgs...)
 
 	turnTools := a.toolRegistryFor(triggered)
@@ -821,8 +824,9 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	}
 	ctx = context.WithValue(ctx, turnRegistryKey{}, turnTools)
 	var reply string
-	var lastContent string // model words from a tool-call turn, as fallback
-	rescued := 0           // tool calls whose mistyped arguments were repaired (stage 14)
+	var lastContent string       // model words from a tool-call turn, as fallback
+	failures := map[string]int{} // tool name -> errors so far in this turn
+	rescued := 0                 // tool calls whose mistyped arguments were repaired (stage 14)
 	// The agent decides which model serves this request: the coder model
 	// for code-heavy text, the main model otherwise. The other one is
 	// the fallback for the stage 16 recovery ladder.
@@ -891,13 +895,16 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			}
 			var result string
 			var err error
-			if held, ok := a.gateEffect(histChannel+"/"+canonUser, call.Function.Name, rawArgs, approved); !ok {
+			if a.fixLimit > 0 && failures[call.Function.Name] > a.fixLimit {
+				result = fixLimitMessage(call.Function.Name)
+			} else if held, ok := a.gateEffect(histChannel+"/"+canonUser, call.Function.Name, rawArgs, approved); !ok {
 				result = held
 			} else {
 				result, err = turnTools.Execute(ctx, call.Function.Name, rawArgs)
 			}
 			if err != nil {
 				result = fmt.Sprintf("error: %v", err)
+				failures[call.Function.Name]++
 			}
 			if forgetMatch != "" && err == nil {
 				a.scrubHistory(ctx, histChannel, canonUser, forgetMatch, forgetSeeds...)
