@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -227,9 +228,13 @@ func main() {
 		if srv, err := mcp.New(cfg.MCP.Token, mcpSB, tools.Workspace{Root: wsRoot}, cfg.MCP.UserKey); err != nil {
 			log.Printf("MCP server disabled: %v", err)
 		} else {
+			if host, _, err := net.SplitHostPort(addr); err == nil && (strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback()) {
+				srv.RestrictToLoopback()
+			}
 			go func() {
 				log.Printf("MCP server: http://%s/mcp (bearer token required)", addr)
-				if err := http.ListenAndServe(addr, srv); err != nil {
+				hs := &http.Server{Addr: addr, Handler: srv, ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second, MaxHeaderBytes: 16 << 10}
+				if err := hs.ListenAndServe(); err != nil {
 					log.Printf("MCP server stopped: %v", err)
 				}
 			}()
