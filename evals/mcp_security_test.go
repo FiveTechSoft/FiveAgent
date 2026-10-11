@@ -216,3 +216,39 @@ func TestMCPReadFileSeesCommandFolderAndRefusesSymlinks(t *testing.T) {
 		t.Fatal("a symlink in the command folder leaked a file outside it")
 	}
 }
+
+// Repeated wrong tokens from one address get 429, and the limit lifts
+// when the window ends. Fake sandbox, short window.
+func TestMCPThrottlesWrongTokens(t *testing.T) {
+	srv, ts := mcpTestServer(t, &fakeSandbox{})
+	srv.SetAuthLimit(3, 300*time.Millisecond)
+	bad := map[string]string{"Authorization": "Bearer wrong-token-0123456789"}
+	good := map[string]string{"Authorization": "Bearer " + mcpTestToken}
+	for i := 0; i < 3; i++ {
+		if s := rawPost(t, ts.URL, bad, ""); s != http.StatusUnauthorized {
+			t.Fatalf("attempt %d: want 401, got %d", i, s)
+		}
+	}
+	if s := rawPost(t, ts.URL, bad, ""); s != http.StatusTooManyRequests {
+		t.Errorf("wrong token over the limit must be 429, got %d", s)
+	}
+	if s := rawPost(t, ts.URL, good, ""); s != http.StatusTooManyRequests {
+		t.Errorf("the right token is also refused while the limit holds, got %d", s)
+	}
+	time.Sleep(400 * time.Millisecond)
+	if s := rawPost(t, ts.URL, good, ""); s != http.StatusOK {
+		t.Errorf("after the window the right token must work, got %d", s)
+	}
+}
+
+// Right tokens never count toward the limit.
+func TestMCPRightTokensAreNotThrottled(t *testing.T) {
+	srv, ts := mcpTestServer(t, &fakeSandbox{})
+	srv.SetAuthLimit(3, time.Minute)
+	good := map[string]string{"Authorization": "Bearer " + mcpTestToken}
+	for i := 0; i < 20; i++ {
+		if s := rawPost(t, ts.URL, good, ""); s != http.StatusOK {
+			t.Fatalf("call %d: %d", i, s)
+		}
+	}
+}
