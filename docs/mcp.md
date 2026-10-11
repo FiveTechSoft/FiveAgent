@@ -67,7 +67,9 @@ implements and is covered by the CI battery.
 
 ## Errors you can trust
 
-- Missing or wrong token: HTTP 401 with a JSON-RPC error body.
+- Missing or wrong token: HTTP 401 with a JSON-RPC error body. After
+  10 wrong tokens from one address in a minute that address gets 429
+  (Retry-After 60) until the minute ends, even with the right token.
 - Unknown method: `-32601`. Unknown tool: `-32602`.
 - Sandbox refusal, non-zero exit, read failure: `isError: true` with
   the real stderr / error text.
@@ -108,5 +110,6 @@ Known limits, not fixed:
 - MCP calls do not go through the chat confirmation for effectful
   tools: a client holding the token is trusted to run sandboxed
   commands.
-- There is no rate limit on wrong tokens beyond the loopback bind and
-  the token length.
+- The wrong-token limit is per client address. Behind a proxy all
+  clients share one address, so one bad client can lock out the rest
+  for the window.
