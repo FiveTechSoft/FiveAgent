@@ -30,6 +30,16 @@ could not count.
 
 ### Added after consolidation
 
+- Held-effect notice: when effect confirmation holds a call, the harness
+  appends a fixed line to the reply ("Pendiente de tu confirmación, no se
+  ha ejecutado: <tool>. Responde sí para ejecutarlo") so the user is told
+  even if a small model forgets to ask. Names the tool only, never the
+  arguments; added to the stored history too. Tests: appears when held,
+  absent after the yes, with confirmation off, and for a query tool; the
+  held test fails when the line is removed. The model also still gets the
+  instruction to describe the action, so a reply can say it twice. Fake
+  model only, no real channel.
+
 - MCP wrong-token throttle: 10 wrong tokens per minute from one client
   address, then 429 until the window ends (right tokens never count,
   and are refused too while the limit holds). Test with a fake sandbox
