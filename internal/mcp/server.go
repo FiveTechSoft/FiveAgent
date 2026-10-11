@@ -25,6 +25,8 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 	"github.com/FiveTechSoft/FiveAgent/internal/tools"
@@ -64,6 +66,64 @@ type Server struct {
 	// name, which stops DNS-rebinding pages from reaching the endpoint.
 	loopbackOnly bool
 	slots        chan struct{} // caps concurrent commands
+
+	// Wrong-token throttle: after failMax wrong tokens from one client
+	// address inside failWindow, that address gets 429 until the window
+	// ends, even with the right token. Per address, so one bad client
+	// cannot lock out another; behind a proxy all clients share one.
+	failMax    int
+	failWindow time.Duration
+	failMu     sync.Mutex
+	fails      map[string]*failState
+}
+
+type failState struct {
+	n     int
+	start time.Time
+}
+
+// SetAuthLimit changes the wrong-token limit (default 10 per minute).
+func (s *Server) SetAuthLimit(max int, window time.Duration) {
+	s.failMu.Lock()
+	s.failMax, s.failWindow = max, window
+	s.failMu.Unlock()
+}
+
+// blocked reports whether the client is over the limit; fail records a
+// wrong token.
+func (s *Server) blocked(addr string) bool {
+	s.failMu.Lock()
+	defer s.failMu.Unlock()
+	f := s.fails[addr]
+	if f == nil {
+		return false
+	}
+	if time.Since(f.start) >= s.failWindow {
+		delete(s.fails, addr)
+		return false
+	}
+	return f.n >= s.failMax
+}
+
+func (s *Server) fail(addr string) {
+	s.failMu.Lock()
+	defer s.failMu.Unlock()
+	now := time.Now()
+	// Keep the table small: drop expired entries.
+	for k, f := range s.fails {
+		if now.Sub(f.start) >= s.failWindow {
+			delete(s.fails, k)
+		}
+	}
+	f := s.fails[addr]
+	if f == nil {
+		if len(s.fails) >= 1024 {
+			return
+		}
+		f = &failState{start: now}
+		s.fails[addr] = f
+	}
+	f.n++
 }
 
 // minTokenLen is the shortest bearer token the server accepts. The
@@ -94,7 +154,7 @@ func New(token string, sb sandbox.Sandbox, ws tools.Workspace, userKey string) (
 	// Reads must see the folder the commands write to: the sandbox root,
 	// folder userKey. The caller passes the sandbox root as ws.Root.
 	ws.Fixed = userKey
-	s := &Server{token: token, sb: sb, ws: ws, userKey: userKey, mux: http.NewServeMux(),
+	s := &Server{failMax: 10, failWindow: time.Minute, fails: map[string]*failState{}, token: token, sb: sb, ws: ws, userKey: userKey, mux: http.NewServeMux(),
 		slots: make(chan struct{}, maxConcurrentCommands)}
 	s.mux.HandleFunc("/mcp", s.handle)
 	return s, nil
@@ -141,6 +201,15 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "host not allowed", http.StatusForbidden)
 		return
 	}
+	addr, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		addr = r.RemoteAddr
+	}
+	if s.blocked(addr) {
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "too many wrong tokens, try again later", http.StatusTooManyRequests)
+		return
+	}
 	auth := r.Header.Get("Authorization")
 	tok := ""
 	if len(auth) > 7 && strings.EqualFold(auth[:7], "bearer ") {
@@ -149,6 +218,7 @@ func (s *Server) handle(w http.ResponseWriter, r *http.Request) {
 	// Compare fixed-size digests so the length of the token is not leaked.
 	got, want := sha256.Sum256([]byte(tok)), sha256.Sum256([]byte(s.token))
 	if tok == "" || subtle.ConstantTimeCompare(got[:], want[:]) != 1 {
+		s.fail(addr)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		_ = json.NewEncoder(w).Encode(rpcResponse{JSONRPC: "2.0",
