@@ -826,6 +826,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 	var reply string
 	var lastContent string       // model words from a tool-call turn, as fallback
 	failures := map[string]int{} // tool name -> errors so far in this turn
+	var heldTools []string       // effect tools held for confirmation this turn
 	rescued := 0                 // tool calls whose mistyped arguments were repaired (stage 14)
 	// The agent decides which model serves this request: the coder model
 	// for code-heavy text, the main model otherwise. The other one is
@@ -899,6 +900,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 				result = fixLimitMessage(call.Function.Name)
 			} else if held, ok := a.gateEffect(histChannel+"/"+canonUser, call.Function.Name, rawArgs, approved); !ok {
 				result = held
+				heldTools = append(heldTools, call.Function.Name)
 			} else {
 				result, err = turnTools.Execute(ctx, call.Function.Name, rawArgs)
 			}
@@ -945,6 +947,7 @@ func (a *Agent) Handle(ctx context.Context, channel, userID, text string) (ret s
 			reply = "Lo siento, no he podido preparar una respuesta esta vez. Prueba a preguntármelo otra vez."
 		}
 	}
+	reply += heldNotice(heldTools)
 	if rescued > 0 {
 		log.Printf("agent: tool-call repair rescued %d call(s) this turn", rescued)
 	}
