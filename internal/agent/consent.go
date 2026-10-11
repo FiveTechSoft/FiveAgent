@@ -119,3 +119,23 @@ func (a *Agent) gateEffect(user, name string, args []byte, approved map[string]b
 	a.addPending(user, h)
 	return fmt.Sprintf("confirmation_required: %s was NOT executed. Tell the user exactly what it would do (recipient, content, target) and ask them to reply yes. Only after their yes, call %s again with the same arguments.", name, name), false
 }
+
+// heldNotice is the fixed line appended to a reply when effect calls were
+// held this turn. The harness writes it, not the model, so the user is
+// told something is waiting even when a small model forgets to ask. It
+// names only the tools, never the arguments.
+func heldNotice(held []string) string {
+	if len(held) == 0 {
+		return ""
+	}
+	seen := map[string]bool{}
+	var names []string
+	for _, n := range held {
+		if !seen[n] {
+			seen[n] = true
+			names = append(names, n)
+		}
+	}
+	return "\n\n[Pendiente de tu confirmación, no se ha ejecutado: " + strings.Join(names, ", ") +
+		". Responde \"sí\" para ejecutarlo; cualquier otra cosa lo cancela.]"
+}
