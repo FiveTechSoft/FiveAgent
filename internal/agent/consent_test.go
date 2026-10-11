@@ -99,3 +99,46 @@ func TestAutomatedTurnNeitherApprovesNorClears(t *testing.T) {
 		t.Fatalf("user yes after automated turn ran %d times, want 1", n)
 	}
 }
+
+// The notice is written by the harness: whatever the model says after a
+// held call, the reply tells the user something is waiting, and only
+// then. Names the tool, not its arguments.
+func TestHeldEffectAddsNoticeToReply(t *testing.T) {
+	ctx := context.Background()
+	a, probe := consentRig(t, "gmail_send", true)
+	reply, err := a.Handle(ctx, "wa", "u1", "manda el correo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(reply, "Pendiente de tu confirmación") || !strings.Contains(reply, "gmail_send") {
+		t.Fatalf("held call must add the notice naming the tool: %q", reply)
+	}
+	if probe.calls.Load() != 0 {
+		t.Fatal("effect ran")
+	}
+	// After the yes the call runs and no notice is added.
+	reply, err = a.Handle(ctx, "wa", "u1", "sí")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if probe.calls.Load() != 1 || strings.Contains(reply, "Pendiente de tu confirmación") {
+		t.Fatalf("after yes: calls=%d reply=%q", probe.calls.Load(), reply)
+	}
+}
+
+func TestNoNoticeWhenNothingHeld(t *testing.T) {
+	ctx := context.Background()
+	a, _ := consentRig(t, "gmail_send", false) // confirmation off
+	reply, err := a.Handle(ctx, "wa", "u1", "manda el correo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(reply, "Pendiente de tu confirmación") {
+		t.Fatalf("notice without a held call: %q", reply)
+	}
+	q, _ := consentRig(t, "gmail_search", true) // query tool, never held
+	reply, _ = q.Handle(ctx, "wa", "u1", "busca")
+	if strings.Contains(reply, "Pendiente de tu confirmación") {
+		t.Fatalf("notice for a query tool: %q", reply)
+	}
+}
