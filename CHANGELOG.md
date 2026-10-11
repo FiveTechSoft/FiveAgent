@@ -30,6 +30,13 @@ could not count.
 
 ### Added after consolidation
 
+- MCP wrong-token throttle: 10 wrong tokens per minute from one client
+  address, then 429 until the window ends (right tokens never count,
+  and are refused too while the limit holds). Test with a fake sandbox
+  and a short window; it fails when the failure count is not recorded.
+  Per address, so behind a proxy clients share one budget. Not tried
+  against a real client.
+
 - MCP read_file now reads the folder run_command writes to
   (data/sandbox/<user_key>), so a command's output can be read back; a
   symlink left there cannot be followed outside it. The MCP battery and a
