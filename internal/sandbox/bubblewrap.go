@@ -60,6 +60,7 @@ func bwrapArgs(workDir string) []string {
 	return append(args,
 		"--tmpfs", "/tmp",
 		"--proc", "/proc",
+		"--dev", "/dev",
 		"--bind", workDir, "/work",
 		"--chdir", "/work",
 		"--setenv", "HOME", "/work",
