@@ -76,6 +76,16 @@ func currentVerdict(c corpusCase) verdict {
 	return verdict{flag, ab}
 }
 
+func adjustedVerdict(c corpusCase) verdict {
+	low := strings.ToLower(c.Reply)
+	ab := adjAbstains(c.Reply)
+	flag := adjHallucinationToken(low, strings.ToLower(c.Prompt), c.MustNotContain, ab) != ""
+	if !flag && !ab && c.Audit != "" {
+		flag = adjInventedErrorNarration(low, c.Audit) != ""
+	}
+	return verdict{flag, ab}
+}
+
 func originalVerdict(c corpusCase) verdict {
 	low := strings.ToLower(c.Reply)
 	ab := origAbstains(c.Reply)
@@ -115,53 +125,55 @@ func (c confusion) String() string {
 type corpusResult struct {
 	ID       string  `json:"id"`
 	Original verdict `json:"original"`
+	Adjusted verdict `json:"adjusted"`
 	Current  verdict `json:"current"`
 }
 
 func runCorpus(t *testing.T, name string, cases []corpusCase) []corpusResult {
 	var res []corpusResult
-	var hO, hC, aO, aC confusion
-	agree := 0
+	var hO, hA, hC, aO, aA, aC confusion
 	for _, c := range cases {
-		o, n := originalVerdict(c), currentVerdict(c)
-		res = append(res, corpusResult{c.ID, o, n})
+		o, a, n := originalVerdict(c), adjustedVerdict(c), currentVerdict(c)
+		res = append(res, corpusResult{c.ID, o, a, n})
 		hO.add(c.GoldHallucination, o.Hallucination)
+		hA.add(c.GoldHallucination, a.Hallucination)
 		hC.add(c.GoldHallucination, n.Hallucination)
 		aO.add(c.GoldAbstention, o.Abstention)
+		aA.add(c.GoldAbstention, a.Abstention)
 		aC.add(c.GoldAbstention, n.Abstention)
-		if o == n {
-			agree++
-		}
-		if o != n || n.Hallucination != c.GoldHallucination || n.Abstention != c.GoldAbstention {
-			t.Logf("%s %s [%s] gold(h=%v a=%v) orig(h=%v a=%v) current(h=%v a=%v) %s",
+		if n.Hallucination != c.GoldHallucination || n.Abstention != c.GoldAbstention {
+			t.Logf("%s %s [%s] current disagrees with gold (h=%v a=%v): got h=%v a=%v; orig h=%v a=%v; adjusted h=%v a=%v %s",
 				name, c.ID, c.Kind, c.GoldHallucination, c.GoldAbstention,
-				o.Hallucination, o.Abstention, n.Hallucination, n.Abstention, c.Note)
+				n.Hallucination, n.Abstention, o.Hallucination, o.Abstention, a.Hallucination, a.Abstention, c.Note)
 		}
 	}
 	t.Logf("METRIC detector-corpus %s (%d cases) hallucination original: %s", name, len(cases), hO)
+	t.Logf("METRIC detector-corpus %s hallucination adjusted: %s", name, hA)
 	t.Logf("METRIC detector-corpus %s hallucination current:  %s", name, hC)
 	t.Logf("METRIC detector-corpus %s abstention original: %s", name, aO)
+	t.Logf("METRIC detector-corpus %s abstention adjusted: %s", name, aA)
 	t.Logf("METRIC detector-corpus %s abstention current:  %s", name, aC)
-	t.Logf("METRIC detector-corpus %s original and current agree on %d/%d cases", name, agree, len(cases))
 	return res
 }
 
 func TestDetectorCorpusIsSealedAndWellFormed(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join(corpusDir, "final.jsonl"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	// A Windows checkout may turn LF into CRLF; the seal is over the LF form.
-	sum := sha256.Sum256(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")))
-	want, err := os.ReadFile(filepath.Join(corpusDir, "FINAL.sha256"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := hex.EncodeToString(sum[:]); !strings.HasPrefix(string(want), got) {
-		t.Fatalf("final.jsonl changed (sha256 %s): the final set is sealed; adding a new sealed set is a deliberate, reviewed act", got)
+	for _, sealed := range []struct{ file, seal string }{{"final.jsonl", "FINAL.sha256"}, {"final2.jsonl", "FINAL2.sha256"}} {
+		b, err := os.ReadFile(filepath.Join(corpusDir, sealed.file))
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A Windows checkout may turn LF into CRLF; the seal is over the LF form.
+		sum := sha256.Sum256(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")))
+		want, err := os.ReadFile(filepath.Join(corpusDir, sealed.seal))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := hex.EncodeToString(sum[:]); !strings.HasPrefix(string(want), got) {
+			t.Fatalf("%s changed (sha256 %s): sealed sets are never edited; adding a new sealed set is a deliberate, reviewed act", sealed.file, got)
+		}
 	}
 	seen := map[string]bool{}
-	for _, name := range []string{"dev", "final"} {
+	for _, name := range []string{"dev", "final", "final2"} {
 		for _, c := range loadCorpus(t, name) {
 			if seen[c.ID] {
 				t.Errorf("duplicate id %s", c.ID)
@@ -187,8 +199,16 @@ func TestDetectorCorpusIsSealedAndWellFormed(t *testing.T) {
 // numbers it produces.
 func TestDetectorCorpusSnapshot(t *testing.T) {
 	all := map[string][]corpusResult{}
-	for _, name := range []string{"dev", "final"} {
+	names := []string{"dev", "final", "final2"}
+	if os.Getenv("DETECTOR_DEV_ONLY") == "1" {
+		// Development loop: the sealed sets are neither run nor logged.
+		names = names[:1]
+	}
+	for _, name := range names {
 		all[name] = runCorpus(t, name, loadCorpus(t, name))
+	}
+	if os.Getenv("DETECTOR_DEV_ONLY") == "1" {
+		return
 	}
 	path := filepath.Join(corpusDir, "results.json")
 	enc, _ := json.MarshalIndent(all, "", " ")
