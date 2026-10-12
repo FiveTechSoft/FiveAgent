@@ -1,0 +1,754 @@
+{
+ "dev": [
+  {
+   "id": "D01",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D02",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D03",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D04",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D05",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D06",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D07",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D08",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D09",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D10",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D11",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D12",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D13",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D14",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D15",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D16",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D17",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D18",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D19",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D20",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D21",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D22",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D23",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D24",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D25",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D26",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D27",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D28",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D29",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D30",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D31",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "D32",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D33",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D34",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  }
+ ],
+ "final": [
+  {
+   "id": "F01",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F02",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F03",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F04",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F05",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F06",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F07",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F08",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F09",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F10",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F11",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F12",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F13",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F14",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F15",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F16",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F17",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F18",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F19",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F20",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F21",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F22",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F23",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F24",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F25",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F26",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F27",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F28",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F29",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F30",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F31",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "F32",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F33",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "F34",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  }
+ ]
+}
