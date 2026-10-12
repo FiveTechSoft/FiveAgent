@@ -9,6 +9,7 @@ package evals
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -150,7 +151,8 @@ func TestDetectorCorpusIsSealedAndWellFormed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256(b)
+	// A Windows checkout may turn LF into CRLF; the seal is over the LF form.
+	sum := sha256.Sum256(bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n")))
 	want, err := os.ReadFile(filepath.Join(corpusDir, "FINAL.sha256"))
 	if err != nil {
 		t.Fatal(err)
@@ -219,5 +221,19 @@ func TestDetectorCorpusSnapshot(t *testing.T) {
 	sort.Strings(diffs)
 	if len(diffs) > 0 {
 		t.Fatalf("detector verdicts changed on %v: review, then regenerate results.json", diffs)
+	}
+}
+
+// The sealed hash must survive a CRLF checkout.
+func TestDetectorCorpusSealIgnoresCRLF(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join(corpusDir, "final.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	lf := bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+	crlf := bytes.ReplaceAll(lf, []byte("\n"), []byte("\r\n"))
+	a, c := sha256.Sum256(bytes.ReplaceAll(lf, []byte("\r\n"), []byte("\n"))), sha256.Sum256(bytes.ReplaceAll(crlf, []byte("\r\n"), []byte("\n")))
+	if a != c {
+		t.Fatal("CRLF form hashes differently")
 	}
 }
