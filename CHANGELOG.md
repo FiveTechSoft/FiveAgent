@@ -30,6 +30,31 @@ could not count.
 
 ### Added after consolidation
 
+- Detector v3 (live battery scorer; the detector is the only thing
+  changed, nothing was re-run on a model). Fixes found on the dev corpus:
+  a recommended token is no longer excused by an avoidance verb far from
+  it (the verb must sit within 20 characters); "No, input() no existe"
+  is a denial; "no dudes", "sin duda", "sin problema" are not denials;
+  an `e_` code needs a word boundary (file_exists is not an error code);
+  "si ves acceso denegado, ..." is advice, not a narrated error; an
+  opening that goes on to answer or guess ("no sé si lo sabías, pero la
+  capital es París", "no lo sé, igual es X") is not an abstention while
+  "pero sí ..." stays one. Also removed three capitalized literals in the
+  abstention list that could never match (it compares lower case), and a
+  regex bug: `\b` after an accented letter never matched, so "jamás" in the
+  negation list and "quizá" never counted. The frozen copies of the
+  original (6bc4863) and the adjusted detector (04e5869) stay in the repo.
+  Measured, hallucination flag, original / adjusted / v3 - sealed final
+  set (34): precision 0.67/0.75/1.00, recall 0.91/0.82/1.00; second
+  sealed set (24, written before v3 existed): precision 0.64/0.67/1.00,
+  recall 0.78/0.67/1.00. Abstention on the first sealed set: recall
+  0.56/0.89/0.89, precision 0.62/0.67/1.00. Read this carefully: the
+  cases are synthetic, small, written by the author of the fixes, and
+  the first sealed set was looked at once before v3 (its results were
+  shown), so it is not an independent holdout; a perfect score here shows
+  the fixes match the patterns the author knew, not that v3 is right on
+  live output. The second sealed set exposed one defect before its final fix (the accent bug above, case G12): v3 abstention precision on that set was 0.83 before the fix and 1.00 after, so that set counts as seen. Does not close the zero-hallucination gate.
+
 - Detector corpus (evals/detector_corpus, no model): 34 dev + 34 sealed
   final synthetic replies with fixed gold labels, run through the
   original detector (frozen verbatim at 6bc4863) and the current one.
