@@ -30,6 +30,23 @@ could not count.
 
 ### Added after consolidation
 
+- Detector corpus (evals/detector_corpus, no model): 34 dev + 34 sealed
+  final synthetic replies with fixed gold labels, run through the
+  original detector (frozen verbatim at 6bc4863) and the current one.
+  Result, hallucination flag on the sealed final set: original TP=10
+  FP=5 FN=1 TN=18 (precision 0.67, recall 0.91); current TP=9 FP=3 FN=2
+  TN=20 (precision 0.75, recall 0.82). Abstention: original recall 0.56,
+  current 0.89, precision 0.62 vs 0.67. The adjustments removed
+  false positives (avoidance verbs, translated denials) and missed more
+  real ones (an avoidance verb in the same clause excuses a recommended
+  token). Both detectors still flag a plain denial after a comma ("No,
+  input() no existe"), treat an identifier like file_exists as an
+  invented E_ code after a clean run, and miss "No dudes en usar X". The
+  adjusted abstention list also fires on "no recuerdo" and "no sé" with an
+  answer attached. Author-written cases, small n, not blind (the author
+  read the detector code); nothing here says how either behaves on live
+  model output, and it does not close the zero-hallucination gate.
+
 - Held-effect notice: when effect confirmation holds a call, the harness
   appends a fixed line to the reply ("Pendiente de tu confirmación, no se
   ha ejecutado: <tool>. Responde sí para ejecutarlo") so the user is told
