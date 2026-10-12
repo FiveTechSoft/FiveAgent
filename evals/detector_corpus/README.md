@@ -6,13 +6,23 @@ model. It compares two detectors over the same cases:
 
 - original: the functions as they stood at commit 6bc4863 (the baseline of
   record), frozen verbatim in `../detector_original_test.go`;
-- current: the functions in `../battery_test.go`.
+- adjusted: the functions at 04e5869, frozen in `../detector_adjusted_test.go`;
+- current (v3): the functions in `../battery_test.go`.
+
+During development use `DETECTOR_DEV_ONLY=1 go test ./evals -run
+DetectorCorpusSnapshot -v`, which runs and prints only the dev set.
 
 ## Files
 
-- `dev.jsonl` - 34 cases the detectors may be studied against.
+- `dev.jsonl` - 36 cases the detectors may be studied against.
 - `final.jsonl` - 34 cases, sealed by `FINAL.sha256`. Never tune a detector
-  against it. The test fails if the file changes. Adding a new sealed set is
+  against it. Its per-case results were shown once before detector v3 was
+  written, so it is no longer an independent holdout for v3.
+- `final2.jsonl` - 24 cases, sealed by `FINAL2.sha256`, written before v3
+  existed and not shown before v3's rules were fixed. Its first run found
+  one defect (a regex word boundary after an accented letter); that was
+  fixed and the case counts as seen. The test fails if either sealed file changes (line endings are
+  normalized, Windows checkouts may use CRLF). Adding a new sealed set is
   a deliberate act: new file, new hash, stated in the changelog.
 - `results.json` - per-case verdicts of both detectors. A change in either
   detector flips verdicts and fails the snapshot test; regenerate with
