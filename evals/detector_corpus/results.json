@@ -6,6 +6,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -14,6 +18,10 @@
   {
    "id": "D02",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -28,6 +36,10 @@
     "hallucination": false,
     "abstention": true
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -36,6 +48,10 @@
   {
    "id": "D04",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -50,6 +66,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -58,6 +78,10 @@
   {
    "id": "D06",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -72,6 +96,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -83,14 +111,22 @@
     "hallucination": true,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
     "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
    }
   },
   {
    "id": "D09",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -105,6 +141,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -113,6 +153,10 @@
   {
    "id": "D11",
    "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": false
    },
@@ -127,6 +171,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
    "current": {
     "hallucination": true,
     "abstention": false
@@ -135,6 +183,10 @@
   {
    "id": "D13",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -149,6 +201,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -160,9 +216,13 @@
     "hallucination": false,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
     "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
    }
   },
   {
@@ -171,9 +231,13 @@
     "hallucination": false,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
     "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
    }
   },
   {
@@ -181,6 +245,10 @@
    "original": {
     "hallucination": false,
     "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
    },
    "current": {
     "hallucination": false,
@@ -193,6 +261,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -204,6 +276,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -212,6 +288,10 @@
   {
    "id": "D20",
    "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": false
    },
@@ -226,8 +306,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
     "abstention": false
    }
   },
@@ -237,14 +321,22 @@
     "hallucination": false,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
     "abstention": false
    }
   },
   {
    "id": "D23",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -259,6 +351,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -267,6 +363,10 @@
   {
    "id": "D25",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -281,6 +381,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
    "current": {
     "hallucination": true,
     "abstention": false
@@ -292,14 +396,22 @@
     "hallucination": true,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
     "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
    }
   },
   {
    "id": "D28",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -314,6 +426,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -322,6 +438,10 @@
   {
    "id": "D30",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -336,6 +456,10 @@
     "hallucination": false,
     "abstention": true
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -347,8 +471,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
     "abstention": false
    }
   },
@@ -358,8 +486,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
     "abstention": false
    }
   },
@@ -368,6 +500,40 @@
    "original": {
     "hallucination": true,
     "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D35",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "D36",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": true
    },
    "current": {
     "hallucination": true,
@@ -382,6 +548,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -390,6 +560,10 @@
   {
    "id": "F02",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -404,6 +578,10 @@
     "hallucination": false,
     "abstention": true
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -412,6 +590,10 @@
   {
    "id": "F04",
    "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": false
    },
@@ -426,6 +608,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -434,6 +620,10 @@
   {
    "id": "F06",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -448,6 +638,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -459,14 +653,22 @@
     "hallucination": true,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
     "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
    }
   },
   {
    "id": "F09",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -481,6 +683,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -492,6 +698,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -500,6 +710,10 @@
   {
    "id": "F12",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -514,6 +728,10 @@
     "hallucination": false,
     "abstention": true
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -522,6 +740,10 @@
   {
    "id": "F14",
    "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": false
    },
@@ -536,9 +758,13 @@
     "hallucination": false,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
     "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
    }
   },
   {
@@ -547,9 +773,13 @@
     "hallucination": false,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
     "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
    }
   },
   {
@@ -557,6 +787,10 @@
    "original": {
     "hallucination": false,
     "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
    },
    "current": {
     "hallucination": false,
@@ -569,6 +803,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -580,6 +818,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -588,6 +830,10 @@
   {
    "id": "F20",
    "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": false
    },
@@ -602,8 +848,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
     "abstention": false
    }
   },
@@ -613,14 +863,22 @@
     "hallucination": false,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
     "abstention": false
    }
   },
   {
    "id": "F23",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -635,6 +893,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -643,6 +905,10 @@
   {
    "id": "F25",
    "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
     "hallucination": true,
     "abstention": false
    },
@@ -657,6 +923,10 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
    "current": {
     "hallucination": true,
     "abstention": false
@@ -668,14 +938,22 @@
     "hallucination": true,
     "abstention": true
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
     "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
    }
   },
   {
    "id": "F28",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -690,6 +968,10 @@
     "hallucination": false,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
    "current": {
     "hallucination": false,
     "abstention": false
@@ -698,6 +980,10 @@
   {
    "id": "F30",
    "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
     "hallucination": false,
     "abstention": true
    },
@@ -712,6 +998,10 @@
     "hallucination": false,
     "abstention": true
    },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
    "current": {
     "hallucination": false,
     "abstention": true
@@ -723,8 +1013,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
     "abstention": false
    }
   },
@@ -734,8 +1028,12 @@
     "hallucination": true,
     "abstention": false
    },
-   "current": {
+   "adjusted": {
     "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
     "abstention": false
    }
   },
@@ -745,9 +1043,375 @@
     "hallucination": true,
     "abstention": false
    },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  }
+ ],
+ "final2": [
+  {
+   "id": "G01",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G02",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
    "current": {
     "hallucination": true,
     "abstention": false
+   }
+  },
+  {
+   "id": "G03",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "G04",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G05",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G06",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G07",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G08",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G09",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G10",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G11",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G12",
+   "original": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G13",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "G14",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "G15",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G16",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G17",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G18",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G19",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G20",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
+   }
+  },
+  {
+   "id": "G21",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G22",
+   "original": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": true,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": true,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G23",
+   "original": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": false
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": false
+   }
+  },
+  {
+   "id": "G24",
+   "original": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "adjusted": {
+    "hallucination": false,
+    "abstention": true
+   },
+   "current": {
+    "hallucination": false,
+    "abstention": true
    }
   }
  ]
