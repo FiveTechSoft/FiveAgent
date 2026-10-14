@@ -186,7 +186,7 @@ func main() {
 		if sb, err := sandbox.New(cfg.Sandbox); err != nil {
 			log.Printf("sandbox disabled: %v", err)
 		} else {
-			tl = append(tl, tools.RunCommand{SB: sb})
+			tl = append(tl, tools.RunCommand{SB: sb, MaxOutput: cfg.Sandbox.MaxOutput})
 			mcpSB = sb
 			log.Printf("sandbox: %s backend", sb.Name())
 		}
