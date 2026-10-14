@@ -42,7 +42,7 @@ func engSolved(t *testing.T, taskDir, work string) bool {
 			return false
 		}
 	}
-	cmd := exec.Command("go", "test", "-count=1", "./...")
+	cmd := exec.Command("go", "test", "-count=1", "-timeout", "10s", "./...")
 	cmd.Dir = work
 	return cmd.Run() == nil
 }
