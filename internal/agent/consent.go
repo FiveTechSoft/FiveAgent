@@ -21,7 +21,7 @@ var effectTools = map[string]bool{
 	"gmail_send": true, "slack_send": true, "calendar_create": true,
 	"github_create_issue": true, "drive_upload": true, "send_chart": true,
 	"run_command": true, "browser_act": true, "write_file": true,
-	"edit_file": true, "schedule_job": true,
+	"edit_file": true, "schedule_job": true, "git_commit": true,
 }
 
 type automatedKey struct{}
