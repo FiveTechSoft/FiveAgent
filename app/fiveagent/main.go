@@ -197,7 +197,8 @@ func main() {
 			root = "data/workspace"
 		}
 		ws := tools.Workspace{Root: root}
-		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws})
+		tl = append(tl, tools.ReadFile{WS: ws}, tools.WriteFile{WS: ws}, tools.EditFile{WS: ws},
+			tools.GitStatus{WS: ws}, tools.GitLog{WS: ws}, tools.GitCommit{WS: ws})
 		log.Printf("workspace file tools: %s", root)
 	}
 	var trajLogger *trajectory.Logger
