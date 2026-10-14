@@ -140,6 +140,9 @@ type Sandbox struct {
 	Timeout int    `yaml:"timeout,omitempty"`    // seconds per command, default 30
 	MaxRAM  int    `yaml:"max_ram_mb,omitempty"` // docker / jobobject only, default 512
 	Image   string `yaml:"image,omitempty"`      // docker only, default alpine
+	// MaxOutput caps the characters of a command's output returned to the
+	// model (head and tail kept); default 4000.
+	MaxOutput int `yaml:"max_output,omitempty"`
 }
 
 // Links holds the link-server settings (stage 24): signed,
