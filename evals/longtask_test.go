@@ -175,3 +175,41 @@ func TestLongTaskProgressStaysInsideUserFolder(t *testing.T) {
 		t.Fatal("another user's progress notes reached the model")
 	}
 }
+
+// A progress file longer than the cap must still show the model where the
+// task stands: the latest steps are at the END of the notes. Measured
+// before the fix: the cap cut the end off, so the newest step never arrived.
+func TestLongTaskLongProgressKeepsLatestStep(t *testing.T) {
+	const first, last = "OBJETIVO-INICIAL", "ULTIMO-PASO-PENDIENTE"
+	var saw, sawFirst atomic.Bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		if strings.Contains(string(b), last) {
+			saw.Store(true)
+		}
+		if strings.Contains(string(b), first) {
+			sawFirst.Store(true)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(w, `{"choices":[{"message":{"role":"assistant","content":"vale"},"finish_reason":"stop"}]}`)
+	}))
+	defer srv.Close()
+	ws := tools.Workspace{Root: t.TempDir()}
+	dir := filepath.Join(ws.Root, "wa-u")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	notes := first + "\n" + strings.Repeat("paso hecho con acentos ñ\n", 400) + last + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "PROGRESS.md"), []byte(notes), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	a := newLongTaskAgent(t, srv, tools.NewRegistry(&flakyTool{}), "long.json")
+	a.WithProgressFile(ws, "PROGRESS.md")
+	if _, err := a.Handle(tools.WithRequestInfo(context.Background(), "wa", "u"), "wa", "u", "continua"); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("progress file %d bytes (cap 2000): objective reaches model=%v, latest step reaches model=%v", len(notes), sawFirst.Load(), saw.Load())
+	if !saw.Load() || !sawFirst.Load() {
+		t.Fatalf("head and tail of a long progress file must both reach the model (first=%v last=%v)", sawFirst.Load(), saw.Load())
+	}
+}
