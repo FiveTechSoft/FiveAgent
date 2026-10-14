@@ -317,7 +317,9 @@ func (w Workspace) ReadSmall(ctx context.Context, rel string, max int) (string, 
 		return "", false
 	}
 	if max > 0 && len(b) > max {
-		b = b[:max]
+		// Notes grow at the end: keep the start (the goal) and the end
+		// (where the task stands), and say that the middle was cut.
+		return clipMiddle(string(b), max), true
 	}
 	return string(b), true
 }
