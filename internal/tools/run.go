@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/FiveTechSoft/FiveAgent/internal/sandbox"
 )
@@ -35,6 +36,10 @@ func RequestInfo(ctx context.Context) (channel, userID string) {
 // after the configured timeout.
 type RunCommand struct {
 	SB sandbox.Sandbox
+	// MaxOutput caps the characters handed back to the model; 0 means
+	// the default of 4000. Build and test output often puts the cause at
+	// the END, so an overlong result keeps its head and its tail.
+	MaxOutput int
 }
 
 // Name implements Tool.
@@ -171,14 +176,34 @@ func (r RunCommand) Execute(ctx context.Context, args json.RawMessage) (string, 
 		fmt.Fprintf(&sb, "(exit code %d)", res.ExitCode)
 	}
 	out := sb.String()
-	const maxForModel = 4000
-	if len(out) > maxForModel {
-		out = out[:maxForModel] + "\n(truncated)"
-	}
+	out = clipMiddle(out, r.MaxOutput)
 	if out == "" {
 		out = fmt.Sprintf("(no output, exit code %d)", res.ExitCode)
 	}
 	return out, nil
+}
+
+const defaultMaxForModel = 4000
+
+// clipMiddle shortens out to about max bytes keeping the start and the
+// end, with a marker saying how much was cut. max <= 0 uses the default.
+func clipMiddle(out string, max int) string {
+	if max <= 0 {
+		max = defaultMaxForModel
+	}
+	if len(out) <= max {
+		return out
+	}
+	head, tail := max/2, max-max/2
+	h := out[:head]
+	for len(h) > 0 && !utf8.ValidString(h) {
+		h = h[:len(h)-1]
+	}
+	t := out[len(out)-tail:]
+	for len(t) > 0 && !utf8.ValidString(t) {
+		t = t[1:]
+	}
+	return fmt.Sprintf("%s\n(truncated: %d bytes omitted from the middle)\n%s", h, len(out)-len(h)-len(t), t)
 }
 
 // cmdBuiltins are Windows shell builtins that have no standalone
