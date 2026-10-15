@@ -2,15 +2,14 @@ package evals
 
 import (
 	"os"
-	"os/exec"
 	"path/filepath"
 	"testing"
 )
 
 // Engineering eval tasks: evals/engineering/<id>/task is a Go module with
 // a seeded bug and a red test; <id>/golden is a known fix. A task is
-// SOLVED when, after the agent edits the folder, `go test` passes and the
-// *_test.go files are byte-identical to the originals.
+// SOLVED per engGrade (engineering_grader_test.go): the original tests are
+// untouched and really ran and passed in a clean grading folder.
 //
 // This test validates the SCORER only: golden must solve every task and
 // the untouched task must fail. It says nothing about any model.
@@ -32,19 +31,11 @@ func copyTree(t *testing.T, src, dst string) {
 	}
 }
 
+// engSolved reports whether the work folder solves the task; see engGrade.
 func engSolved(t *testing.T, taskDir, work string) bool {
 	t.Helper()
-	tests, _ := filepath.Glob(filepath.Join(taskDir, "*_test.go"))
-	for _, f := range tests {
-		a, _ := os.ReadFile(f)
-		b, err := os.ReadFile(filepath.Join(work, filepath.Base(f)))
-		if err != nil || string(a) != string(b) {
-			return false
-		}
-	}
-	cmd := exec.Command("go", "test", "-count=1", "-timeout", "10s", "./...")
-	cmd.Dir = work
-	return cmd.Run() == nil
+	ok, _ := engGrade(t, taskDir, work)
+	return ok
 }
 
 func TestEngineeringScorer(t *testing.T) {
