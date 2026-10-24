@@ -49,6 +49,12 @@ func main() {
 		return
 	}
 
+	// fiveagent chat: talk to the agent in the terminal, with no
+	// messaging channels and no HTTP listener.
+	if len(os.Args) > 1 && os.Args[1] == "chat" {
+		os.Exit(runChat(os.Args[2:]))
+	}
+
 	// fiveagent setup whatsapp: check the token and phone number id and,
 	// when the ids are given, register the webhook and subscribe the app.
 	if len(os.Args) > 2 && os.Args[1] == "setup" && os.Args[2] == "whatsapp" {
