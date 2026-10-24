@@ -1,0 +1,13 @@
+# FiveAgent Chat Test - config minima y acotada para el paquete de prueba.
+# Solo modelo + memoria local: sin sandbox, sin workspace, sin canales.
+# Edita SOLO name/base_url si tu Ollama sirve otro modelo.
+model:
+  provider: openai-compatible
+  base_url: http://127.0.0.1:11434/v1   # Ollama local por defecto
+  api_key: ""                           # vacio para Ollama local
+  name: qwen3.5:9b                      # tu modelo de chat; cambialo si usas otro
+timezone: Europe/Madrid
+memory:
+  json: memoria-chat.json               # relativo a esta carpeta; no toca tu memoria real
+sandbox:
+  enabled: false
