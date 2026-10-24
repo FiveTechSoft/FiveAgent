@@ -1,0 +1,27 @@
+FiveAgent - CLI de conversación (fiveagent-chat.exe chat) - PAQUETE DE PRUEBA
+
+No sustituye ni toca tu instalación de C:\FiveAgent. Esta carpeta lleva
+su propio exe (fiveagent-chat.exe), su propia config mínima
+(fiveagent.yml) y su propia memoria (memoria-chat.json, se crea sola).
+Con la config incluida el chat solo puede conversar y escribir su
+memoria DENTRO de esta carpeta (verificado en Linux: no crea nada más).
+
+1) Crea la carpeta C:\FiveAgent-ChatTest
+2) Copia dentro fiveagent-chat.exe y fiveagent.yml
+3) Abre fiveagent.yml con el Bloc de notas y revisa la línea
+      name: qwen3.5:9b
+   (cámbiala solo si tu Ollama sirve otro modelo de chat)
+4) Abre una consola EN ESA CARPETA y ejecuta:
+      fiveagent-chat.exe chat
+   Opcional: fiveagent-chat.exe chat -user anto
+   Escribe /salir para terminar.
+
+Avisos:
+- Es un build de prueba SIN FIRMA: Windows puede mostrar un aviso de
+  SmartScreen. Es lo esperado en exes no firmados.
+- Este exe NO se ha ejecutado en Windows todavía. Probado en Linux con
+  modelo real (Qwen2.5-0.5B: conversación y llamada real a la herramienta
+  de fecha/hora) y con la suite completa de tests del repo. Si algo
+  falla en Windows, copia el mensaje de error y listo.
+
+Compilado de la rama feat/cli-chat (commit f592cc3) por Instinct el 24-10-2026.
