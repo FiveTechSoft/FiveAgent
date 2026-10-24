@@ -4,6 +4,18 @@ All notable changes to FiveAgent. Rule of this file: nothing is claimed
 before it is implemented and verified in CI, and anything shipped but not
 yet exercised against the real external service says so explicitly.
 
+## Unreleased
+
+### Added
+
+- `fiveagent chat`: terminal conversation with the agent (no channels,
+  no HTTP listener). Same config, model, memory and channel-independent
+  tools as the server; `/salir` quits. Verified: unit tests for reply,
+  history across turns, help and bad config; full repo suite passes;
+  builds for linux/amd64, windows/amd64 and darwin/arm64. Exercised end
+  to end against a scripted local fake model (real tool loop with
+  current_datetime); not yet tried by us against a real model.
+
 ## v0.0.1 (2026-10-02)
 
 Consolidation of roadmap stages 1-36, first tagged release. Battery
