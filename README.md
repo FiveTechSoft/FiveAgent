@@ -101,6 +101,21 @@ WhatsApp: follow [docs/whatsapp.md](docs/whatsapp.md) - guía en español, paso 
 
 ![Real conversation: FiveAgent answers on WhatsApp using a local model (Ollama qwen3.8:27b) on a home PC, no cloud](docs/images/1-3-whatsapp-ollama-pc-real.jpg) Telegram: [docs/telegram.md](docs/telegram.md), five minutes with @BotFather, no tunnel needed. iMessage is coming next.
 
+### Or talk to it from the terminal
+
+`fiveagent chat` opens a conversation with the agent in your terminal:
+same config file, same model, same memory and channel-independent tools
+(sandbox, workspace files, browser, web search, long-term memory), no
+WhatsApp/Telegram setup and no HTTP listener. Type your message, Enter,
+and the agent replies; `/salir` quits.
+
+    fiveagent chat                     # uses FIVEAGENT_CONFIG or ./fiveagent.yml
+    fiveagent chat -config ruta/al.yml -user anto
+
+Useful to try a model or a config before wiring a channel. Channel-bound
+features (scheduled delivery, subscriptions, identity links, OAuth
+connect flows, charts, links) stay server-only.
+
 Something doesn't work? Open an issue: https://github.com/FiveTechSoft/FiveAgent/issues - tell us your operating system and the exact error message.
 
 ## Architecture
